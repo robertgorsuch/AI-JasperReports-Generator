@@ -34,8 +34,8 @@ Cumulative knowledge from building a **statewide Texas address geocoder** on Pos
 
 ## 3. GOTCHAS (the expensive-to-rediscover lessons)
 
-1. **wget is firewall-blocked.** `winget install wget` fails — its source `eternallybored.org` is
-   DNS-blocked by the corporate firewall. **Use the built-in `curl.exe`.** The TIGER loader scripts
+1. **wget: use curl instead.** `winget install wget` fails — its source `eternallybored.org` is
+   not reachable from this environment. **Use the built-in `curl.exe`.** The TIGER loader scripts
    were rewritten to use `curl --location --fail --retry 3 --create-dirs -o "<host\path>" "<url>"`
    (rebuilds wget --mirror's directory tree).
 2. **Census downloads silently corrupt.** curl exits 0 (HTTP 200) but bytes can be truncated/bad

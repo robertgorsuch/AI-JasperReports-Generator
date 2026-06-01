@@ -17,7 +17,7 @@ maps**, and a **JasperReports 7** report — all over a single PostgreSQL databa
 
 ## The 5 things that will bite you (gotchas)
 
-1. **Use `curl.exe`, not wget** — wget's installer source is firewall‑blocked here.
+1. **Use `curl.exe`, not wget** — wget's installer source is not reachable from this environment.
 2. **Always verify downloads with `7z t` + retry** — the census CDN returns silently corrupt zips (HTTP 200).
 3. **A WAF "Request Rejected" page can be Cloudflare‑cached** for a URL → re‑request with `?cb=<timestamp>` + a browser User‑Agent.
 4. **JasperReports 7 jrxml ≠ 6.x** — new Jackson format (`<query>` not `<queryString>`, no `<reportElement>`). Use the `_jr7` file or let Jaspersoft Studio auto‑upgrade. PDF export needs the separate `jasperreports-pdf` module.
