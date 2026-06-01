@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Barcode / QR demo. JR7-native; needs jasperreports-barcode4j + barcode4j-2.1.
+     Static codes here; in a data report use $F{...} in the codeExpression. -->
+<jasperReport name="barcode_demo" language="java" whenNoDataType="AllSectionsNoDetail" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<title height="60">
+		<element kind="staticText" x="0" y="0" width="555" height="26" fontSize="17.0" bold="true"><text><![CDATA[Barcode / QR Code Demo]]></text></element>
+		<element kind="staticText" x="0" y="28" width="555" height="12" fontSize="9.0" forecolor="#666666"><text><![CDATA[barcode4j components: QR Code, DataMatrix, Code128.]]></text></element>
+	</title>
+	<summary height="300">
+		<element kind="staticText" x="0" y="10" width="120" height="20" fontSize="11.0" bold="true" vTextAlign="Middle"><text><![CDATA[QR Code]]></text></element>
+		<element kind="component" x="130" y="0" width="90" height="90">
+			<component kind="barcode4j:QRCode">
+				<codeExpression><![CDATA["https://localhost:8081/jasperserver-pro/flow.html?_flowId=viewReportFlow&reportUnit=/reports/geocoder/metro_population_piechart"]]></codeExpression>
+			</component>
+		</element>
+
+		<element kind="staticText" x="0" y="120" width="120" height="20" fontSize="11.0" bold="true" vTextAlign="Middle"><text><![CDATA[DataMatrix]]></text></element>
+		<element kind="component" x="130" y="110" width="80" height="80">
+			<component kind="barcode4j:DataMatrix" moduleWidth="4.0">
+				<codeExpression><![CDATA["postgis_34_sample"]]></codeExpression>
+			</component>
+		</element>
+
+		<element kind="staticText" x="0" y="220" width="120" height="20" fontSize="11.0" bold="true" vTextAlign="Middle"><text><![CDATA[Code128]]></text></element>
+		<element kind="component" x="130" y="215" width="250" height="40">
+			<component kind="barcode4j:Code128" moduleWidth="1.0">
+				<codeExpression><![CDATA["TIGER-2024-TX"]]></codeExpression>
+			</component>
+		</element>
+	</summary>
+</jasperReport>

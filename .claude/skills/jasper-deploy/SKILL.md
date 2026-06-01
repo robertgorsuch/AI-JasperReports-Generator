@@ -53,6 +53,17 @@ Use `--query-file q.sql` for long queries. Options: `--db --host --port --user`
 a4|letter`, `--landscape`. The scaffold is a starting point — refine layout by
 hand using `references/jr7-schema.md`, or open it in Jaspersoft Studio.
 
+Add a **JFreeChart chart** in the summary band with `--chart`:
+```powershell
+python $skill\scaffold_jrxml.py --name metro_pop --chart bar `
+    --query "SELECT metro, sum(pop)::bigint AS population FROM ... GROUP BY metro" `
+    --out report\metro_pop.jrxml
+```
+`--chart` = `pie|pie3d|bar|bar3d|line|area|stackedbar`. The category column
+defaults to the first text column and the value to the first numeric column;
+override with `--chart-category`, `--chart-value`, `--chart-series` (multi-series
+category charts), `--chart-height`. Best with a small number of categories.
+
 ### 2. Compile — validate jrxml -> jasper
 `scripts/compile_jrxml.ps1` compiles against the JR7 runtime. A clean compile is
 the fastest check that the jrxml is JR7-valid before deploying.
@@ -128,25 +139,8 @@ java --class-path "C:\Users\rgorsuch\jasperreports-lib\*" `
   A leading `WITH` (CTE) is rejected at fill time with a `JSSecurityException`
   (`Validator.validateSQL`) surfaced as a generic `400`/error UID — rewrite CTEs
   as nested subqueries. Window functions (`... over ()`) are fine.
-- **Charts**: the JR7 runtime lib includes `jasperreports-charts-7.0.6.jar`
-  + `jfreechart-1.5.6.jar`, so chart reports compile locally. JR7 pie syntax:
-  `<element kind="chart" chartType="pie">` →
-  `<dataset kind="pie"><series><keyExpression/><valueExpression/></series></dataset>`
-  then `<plot labelFormat="{0}: {2}"/>` ({0}=key, {1}=value, {2}=percentage).
-  Working example: `..\..\report\metro_population_piechart.jrxml`.
-  - **Rebuilding the chart jars** (those two jars live in
-    `C:\Users\rgorsuch\jasperreports-lib`, outside this repo — a fresh clone on
-    another machine must rebuild them from the JR7 source before chart reports
-    will compile locally; the server already has charts):
-    ```powershell
-    $env:JAVA_HOME = "C:\jdk-11.0.24+8"
-    & "C:\apache-maven-3.9.9\bin\mvn.cmd" -f "C:\Users\rgorsuch\jasperreports-7.0.6\pom.xml" `
-        -pl ext/charts -am --% -Dmaven.test.skip=true package
-    ```
-    Then copy `ext\charts\target\jasperreports-charts-7.0.6.jar` and
-    `~\.m2\repository\org\jfree\jfreechart\1.5.6\jfreechart-1.5.6.jar` into
-    `C:\Users\rgorsuch\jasperreports-lib`. (JFreeChart 1.5.x bundles jcommon, so
-    no separate jcommon jar is needed.)
+- See **## Visualization components** below for charts, spider charts,
+  barcodes/QR (community, local) and HTML5/FusionMaps (Pro, server-rendered).
 - In PowerShell, pass Maven/Java `-D...` args after `--%` if you script the
   underlying tools directly.
 - Field `class` must match the JDBC column type or fill fails — the scaffolder
@@ -154,3 +148,60 @@ java --class-path "C:\Users\rgorsuch\jasperreports-lib\*" `
 - Reference reports known to compile and render:
   `..\..\report\tx_density_blockgroup_report_jr7.jrxml` (tabular + groups),
   `..\..\report\metro_population_piechart.jrxml` (pie chart).
+
+## Visualization components
+
+Two tiers. **Community** components compile + preview locally (RenderPng) *and*
+deploy. **Pro** components are authored in the legacy 6.x jrxml format and only
+render server-side on JRS Pro — the open-source lib can't compile them, so
+validate them by **deploy → run-to-PDF** (a `200` + a non-trivial PDF, and the
+`.html` export containing the component markup, confirm a render).
+
+### Community (local + deploy)
+Extra jars in `C:\Users\rgorsuch\jasperreports-lib` (outside this repo — rebuild
+on a fresh clone, see below):
+`jasperreports-charts-7.0.6.jar`, `jfreechart-1.5.6.jar`,
+`jasperreports-barcode4j-7.0.6.jar`, `barcode4j-2.1.jar`, `zxing-core-3.4.0.jar`.
+
+| Component | JR7 jrxml | Example |
+|---|---|---|
+| JFreeChart (pie/bar/line/area/…) | `<element kind="chart" chartType="…">` + `<dataset kind="pie\|category">` + `<plot>` | `metro_population_piechart.jrxml`, `metro_population_bar.jrxml` |
+| Spider / radar | `<element kind="component"><component kind="spiderChart">` (chartSettings/dataset series-category-value/plot) | `metro_population_spider.jrxml` |
+| Barcodes / QR | `<element kind="component"><component kind="barcode4j:QRCode\|DataMatrix\|Code128\|…">` + `<codeExpression>` | `barcode_demo.jrxml` |
+
+Pie label tokens: `{0}`=key, `{1}`=value, `{2}`=percentage. A no-query report
+(e.g. static barcodes) needs `whenNoDataType="AllSectionsNoDetail"` on the root
+or it produces 0 pages. QR specifically needs `zxing-core` on the classpath.
+
+**Rebuild the community jars** from the JR7 source (machine-local, not in repo):
+```powershell
+$env:JAVA_HOME = "C:\jdk-11.0.24+8"
+& "C:\apache-maven-3.9.9\bin\mvn.cmd" -f "C:\Users\rgorsuch\jasperreports-7.0.6\pom.xml" `
+    -pl ext/charts,ext/barcode4j -am --% -Dmaven.test.skip=true package
+```
+Copy the built `ext\charts\target\jasperreports-charts-7.0.6.jar` and
+`ext\barcode4j\target\jasperreports-barcode4j-7.0.6.jar`, plus from `~\.m2`:
+`org\jfree\jfreechart\1.5.6\jfreechart-1.5.6.jar`,
+`net\sf\barcode4j\barcode4j\2.1\barcode4j-2.1.jar`,
+`com\google\zxing\core\3.4.0\core-3.4.0.jar` (→ `zxing-core-3.4.0.jar`), into
+`C:\Users\rgorsuch\jasperreports-lib`. (JFreeChart 1.5.x bundles jcommon.)
+
+### Pro (server-rendered only; deploy → run to validate)
+Authored in legacy 6.x jrxml (`xmlns="http://jasperreports.sourceforge.net/jasperreports"`,
+`<componentElement>`, `<queryString>`, `<reportElement>`). The whole file must be
+6.x — you can't mix JR7-native with these. JRS's `legacy-jrxml-*` modules convert
+at fill time; **skip local compile**, deploy and run.
+
+| Component | jrxml | Example |
+|---|---|---|
+| HTML5 charts (HighCharts) | `<hc:chart xmlns:hc="http://jaspersoft.com/highcharts" type="Column\|StackedBar\|…">` with `<hc:chartSetting>` + `<multiAxisData>` (`dataAxis` row buckets + `multiAxisMeasure`) | `metro_population_html5.jrxml` |
+| FusionMaps choropleth | `<fm:map xmlns:fm="http://jaspersoft.com/fusion">` with `<fm:mapNameExpression>`, `<fm:colorRange>`s, `<fm:mapDataset><fm:entity>` (idExpression + valueExpression) | `tx_county_density_map.jrxml` |
+
+FusionMaps geometry lives in `…\jasperserver-pro\fusion\maps\fusioncharts.*.js`.
+The installed **`Texas`** map (`fusioncharts.texas.js`) is keyed by **county FIPS**
+(no zero-padding), so bind `idExpression` to `(countyfp::int)::text` — no lookup
+table. Other Pro options present on this server: Fusion charts/gauges/widgets
+(`jasperreports-fusion`), HighCharts heatmap/treemap/solid-gauge, and Ad Hoc
+views/dashboards (web-UI, not jrxml). Get jrxml syntax from the bundled samples,
+e.g. fetch `/public/Samples/Reports/ProfitDetailReport` (HTML5) or
+`/public/Samples/Reports/14._World_Map` (FusionMaps) jrxml via REST.

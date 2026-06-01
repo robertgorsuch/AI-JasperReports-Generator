@@ -139,8 +139,66 @@ def el_textfield(x, y, w, h, expr, *, fontsize=8.0, halign=None,
             f'<expression><![CDATA[{expr}]]></expression></element>')
 
 
+# --- chart support (JFreeChart, community) -----------------------------------
+# maps --chart value -> (jrxml chartType attribute, dataset kind)
+CHART_TYPES = {
+    "pie": ("pie", "pie"),
+    "pie3d": ("pie3D", "pie"),
+    "bar": ("bar", "category"),
+    "bar3d": ("bar3D", "category"),
+    "line": ("line", "category"),
+    "area": ("area", "category"),
+    "stackedbar": ("stackedBar", "category"),
+}
+
+
+def first_text_col(cols):
+    for name, udt in cols:
+        if java_class(udt) == "java.lang.String":
+            return name
+    return cols[0][0]
+
+
+def first_numeric_col(cols):
+    for name, udt in cols:
+        jc = java_class(udt)
+        if jc in NUMERIC_JAVA or jc in DECIMAL_JAVA:
+            return name
+    return None
+
+
+def build_chart(chart, cat, val, series, *, width, y, height):
+    """Return jrxml lines for a JFreeChart <element kind="chart">."""
+    chart_type, ds_kind = CHART_TYPES[chart]
+    o = [f'\t\t<element kind="chart" chartType="{chart_type}" x="0" y="{y}" '
+         f'width="{width}" height="{height}" evaluationTime="Report">']
+    if ds_kind == "pie":
+        o.append('\t\t\t<dataset kind="pie">')
+        o.append('\t\t\t\t<series>')
+        o.append(f'\t\t\t\t\t<keyExpression><![CDATA[$F{{{cat}}}]]></keyExpression>')
+        o.append(f'\t\t\t\t\t<valueExpression><![CDATA[$F{{{val}}}]]></valueExpression>')
+        o.append('\t\t\t\t</series>')
+        o.append('\t\t\t</dataset>')
+        o.append('\t\t\t<plot labelFormat="{0}: {2}" legendLabelFormat="{0} ({2})"/>')
+    else:
+        o.append('\t\t\t<dataset kind="category">')
+        o.append('\t\t\t\t<series>')
+        if series:
+            o.append(f'\t\t\t\t\t<seriesExpression><![CDATA[$F{{{series}}}]]></seriesExpression>')
+        else:
+            o.append(f'\t\t\t\t\t<seriesExpression><![CDATA["{escape(label_for(val))}"]]></seriesExpression>')
+        o.append(f'\t\t\t\t\t<categoryExpression><![CDATA[$F{{{cat}}}]]></categoryExpression>')
+        o.append(f'\t\t\t\t\t<valueExpression><![CDATA[$F{{{val}}}]]></valueExpression>')
+        o.append('\t\t\t\t</series>')
+        o.append('\t\t\t</dataset>')
+        o.append('\t\t\t<plot showTickMarks="true" showTickLabels="true"/>')
+    o.append('\t\t</element>')
+    return o
+
+
 def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
-                margin=20):
+                margin=20, chart=None, chart_cat=None, chart_val=None,
+                chart_series=None, chart_height=300):
     col_w = page_w - 2 * margin
     widths = layout_widths(cols, col_w)
     xs = []
@@ -222,6 +280,15 @@ def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
                '</expression></element>')
     out.append('\t</pageFooter>')
     out.append('')
+
+    # optional chart in the summary band
+    if chart:
+        out.append(f'\t<summary height="{chart_height + 20}">')
+        out.extend(build_chart(chart, chart_cat, chart_val, chart_series,
+                               width=col_w, y=10, height=chart_height))
+        out.append('\t</summary>')
+        out.append('')
+
     out.append('</jasperReport>')
     return "\n".join(out) + "\n"
 
@@ -244,6 +311,13 @@ def main():
     ap.add_argument("--user", default="postgres")
     ap.add_argument("--page-size", default="a4", choices=list(PAGE_SIZES))
     ap.add_argument("--landscape", action="store_true")
+    ap.add_argument("--chart", choices=list(CHART_TYPES),
+                    help="also add a JFreeChart in the summary band "
+                         "(pie|pie3d|bar|bar3d|line|area|stackedbar)")
+    ap.add_argument("--chart-category", help="key/category column (default: first text column)")
+    ap.add_argument("--chart-value", help="numeric value column (default: first numeric column)")
+    ap.add_argument("--chart-series", help="series column for multi-series category charts")
+    ap.add_argument("--chart-height", type=int, default=300)
     args = ap.parse_args()
 
     if args.query_file:
@@ -261,9 +335,20 @@ def main():
     if args.landscape:
         w, h = h, w
 
+    chart_cat = chart_val = None
+    if args.chart:
+        chart_cat = args.chart_category or first_text_col(cols)
+        chart_val = args.chart_value or first_numeric_col(cols)
+        if not chart_val:
+            sys.stderr.write("ERROR: --chart needs a numeric column; none found "
+                             "(use --chart-value).\n")
+            sys.exit(2)
+
     title = args.title or label_for(args.name)
     xml = build_jrxml(args.name, title, args.subtitle, query, cols,
-                      page_w=w, page_h=h)
+                      page_w=w, page_h=h, chart=args.chart, chart_cat=chart_cat,
+                      chart_val=chart_val, chart_series=args.chart_series,
+                      chart_height=args.chart_height)
 
     out_path = args.out or f"{args.name}.jrxml"
     with open(out_path, "w", encoding="utf-8") as f:

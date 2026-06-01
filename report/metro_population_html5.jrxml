@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Texas Population by Metro Area - HTML5 (HighCharts) column chart.
+  PRO component: authored in the legacy 6.x jrxml format (hc:chart namespace);
+  JasperReports Server's legacy-jrxml-highcharts module renders it server-side.
+  NOT locally compilable with the open-source lib - validate by deploy + run.
+-->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="metro_population_html5" pageWidth="595" pageHeight="500" columnWidth="555"
+              leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20"
+              uuid="b1a2c3d4-0001-0002-0003-000000000001">
+	<queryString><![CDATA[SELECT metro, sum(pop)::bigint AS population FROM (SELECT CASE WHEN countyfp IN ('201','157','339','039','167','291','473','071','015') THEN 'Houston' WHEN countyfp IN ('113','439','085','121','139','251','257','397','367','231','497','221','425') THEN 'Dallas-Fort Worth' WHEN countyfp IN ('029','091','187','493','013','019','259','325') THEN 'San Antonio' WHEN countyfp IN ('453','491','209','021','055') THEN 'Austin' WHEN countyfp IN ('141','229') THEN 'El Paso' WHEN countyfp IN ('215') THEN 'McAllen-Edinburg' WHEN countyfp IN ('355','409','007') THEN 'Corpus Christi' ELSE 'Rest of Texas' END AS metro, pop FROM (SELECT countyfp, sum(pop)::bigint AS pop FROM tiger_data.tx_tabblock20 GROUP BY countyfp) cp) m GROUP BY metro ORDER BY population DESC]]></queryString>
+	<field name="metro" class="java.lang.String"/>
+	<field name="population" class="java.lang.Long"/>
+	<title>
+		<band height="440">
+			<staticText>
+				<reportElement x="0" y="0" width="555" height="28" uuid="b1a2c3d4-0001-0002-0003-000000000002"/>
+				<textElement><font size="16" isBold="true"/></textElement>
+				<text><![CDATA[Texas Population by Metro Area (HTML5 Column Chart)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="28" width="555" height="14" forecolor="#666666" uuid="b1a2c3d4-0001-0002-0003-000000000003"/>
+				<textElement><font size="9"/></textElement>
+				<text><![CDATA[HighCharts (Pro) component, rendered server-side. 2020 Census blocks.]]></text>
+			</staticText>
+			<componentElement>
+				<reportElement x="0" y="50" width="555" height="380" uuid="b1a2c3d4-0001-0002-0003-000000000004"/>
+				<hc:chart xmlns:hc="http://jaspersoft.com/highcharts"
+				          xsi:schemaLocation="http://jaspersoft.com/highcharts http://jaspersoft.com/schema/highcharts.xsd"
+				          type="Column" evaluationTime="Report">
+					<hc:chartSetting name="default">
+						<hc:chartProperty name="title.text">
+							<hc:propertyExpression><![CDATA["Population by Metro Area"]]></hc:propertyExpression>
+						</hc:chartProperty>
+						<hc:chartProperty name="credits.enabled">
+							<hc:propertyExpression><![CDATA[Boolean.FALSE]]></hc:propertyExpression>
+						</hc:chartProperty>
+						<hc:chartProperty name="legend.enabled">
+							<hc:propertyExpression><![CDATA[Boolean.FALSE]]></hc:propertyExpression>
+						</hc:chartProperty>
+						<hc:chartProperty name="yAxis.title" value="Population"/>
+					</hc:chartSetting>
+					<multiAxisData>
+						<multiAxisDataset>
+							<dataset/>
+						</multiAxisDataset>
+						<dataAxis axis="Rows">
+							<axisLevel name="Metro">
+								<labelExpression><![CDATA["Metro"]]></labelExpression>
+								<axisLevelBucket class="java.lang.String">
+									<bucketExpression><![CDATA[$F{metro}]]></bucketExpression>
+								</axisLevelBucket>
+							</axisLevel>
+						</dataAxis>
+						<multiAxisMeasure name="Population" class="java.lang.Number" calculation="Sum">
+							<labelExpression><![CDATA["Population"]]></labelExpression>
+							<valueExpression><![CDATA[$F{population}]]></valueExpression>
+						</multiAxisMeasure>
+					</multiAxisData>
+				</hc:chart>
+			</componentElement>
+		</band>
+	</title>
+</jasperReport>

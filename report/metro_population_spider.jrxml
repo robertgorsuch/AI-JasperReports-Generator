@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Spider/radar chart of Texas metro populations. JR7-native; needs the
+     charts module (jasperreports-charts). Community component. -->
+<jasperReport name="metro_population_spider" language="java" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<query language="SQL"><![CDATA[
+SELECT metro,
+       round((sum(pop)/1000000.0)::numeric, 2) AS pop_millions
+FROM (
+  SELECT CASE
+    WHEN countyfp IN ('201','157','339','039','167','291','473','071','015') THEN 'Houston'
+    WHEN countyfp IN ('113','439','085','121','139','251','257','397','367','231','497','221','425') THEN 'Dallas-Fort Worth'
+    WHEN countyfp IN ('029','091','187','493','013','019','259','325') THEN 'San Antonio'
+    WHEN countyfp IN ('453','491','209','021','055') THEN 'Austin'
+    WHEN countyfp IN ('141','229') THEN 'El Paso'
+    WHEN countyfp IN ('215') THEN 'McAllen-Edinburg'
+    WHEN countyfp IN ('355','409','007') THEN 'Corpus Christi'
+    ELSE 'Rest of Texas'
+  END AS metro, pop
+  FROM (SELECT countyfp, sum(pop)::bigint AS pop FROM tiger_data.tx_tabblock20 GROUP BY countyfp) cp
+) m
+WHERE metro <> 'Rest of Texas'
+GROUP BY metro ORDER BY pop_millions DESC
+	]]></query>
+
+	<field name="metro" class="java.lang.String"/>
+	<field name="pop_millions" class="java.math.BigDecimal"/>
+
+	<title height="40">
+		<element kind="staticText" x="0" y="0" width="555" height="26" fontSize="17.0" bold="true"><text><![CDATA[Texas Metro Population (Spider Chart)]]></text></element>
+		<element kind="staticText" x="0" y="28" width="555" height="12" fontSize="9.0" forecolor="#666666"><text><![CDATA[Population in millions per metro area (excludes Rest of Texas). 2020 Census blocks.]]></text></element>
+	</title>
+
+	<summary height="470">
+		<element kind="component" x="20" y="20" width="515" height="440">
+			<component kind="spiderChart">
+				<chartSettings showLegend="true" titlePosition="Top">
+					<titleExpression><![CDATA["Population (millions)"]]></titleExpression>
+				</chartSettings>
+				<dataset>
+					<series>
+						<seriesExpression><![CDATA["Population (millions)"]]></seriesExpression>
+						<categoryExpression><![CDATA[$F{metro}]]></categoryExpression>
+						<valueExpression><![CDATA[$F{pop_millions}]]></valueExpression>
+					</series>
+				</dataset>
+				<plot rotation="Clockwise" tableOrder="Row" startAngle="90.0" labelGap="0.05">
+					<labelFont fontSize="9.0"/>
+				</plot>
+			</component>
+		</element>
+	</summary>
+
+</jasperReport>
