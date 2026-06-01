@@ -1,0 +1,10 @@
+# Normalize line endings.
+# Auto-detect text files and store them as LF in the repository, and check
+# them out as LF on all platforms. This silences the Windows
+# "LF will be replaced by CRLF" warnings (these files are LF and run fine).
+* text=auto eol=lf
+
+# Generated/exported data is binary as far as Git is concerned (no EOL munging).
+*.jasper binary
+*.pdf binary
+*.geojson binary
