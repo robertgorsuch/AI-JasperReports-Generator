@@ -132,6 +132,26 @@ java --class-path "C:\Users\rgorsuch\jasperreports-lib\*" `
     report\RenderPng.java report\my_report.jasper out.png   # optional 3rd arg = page index
 ```
 
+## Bulk deploy (e.g. the JR Library demo samples)
+`scripts/deploy_jr_samples.ps1` walks a folder of `.jrxml`, deploys each under
+`-TargetRoot`, and runs it to PDF to verify (writes a results CSV). A report
+with no `<query>` is "standalone" (deploys + runs on an empty data source);
+reports WITH a query are skipped unless you pass `-DataSourceUri`.
+```powershell
+# standalone samples (render with no data)
+& $skill\deploy_jr_samples.ps1 -SamplesDir C:\Users\rgorsuch\jasperreports-7.0.6\demo\samples
+# query-based samples (e.g. charts) against demo data
+& $skill\deploy_jr_samples.ps1 -SamplesDir ...\demo\samples\charts -DataSourceUri /datasources/postgis_34_sample
+```
+The JR Library `charts` samples query an HSQLDB demo DB (`SELECT * FROM Orders`).
+`report\translate_hsqldb_demo.py` translates `demo/hsqldb/test.script` →
+PostgreSQL (handles `CREATE MEMORY TABLE` and `\uXXXX` escapes) so the tables
+load into `postgis_34_sample` and the samples run against the existing data
+source. Caveat: many library samples rely on parameters the Java harness
+supplies (e.g. `MaxOrderID`) — without a default they render blank; pass them at
+run time (`...PieChartReport.pdf?MaxOrderID=11077`) or add a defaultValueExpression.
+A `200`+valid-PDF only means it ran, not that it has content — spot-check pages.
+
 ## Notes / gotchas
 - The live server is `jasperserver-pro` on **port 8081** (HTTP Basic). Port 8080
   hosts an unrelated Bearer-token-gated Java service that 401s every path — not JRS.
