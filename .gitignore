@@ -2,6 +2,9 @@
 *.class
 *.jasper
 
+# Microsoft Office owner-lock temp files (created while a doc is open)
+~$*
+
 # Large regenerable data exports (rebuild from the DB)
 output/
 
