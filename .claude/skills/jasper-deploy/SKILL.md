@@ -149,8 +149,11 @@ PostgreSQL (handles `CREATE MEMORY TABLE` and `\uXXXX` escapes) so the tables
 load into `postgis_34_sample` and the samples run against the existing data
 source. Caveat: many library samples rely on parameters the Java harness
 supplies (e.g. `MaxOrderID`) — without a default they render blank; pass them at
-run time (`...PieChartReport.pdf?MaxOrderID=11077`) or add a defaultValueExpression.
-A `200`+valid-PDF only means it ran, not that it has content — spot-check pages.
+run time (`...PieChartReport.pdf?MaxOrderID=11077`) or bake in defaults.
+`report\inject_chart_defaults.py` does the latter for the charts samples
+(injects `<defaultValueExpression>` into self-closing `<parameter>` tags) so
+they render with content from the JRS UI with no input. A `200`+valid-PDF only
+means it ran, not that it has content — spot-check pages.
 
 ## Notes / gotchas
 - The live server is `jasperserver-pro` on **port 8081** (HTTP Basic). Port 8080
