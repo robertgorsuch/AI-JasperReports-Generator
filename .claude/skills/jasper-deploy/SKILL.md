@@ -5,7 +5,7 @@ description: >-
   Use when the user wants to scaffold a JasperReports report from a SQL query,
   generate or hand-edit a JR7 (JasperReports 7) .jrxml, compile a .jrxml to
   .jasper, or publish/deploy a report to the Jasper(Reports) Server. Covers the
-  full design -> compile -> deploy pipeline against a local PostgreSQL database
+  full design-compile-deploy pipeline against a local PostgreSQL database
   and a JasperReports Server REST v2 endpoint.
 ---
 
@@ -35,11 +35,11 @@ classes, and emits a tabular JR7 report (title, column header, detail band,
 page footer with "Page X of Y").
 
 ```powershell
-Examples below assume you run from the repo root (`C:\Users\rgorsuch\tx-geocoder`).
-`$skill` is just shorthand for the scripts dir; paths the scripts read/write are
-otherwise unrestricted (absolute paths work fine).
-```powershell
-$skill = ".\.claude\skills\jasper-deploy\scripts"
+# $skill points to the scripts/ subdirectory bundled with this skill.
+# Use the base directory provided at the top of this skill's context:
+$skill = "<skill-base-dir>\scripts"
+# e.g. if invoked from the tx-geocoder project you can also use the repo-relative path:
+# $skill = ".\.claude\skills\jasper-deploy\scripts"
 $env:PGPASSWORD = "postgres"
 python $skill\scaffold_jrxml.py `
     --name county_summary `
