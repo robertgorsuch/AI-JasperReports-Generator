@@ -9,6 +9,9 @@ __pycache__/
 # Large regenerable data exports (rebuild from the DB)
 output/
 
+# Report-verification PDFs (re-run reports to regenerate)
+out_verify/
+
 # Notes:
 #  - JasperReports runtime (C:\Users\rgorsuch\jasperreports-lib) and source
 #    (C:\Users\rgorsuch\jasperreports-7.0.6) live outside this repo by design.
