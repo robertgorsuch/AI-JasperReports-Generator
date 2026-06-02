@@ -110,10 +110,24 @@ report unit is retrievable at its URI.
 This server authenticates `superuser`/`superuser` over HTTP Basic on port 8081.
 
 **The datasource referenced by `-DataSourceUri` must already exist** (create it
-with step 2a). List existing datasources with:
+with step 2a). List existing datasources with (use **`type=jdbcDataSource`** —
+the generic `type=dataSource` returns `204`/empty on this server and looks like
+"no datasources"):
 ```powershell
-curl.exe -s -u "${user}:${pass}" "http://localhost:8081/jasperserver-pro/rest_v2/resources?type=dataSource&recursive=true"
+curl.exe -s -u "${user}:${pass}" "http://localhost:8081/jasperserver-pro/rest_v2/resources?type=jdbcDataSource&recursive=true"
 ```
+
+**Browse / delete deployed resources.** List everything under a folder (e.g. to
+see what reports are deployed), and delete a resource (report unit, datasource,
+etc.) by its repo URI:
+```powershell
+# list a folder's contents (drop &type= to see all resource kinds)
+curl.exe -s -u "${user}:${pass}" "http://localhost:8081/jasperserver-pro/rest_v2/resources?folderUri=/reports/geocoder&recursive=true&type=reportUnit"
+# delete one resource (204 No Content on success); the repo URI is appended after /rest_v2/resources
+curl.exe -s -u "${user}:${pass}" -X DELETE "http://localhost:8081/jasperserver-pro/rest_v2/resources/reports/geocoder/county_summary"
+```
+Deleting a folder is recursive (removes the report units inside it). To redeploy
+in bulk, loop `deploy_report.ps1 -Overwrite` over the `report\*.jrxml` files.
 
 ### 4. (optional) Run the report server-side to verify
 ```powershell
@@ -124,6 +138,22 @@ A `200` and a `%PDF-` file confirm JRS compiled the jrxml, connected through the
 datasource, filled, and exported. Re-deploying an existing report fails with
 `409 versions not match` (optimistic locking) — pass **`-Overwrite`** to
 `deploy_report.ps1` to delete-then-recreate.
+
+**Verify a whole folder of reports** — run each to PDF and check the HTTP code +
+`%PDF-` magic + a non-trivial byte size. (Do NOT count `/Type /Page` objects as a
+signal — the page tree is usually compressed, so the grep reads 0 on a perfectly
+good PDF.) A `400` with an XML `errorDescriptor` body (magic `<?xml`) is a fill
+failure — read it; a leading-`WITH` CTE in the query is a common cause (see
+gotchas).
+```bash
+base="http://localhost:8081/jasperserver-pro/rest_v2/reports/reports/geocoder"
+for r in county_summary metro_population_piechart tx_addr_zip_summary; do
+  curl.exe -s -u "$user:$pass" -o "out/$r.pdf" -w "%{http_code}" "$base/$r.pdf"
+  echo "  $r  $(head -c5 out/$r.pdf)  $(stat -c%s out/$r.pdf)b"
+done
+```
+**Open a deployed folder in the JRS web UI:**
+`http://localhost:8081/jasperserver-pro/flow.html?_flowId=searchFlow&folderUri=/reports/geocoder`
 
 To **preview locally as an image** (handy for charts), fill + render a page to PNG:
 ```powershell
@@ -187,8 +217,16 @@ one in Jaspersoft Studio.
   hosts an unrelated Bearer-token-gated Java service that 401s every path — not JRS.
 - **JRS SQL security validator**: report queries must begin with `SELECT`.
   A leading `WITH` (CTE) is rejected at fill time with a `JSSecurityException`
-  (`Validator.validateSQL`) surfaced as a generic `400`/error UID — rewrite CTEs
-  as nested subqueries. Window functions (`... over ()`) are fine.
+  (`Validator.validateSQL`) surfaced as a generic `400`/error UID. Window
+  functions (`... over ()`) are fine. **This is a server-side check — a clean
+  local `compile_jrxml.ps1` does NOT catch it** (the CTE is valid JR/SQL), so it
+  only shows up on run-to-PDF. Always run a CTE-using report to PDF before
+  declaring it deployed. **Fix:** push each CTE down into a nested subquery in
+  the `FROM` clause so the statement starts with `SELECT`, e.g.
+  `WITH a AS (...), b AS (... FROM a) SELECT ... FROM b`
+  → `SELECT ... FROM (... FROM (...) a) b`. The `tx_density_blockgroup_report*`
+  reference reports were converted this way (verify the rewrite in psql first —
+  output must be identical).
 - See **## Visualization components** below for charts, spider charts,
   barcodes/QR (community, local) and HTML5/FusionMaps (Pro, server-rendered).
 - In PowerShell, pass Maven/Java `-D...` args after `--%` if you script the
