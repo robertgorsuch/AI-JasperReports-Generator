@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Texas population choropleth heatmap by county. PRO FusionMaps component
+  (legacy 6.x jrxml, fm:map namespace) rendered server-side by JasperReports
+  Server. Two layers compose the choropleth:
+    Layer 1 (map)  : the installed "Texas" map geometry (fusion/maps/
+                     fusioncharts.texas.js), keyed by county FIPS, so
+                     idExpression binds straight to (countyfp::int)::text.
+    Layer 2 (data) : the population value per county (<fm:mapDataset>) that
+                     drives the <fm:colorRange> heatmap coloring of each shape.
+  2020 Census block population (tiger_data.tx_tabblock20) summed by county.
+  NOT locally compilable - validate by deploy + run on the server.
+-->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="tx_county_population_map" pageWidth="842" pageHeight="595" columnWidth="802"
+              leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20"
+              uuid="d2e3f4a5-0020-0002-0003-000000000001">
+	<queryString><![CDATA[SELECT (b.countyfp::int)::text AS map_id, c.name AS county, sum(b.pop)::bigint AS population FROM tiger_data.tx_tabblock20 b JOIN tiger.county c ON c.statefp = '48' AND c.countyfp = b.countyfp GROUP BY 1, 2 ORDER BY population DESC]]></queryString>
+	<field name="map_id" class="java.lang.String"/>
+	<field name="county" class="java.lang.String"/>
+	<field name="population" class="java.lang.Long"/>
+	<title>
+		<band height="540">
+			<staticText>
+				<reportElement x="0" y="0" width="802" height="26" uuid="d2e3f4a5-0020-0002-0003-000000000002"/>
+				<textElement textAlignment="Center"><font size="16" isBold="true"/></textElement>
+				<text><![CDATA[Texas Population by County (Choropleth Heatmap)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="26" width="802" height="14" forecolor="#666666" uuid="d2e3f4a5-0020-0002-0003-000000000003"/>
+				<textElement textAlignment="Center"><font size="9"/></textElement>
+				<text><![CDATA[FusionMaps choropleth (Pro), rendered server-side. Layer 1: Texas county map. Layer 2: 2020 Census block population.]]></text>
+			</staticText>
+			<componentElement>
+				<reportElement x="0" y="46" width="802" height="490" uuid="d2e3f4a5-0020-0002-0003-000000000004"/>
+				<fm:map xmlns:fm="http://jaspersoft.com/fusion"
+				        xsi:schemaLocation="http://jaspersoft.com/fusion http://jaspersoft.com/schema/fusion.xsd"
+				        evaluationTime="Report">
+					<fm:mapNameExpression><![CDATA["Texas"]]></fm:mapNameExpression>
+					<fm:mapProperty name="includeNameInLabels">
+						<fm:propertyExpression><![CDATA[Boolean.FALSE]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="showLabels">
+						<fm:propertyExpression><![CDATA[Boolean.FALSE]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="legendPosition">
+						<fm:propertyExpression><![CDATA["BOTTOM"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:colorRange color="#FFEDA0">
+						<fm:minValueExpression><![CDATA[0]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[25000]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA["< 25,000"]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:colorRange color="#FEB24C">
+						<fm:minValueExpression><![CDATA[25000]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[100000]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA["25,000 - 100,000"]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:colorRange color="#FD8D3C">
+						<fm:minValueExpression><![CDATA[100000]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[500000]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA["100,000 - 500,000"]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:colorRange color="#FC4E2A">
+						<fm:minValueExpression><![CDATA[500000]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[1000000]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA["500,000 - 1,000,000"]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:colorRange color="#800026">
+						<fm:minValueExpression><![CDATA[1000000]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[5000000]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA["1,000,000+"]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:mapDataset>
+						<fm:entity>
+							<fm:idExpression><![CDATA[$F{map_id}]]></fm:idExpression>
+							<fm:valueExpression><![CDATA[$F{population}]]></fm:valueExpression>
+							<fm:labelExpression><![CDATA[$F{county}]]></fm:labelExpression>
+						</fm:entity>
+					</fm:mapDataset>
+					<fm:shapeData/>
+					<c:markerData xmlns:c="http://jasperreports.sourceforge.net/jasperreports/components"
+					              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports/components http://jasperreports.sourceforge.net/xsd/components.xsd"/>
+				</fm:map>
+			</componentElement>
+		</band>
+	</title>
+</jasperReport>

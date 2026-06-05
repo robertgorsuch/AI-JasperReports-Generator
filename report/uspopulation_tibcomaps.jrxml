@@ -1,0 +1,136 @@
+﻿<!-- Created with Jaspersoft Studio version 10.0.0.final using JasperReports Library version 7.0.0  -->
+<jasperReport name="USPopulation" language="java" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="5a04794b-ae8f-4816-9f64-9069e5c05261">
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="GIS Database"/>
+	<property name="ireport.jasperserver.url" value="http://localhost:8081/jasperserver-pro/"/>
+	<property name="ireport.jasperserver.user" value="superuser"/>
+	<property name="ireport.jasperserver.report.resource" value="/public/Samples/Reports/uspopulation_tibcomaps_files/main_jrxml"/>
+	<property name="ireport.jasperserver.reportUnit" value="/public/Samples/Reports/uspopulation_tibcomaps"/>
+	<property name="com.jaspersoft.studio.unit." value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.pageHeight" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.pageWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.topMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.bottomMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.leftMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.rightMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnSpacing" value="pixel"/>
+	<property name="net.sf.jasperreports.data.adapter" value="repo:/public/Samples/Reports/GISDatabase"/>
+	<dataset name="Dataset1" uuid="0daad26d-438d-40a2-8008-33bfd91c5334">
+		<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+		<property name="com.jaspersoft.studio.data.defaultdataadapter" value="GIS Database"/>
+		<query language="SQL"><![CDATA[SELECT usa_state_population.population,
+gis_usa_states.state_name,
+gis_usa_states.seq,
+gis_usa_states.latitude,
+gis_usa_states.longitude
+FROM gis_usa_states
+INNER JOIN usa_state_population ON
+  usa_state_population.state_name = gis_usa_states.state_name
+ORDER BY state_name, seq]]></query>
+		<field name="population" class="java.lang.Integer">
+			<property name="com.jaspersoft.studio.field.name" value="population"/>
+			<property name="com.jaspersoft.studio.field.label" value="population"/>
+			<property name="com.jaspersoft.studio.field.tree.path" value="usa_state_population"/>
+		</field>
+		<field name="state_name" class="java.lang.String">
+			<property name="com.jaspersoft.studio.field.name" value="state_name"/>
+			<property name="com.jaspersoft.studio.field.label" value="state_name"/>
+			<property name="com.jaspersoft.studio.field.tree.path" value="gis_usa_states"/>
+		</field>
+	</dataset>
+	<dataset name="Dataset2" uuid="036ece84-00d7-473e-9d9c-02cca88b4a29">
+		<property name="com.jaspersoft.studio.data.sql.tables" value="dXNhX3N0YXRlX3BvcHVsYXRpb24gLDE1LDE1LDUxMzJiZTZkLTdlMTYtNGQxMC05YmIzLTVmNjA5&#xa;ZWJhMTRkZjs="/>
+		<property name="com.jaspersoft.studio.data.defaultdataadapter" value="GIS Database"/>
+		<query language="SQL"><![CDATA[SELECT *
+FROM usa_state_population
+ORDER BY usa_state_population.state_name ASC]]></query>
+		<field name="state_name" class="java.lang.String">
+			<property name="com.jaspersoft.studio.field.name" value="state_name"/>
+			<property name="com.jaspersoft.studio.field.label" value="state_name"/>
+			<property name="com.jaspersoft.studio.field.tree.path" value="usa_state_population"/>
+		</field>
+		<field name="population" class="java.lang.Integer">
+			<property name="com.jaspersoft.studio.field.name" value="population"/>
+			<property name="com.jaspersoft.studio.field.label" value="population"/>
+			<property name="com.jaspersoft.studio.field.tree.path" value="usa_state_population"/>
+		</field>
+	</dataset>
+	<query language="sql"><![CDATA[SELECT usa_state_population.population,
+	gis_usa_states.state_name,
+	gis_usa_states.seq,
+	gis_usa_states.longitude,
+	gis_usa_states.latitude
+FROM gis_usa_states
+	INNER JOIN usa_state_population ON 
+	 usa_state_population.state_name = gis_usa_states.state_name
+ORDER BY state_name, seq]]></query>
+	<field name="population" class="java.lang.Integer"/>
+	<field name="state_name" class="java.lang.String"/>
+	<field name="seq" class="java.lang.Integer"/>
+	<field name="longitude" class="java.lang.Double"/>
+	<field name="latitude" class="java.lang.Double"/>
+	<background splitType="Stretch"/>
+	<summary height="555" splitType="Stretch">
+		<element kind="component" uuid="a154086d-9a32-46e2-bafb-10fc689e17dc" key="" x="-20" y="0" width="842" height="550">
+			<component kind="tibcoMap">
+				<mapData>
+					<item>
+						<property name="longitude" value="-97.68114"/>
+						<property name="zoom" value="8"/>
+						<property name="layers.control" value="true"/>
+						<property name="layerName" value="Map Layer"/>
+						<property name="pathsLayerName" value="Data Layer"/>
+						<property name="customerKey"/>
+						<property name="repeatX"/>
+						<property name="maxZoom"/>
+						<property name="markersLayerName" value="Actian Office"/>
+						<property name="minZoom"/>
+						<property name="customerName"/>
+						<property name="clipOffset"/>
+						<property name="opacity"/>
+						<property name="useCanvas" value="true"/>
+						<property name="latitude" value="30.5082"/>
+						<property name="zip"/>
+						<property name="country"/>
+						<property name="city"/>
+						<property name="street"/>
+						<property name="state"/>
+					</item>
+				</mapData>
+				<pathStyle>
+					<item>
+						<property name="name" value="Light"/>
+						<property name="isPolygon" value="true"/>
+						<property name="clickable" value="true"/>
+						<property name="color" value="#099000"/>
+						<property name="fillOpacity" value="0.25"/>
+					</item>
+					<item>
+						<property name="name" value="Med"/>
+						<property name="isPolygon" value="true"/>
+						<property name="color" value="#FFCC00"/>
+						<property name="clickable" value="true"/>
+						<property name="fillOpacity" value="0.25"/>
+					</item>
+					<item>
+						<property name="name" value="Dark"/>
+						<property name="isPolygon" value="true"/>
+						<property name="color" value="#FF0000"/>
+						<property name="clickable" value="true"/>
+						<property name="fillOpacity" value="0.25"/>
+					</item>
+				</pathStyle>
+				<pathData>
+					<dataset/>
+					<item>
+						<property name="latitude"><![CDATA[$F{latitude}]]></property>
+						<property name="longitude"><![CDATA[$F{longitude}]]></property>
+						<property name="name"><![CDATA[$F{state_name}]]></property>
+						<property name="style"><![CDATA[IF($F{population} < 1000000, "Light",IF($F{population} < 5000000, "Med","Dark"))]]></property>
+					</item>
+				</pathData>
+			</component>
+		</element>
+	</summary>
+</jasperReport>
