@@ -20,7 +20,7 @@
 		<band height="540">
 			<staticText>
 				<reportElement x="0" y="0" width="802" height="26" uuid="c1d2e3f4-0010-0002-0003-000000000002"/>
-				<textElement><font size="16" isBold="true"/></textElement>
+				<textElement textAlignment="Center"><font size="16" isBold="true"/></textElement>
 				<text><![CDATA[Texas Population Density by County (people / km2)]]></text>
 			</staticText>
 			<staticText>

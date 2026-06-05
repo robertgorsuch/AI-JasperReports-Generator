@@ -9,7 +9,7 @@ SELECT metro, sum(pop)::bigint AS population FROM (SELECT CASE WHEN countyfp IN 
 	<field name="population" class="java.lang.Long"/>
 
 	<title height="44">
-		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true"><text><![CDATA[Texas Population by Metro Area (Bar)]]></text></element>
+		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true" hTextAlign="Center"><text><![CDATA[Texas Population by Metro Area (Bar)]]></text></element>
 		<element kind="staticText" x="0" y="26" width="555" height="14" fontSize="9.0" forecolor="#666666"><text><![CDATA[JFreeChart bar via --chart, scaffolded]]></text></element>
 	</title>
 

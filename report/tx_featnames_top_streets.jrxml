@@ -11,7 +11,7 @@ SELECT fullname AS street_name, count(DISTINCT linearid)::int AS distinct_street
 	<field name="name_records" class="java.lang.Integer"/>
 
 	<title height="44">
-		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true"><text><![CDATA[Most Common Street Names in Texas]]></text></element>
+		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true" hTextAlign="Center"><text><![CDATA[Most Common Street Names in Texas]]></text></element>
 		<element kind="staticText" x="0" y="26" width="555" height="14" fontSize="9.0" forecolor="#666666"><text><![CDATA[Top 200 street names from tiger_data.tx_featnames (TIGER feature names, road features only)]]></text></element>
 	</title>
 

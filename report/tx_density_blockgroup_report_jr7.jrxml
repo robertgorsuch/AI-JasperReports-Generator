@@ -83,7 +83,7 @@ ORDER BY l.density_class, county, l.geoid
 	</group>
 
 	<title height="208">
-		<element kind="textField" x="0" y="0" width="555" height="26" fontSize="17.0" bold="true">
+		<element kind="textField" x="0" y="0" width="555" height="26" fontSize="17.0" bold="true" hTextAlign="Center">
 			<expression><![CDATA["Texas Population Density by Census Block Group"]]></expression>
 		</element>
 		<element kind="staticText" x="0" y="28" width="555" height="15" fontSize="10.0">
