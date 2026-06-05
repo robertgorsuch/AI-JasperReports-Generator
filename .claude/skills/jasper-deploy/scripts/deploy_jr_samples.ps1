@@ -92,10 +92,12 @@ foreach ($f in $jrxmls) {
 $results | Export-Csv -Path $CsvOut -NoTypeInformation -Encoding utf8
 
 # summary
-$dep = ($results | Where-Object deploy -eq 'ok').Count
-$ran = ($results | Where-Object run -eq 'ok').Count
-$skip = ($results | Where-Object deploy -eq 'skipped').Count
-$fail = ($results | Where-Object { $_.deploy -eq 'FAIL' -or $_.run -like 'FAIL*' }).Count
+# wrap in @() so a single match still yields a numeric .Count (a lone object
+# from the pipeline otherwise reports a blank/empty Count in PowerShell 5.1)
+$dep = @($results | Where-Object deploy -eq 'ok').Count
+$ran = @($results | Where-Object run -eq 'ok').Count
+$skip = @($results | Where-Object deploy -eq 'skipped').Count
+$fail = @($results | Where-Object { $_.deploy -eq 'FAIL' -or $_.run -like 'FAIL*' }).Count
 Write-Host ""
 Write-Host "==== SUMMARY ===="
 Write-Host "total jrxml      : $($results.Count)"
