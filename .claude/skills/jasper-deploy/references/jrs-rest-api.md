@@ -56,18 +56,46 @@ Proper path for large/slow fills that can time out on the synchronous endpoint.
    /reportExecutions/{requestId}`).
 - Add more formats to one execution: `POST /reportExecutions/{requestId}/exports`.
 
-## jobs — scheduling  **[doc-only]** (service present, `GET /jobs` → `204` empty)
+## jobs — scheduling  **[verified]** (full create→list→get→delete round-trip)
 Recurring / triggered / emailed report delivery.
-- `GET  /jobs?reportUnitURI=/reports/geocoder/county_summary` — list jobs for a report.
-- `PUT  /jobs` (`Content-Type: application/job+json`) — create a job: a
-  `{trigger:{simpleTrigger|calendarTrigger}, source:{reportUnitURI, parameters},
-  outputFormats, repositoryDestination | mailNotification}` descriptor.
-- `POST /jobs/{id}` update · `DELETE /jobs/{id}` remove.
+- `PUT /jobs` — create. **Both `Content-Type` AND `Accept` must be
+  `application/job+json`** — a plain `application/json` Accept gives `406 Not
+  Acceptable`. Returns the created job with a numeric `id`. Minimal descriptor
+  that worked here (saves a PDF to the repo, once, at a future date):
+  ```json
+  {"label":"…","source":{"reportUnitURI":"/reports/geocoder/county_summary","parameters":{}},
+   "trigger":{"simpleTrigger":{"timezone":"America/Chicago","startType":2,
+     "startDate":"2026-12-01 09:00:00","occurrenceCount":1}},
+   "baseOutputFilename":"county_summary_verify","outputFormats":{"outputFormat":["PDF"]},
+   "repositoryDestination":{"folderURI":"/reports/geocoder","saveToRepository":true,"overwriteFiles":true}}
+  ```
+  `simpleTrigger.startType`: 1 = now, 2 = at `startDate` (`yyyy-MM-dd HH:mm:ss`);
+  `occurrenceCount` 1 = once, -1 = forever (with `recurrenceInterval` +
+  `recurrenceIntervalUnit`). Add `mailNotification` for email delivery.
+- `GET  /jobs?reportUnitURI=/reports/geocoder/county_summary` — list (`204` if none).
+- `GET  /jobs/{id}` — full descriptor (`Accept: application/job+json`).
+- `DELETE /jobs/{id}` — `200`, echoes the id; afterward `GET /jobs/{id}` →
+  `resource.not.found`.
 
-## permissions  **[doc-only]** (service present, `GET /permissions{uri}` → `204`)
-- `GET /permissions{resourceUri}?effectivePermissions=true` — read ACLs.
-- `PUT /permissions{uri}` — set a recipient→mask permission
-  (`mask`: 0 none, 1 admin, 2 read+del, 6 read+write+del, 30 read, 32 execute).
+## permissions  **[verified]** (set → confirm → restore round-trip)
+A resource with no explicit ACL returns `204` and inherits from its parent
+(geocoder inherits from `/`). Entries are `{uri, recipient:"role:/ROLE_X", mask}`.
+- `GET /permissions{uri}` — explicit perms only (`204` = none/inherited).
+- `GET /permissions{uri}?effectivePermissions=true` — resolved/inherited ACLs.
+- `PUT /permissions{uri}` — **replace all explicit perms** on the resource.
+  **`Content-Type: application/collection+json`** (NOT `…collection.permission+json`,
+  which `415`s; that wrong guess cost two tries — the WADL is authoritative).
+  Body: `{"permission":[{"uri":"repo:/reports/geocoder","recipient":"role:/ROLE_USER","mask":1}]}`.
+- **Remove explicit perms / restore inheritance:** `PUT {"permission":[]}` → back to `204`.
+- A single-permission `PUT`/`POST` (per WADL) uses plain `application/json`.
+- `mask` values seen live: 1 = administer, 2 = read+delete (docs also: 6
+  read+write+delete, 18 read+write, 30 read-only, 32 execute-only, 0 none).
+
+> **Windows/PowerShell gotcha (both services):** an inline `"$baseUrl?query=…"`
+> passed to `curl.exe` yields exit-code `000` (request never sent). Assign the
+> **full literal URL to a variable first**, then pass the variable. Same root
+> cause as the JSON-body quoting issue — keep complex args out of the inline
+> PowerShell→curl boundary.
 
 ## attributes  **[doc-only]**
 Server/org/user key-value attributes — usable in datasource/report expressions
