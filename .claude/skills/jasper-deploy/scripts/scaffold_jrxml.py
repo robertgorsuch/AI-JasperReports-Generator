@@ -66,6 +66,73 @@ def label_for(col: str) -> str:
     return " ".join(w.capitalize() for w in col.replace("_", " ").split())
 
 
+# --- report parameters -------------------------------------------------------
+PARAM_TYPES = {
+    "string": "java.lang.String", "integer": "java.lang.Integer",
+    "long": "java.lang.Long", "decimal": "java.math.BigDecimal",
+    "double": "java.lang.Double", "boolean": "java.lang.Boolean",
+    "date": "java.sql.Date", "timestamp": "java.sql.Timestamp",
+}
+
+
+def parse_param(spec: str) -> dict:
+    """'name:type[:default]' -> {name,type,jclass,default}. default may hold
+    colons (e.g. a timestamp), so split at most twice."""
+    parts = spec.split(":", 2)
+    if len(parts) < 2 or parts[1].lower() not in PARAM_TYPES:
+        sys.stderr.write(f"ERROR: bad --param '{spec}' (use name:type[:default], "
+                         f"type in {sorted(PARAM_TYPES)})\n")
+        sys.exit(2)
+    name, ptype = parts[0], parts[1].lower()
+    default = parts[2] if len(parts) == 3 else None
+    return {"name": name, "type": ptype, "jclass": PARAM_TYPES[ptype], "default": default}
+
+
+def param_default_expr(p: dict):
+    """Java expression for a <defaultValueExpression>, or None."""
+    v = p["default"]
+    if v is None:
+        return None
+    t = p["type"]
+    if t == "string":    return '"' + v.replace('"', '\\"') + '"'
+    if t == "integer":   return f"Integer.valueOf({int(v)})"
+    if t == "long":      return f"Long.valueOf({int(v)}L)"
+    if t == "decimal":   return f'new java.math.BigDecimal("{v}")'
+    if t == "double":    return f"Double.valueOf({float(v)})"
+    if t == "boolean":   return "Boolean.TRUE" if v.lower() in ("1", "true", "yes") else "Boolean.FALSE"
+    if t == "date":      return f'java.sql.Date.valueOf("{v}")'
+    if t == "timestamp": return f'java.sql.Timestamp.valueOf("{v}")'
+    return None
+
+
+def param_sql_literal(p: dict) -> str:
+    """A PostgreSQL literal to substitute for $P{name} during introspection so
+    psql can execute the query (the emitted jrxml keeps $P{name} for JR)."""
+    t, v = p["type"], p["default"]
+    if v is None:                       # no default: a harmless typed placeholder
+        return {"string": "''", "integer": "0", "long": "0", "decimal": "0",
+                "double": "0", "boolean": "FALSE", "date": "CURRENT_DATE",
+                "timestamp": "CURRENT_TIMESTAMP"}[t]
+    if t in ("integer", "long", "decimal", "double"):
+        return str(v)
+    if t == "boolean":
+        return "TRUE" if v.lower() in ("1", "true", "yes") else "FALSE"
+    if t == "date":      return f"DATE '{v}'"
+    if t == "timestamp": return f"TIMESTAMP '{v}'"
+    return "'" + v.replace("'", "''") + "'"          # string
+
+
+def substitute_params(query: str, params: list) -> str:
+    """Replace $P{name} / $P!{name} with each param's SQL literal (for psql
+    introspection only)."""
+    import re
+    out = query
+    for p in params:
+        out = re.sub(r"\$P!?\{" + re.escape(p["name"]) + r"\}",
+                     param_sql_literal(p), out)
+    return out
+
+
 # --- SQL lint ----------------------------------------------------------------
 def lint_sql(query: str):
     """Warnings for a JRS report query. The JRS SQL security validator requires
@@ -251,7 +318,8 @@ def build_chart(chart, cat, val, series, *, width, y, height, label_rotation=0):
 
 def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
                 margin=20, chart=None, chart_cat=None, chart_val=None,
-                chart_series=None, chart_height=300, chart_label_rotation=0):
+                chart_series=None, chart_height=300, chart_label_rotation=0,
+                params=None):
     col_w = page_w - 2 * margin
     widths = layout_widths(cols, col_w)
     xs = []
@@ -266,6 +334,18 @@ def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
            f'pageWidth="{page_w}" pageHeight="{page_h}" columnWidth="{col_w}" '
            f'leftMargin="{margin}" rightMargin="{margin}" '
            f'topMargin="{margin}" bottomMargin="{margin}">']
+
+    # parameters (declared before the query so $P{..} resolves)
+    for p in (params or []):
+        dexpr = param_default_expr(p)
+        if dexpr:
+            out.append(f'\t<parameter name="{escape(p["name"])}" class="{p["jclass"]}">')
+            out.append(f'\t\t<defaultValueExpression><![CDATA[{dexpr}]]></defaultValueExpression>')
+            out.append('\t</parameter>')
+        else:
+            out.append(f'\t<parameter name="{escape(p["name"])}" class="{p["jclass"]}"/>')
+    if params:
+        out.append('')
 
     # query
     out.append('\t<query language="SQL"><![CDATA[')
@@ -375,7 +455,13 @@ def main():
     ap.add_argument("--chart-label-rotation", type=int, default=0,
                     help="rotate category-axis tick labels by N degrees (e.g. -45) "
                          "to keep long bar/line labels from truncating")
+    ap.add_argument("--param", action="append", default=[], metavar="NAME:TYPE[:DEFAULT]",
+                    help="declare a report parameter referenced as $P{NAME} in the "
+                         "query; TYPE in string|integer|long|decimal|double|boolean|"
+                         "date|timestamp. Repeatable.")
     args = ap.parse_args()
+
+    params = [parse_param(s) for s in args.param]
 
     if args.query_file:
         with open(args.query_file, encoding="utf-8") as f:
@@ -389,7 +475,9 @@ def main():
     for level, msg in lint_sql(query):
         sys.stderr.write(f"SQL {level}: {msg}\n")
 
-    cols = introspect(query, args.host, args.port, args.user, args.db)
+    # introspect against a copy with $P{..} replaced by literals so psql can run it
+    cols = introspect(substitute_params(query, params) if params else query,
+                      args.host, args.port, args.user, args.db)
 
     w, h = PAGE_SIZES[args.page_size]
     if args.landscape:
@@ -409,7 +497,8 @@ def main():
                       page_w=w, page_h=h, chart=args.chart, chart_cat=chart_cat,
                       chart_val=chart_val, chart_series=args.chart_series,
                       chart_height=args.chart_height,
-                      chart_label_rotation=args.chart_label_rotation)
+                      chart_label_rotation=args.chart_label_rotation,
+                      params=params)
 
     out_path = args.out or f"{args.name}.jrxml"
     with open(out_path, "w", encoding="utf-8") as f:
