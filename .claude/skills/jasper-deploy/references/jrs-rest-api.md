@@ -103,11 +103,48 @@ Server/org/user key-value attributes — usable in datasource/report expressions
 - `GET/PUT/DELETE /attributes` (server level),
   `…/organizations/{id}/attributes`, `…/users/{u}/attributes`.
 
-## inputControls — parameterized reports  **[doc-only]**
-- `GET /reports{uri}/inputControls` — the control definitions for a report.
+## inputControls — parameterized reports  **[verified]** (author → discover → run)
+Verified by deploying a parameterized geocoder report (`county_summary_param`:
+`HAVING count(*) >= $P{minEdges}`) with an embedded control, then filtering it
+via REST — `?minEdges=50000` shrank the output from 254 to 17 counties.
+
+**Read / run flow:**
+- `GET /reports{uri}/inputControls` — control definitions. Each has an `id`,
+  a string `type` (e.g. `singleValueNumber`, `singleSelect`), and `state.options`.
 - `GET /reports{uri}/inputControls/{id}/values` — selectable values (cascading
-  controls supported). Drive an interactive report by passing chosen values as
-  query params to the run endpoints above.
+  controls supported; `200` even for a free single-value control).
+- Run with the chosen value(s) as query params on the run endpoints:
+  `…/reports{uri}.pdf?{controlId}=50000` (confirmed to filter; output size
+  tracks the row count). The same works on `reportExecutions` via `parameters`.
+
+**Authoring an input control in the report-unit descriptor** (what
+`deploy_report.ps1` does *not* yet do — build the descriptor by hand). Several
+non-obvious shapes, each found by reading the `400` body:
+- `inputControls` on the report unit is a **flat array** (the `{inputControl:[…]}`
+  XML nesting is wrong in JSON → `ArrayList … from Object value`).
+- Each element is a **polymorphic wrapper object**: `{"inputControl":{…}}` for an
+  inline control or `{"inputControlReference":{"uri":…}}` for a shared one
+  (`known type ids = [inputControl, inputControlReference]`).
+- The embedded control uses **legacy numeric type codes**, NOT the string enums
+  the read API returns (`Cannot deserialize value of type 'byte' from String
+  "singleValue"`): control `type` `2` = single value; the nested
+  `dataType.dataType.type` is **ordinal** `0`=text, `1`=number, `2`=date,
+  `3`=dateTime, `4`=time (so `1` for a numeric control — `2` silently yields a
+  *date* control).
+- **Binding:** the control's repo id = its URI last segment, derived from its
+  **`label`** (spaces→`_`, case kept). That id MUST equal the jrxml `$P{param}`
+  name or the value never reaches the query. (Set `label:"minEdges"`, put prose
+  in `description`.) JRS materializes the inline control + dataType into
+  `…_files/` sub-resources.
+- Re-deploying `409`s (optimistic lock) — DELETE the report unit first
+  (cascades the `_files`), confirm `404`, then PUT.
+Minimal inline control that worked:
+```json
+"inputControls":[{"inputControl":{
+  "label":"minEdges","description":"Minimum TIGER edge count per county",
+  "mandatory":false,"readOnly":false,"visible":true,"type":2,
+  "dataType":{"dataType":{"label":"minEdges number","type":1}}}}]
+```
 
 ## import / export — promotion & backup  **[verified]**
 Already wrapped by `export_resource.ps1` / `import_resource.ps1` (the supported
