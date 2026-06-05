@@ -11,7 +11,7 @@ SELECT c.name AS county, l.countyfp, count(*)::int AS edge_count, round(avg(st_l
 	<field name="avg_edge_len" class="java.math.BigDecimal"/>
 
 	<title height="44">
-		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true"><text><![CDATA[Texas County Edge Summary]]></text></element>
+		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true" hTextAlign="Center"><text><![CDATA[Texas County Edge Summary]]></text></element>
 		<element kind="staticText" x="0" y="26" width="555" height="14" fontSize="9.0" forecolor="#666666"><text><![CDATA[Top counties by TIGER edge count (postgis_34_sample)]]></text></element>
 	</title>
 

@@ -18,7 +18,7 @@
 		<band height="440">
 			<staticText>
 				<reportElement x="0" y="0" width="555" height="28" uuid="b1a2c3d4-0001-0002-0003-000000000002"/>
-				<textElement><font size="16" isBold="true"/></textElement>
+				<textElement textAlignment="Center"><font size="16" isBold="true"/></textElement>
 				<text><![CDATA[Texas Population by Metro Area (HTML5 Column Chart)]]></text>
 			</staticText>
 			<staticText>

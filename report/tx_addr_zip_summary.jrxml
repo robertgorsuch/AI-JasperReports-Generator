@@ -13,7 +13,7 @@ SELECT zip, count(*)::int AS addr_ranges, count(DISTINCT tlid)::int AS street_se
 	<field name="with_plus4" class="java.lang.Integer"/>
 
 	<title height="44">
-		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true"><text><![CDATA[Texas Address Ranges by ZIP Code]]></text></element>
+		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true" hTextAlign="Center"><text><![CDATA[Texas Address Ranges by ZIP Code]]></text></element>
 		<element kind="staticText" x="0" y="26" width="555" height="14" fontSize="9.0" forecolor="#666666"><text><![CDATA[TIGER address ranges from tiger_data.tx_addr (postgis_34_sample)]]></text></element>
 	</title>
 

@@ -9,7 +9,7 @@ SELECT c.name AS county, sum(b.housing)::bigint AS housing_units FROM tiger_data
 	<field name="housing_units" class="java.lang.Long"/>
 
 	<title height="28">
-		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true"><text><![CDATA[Texas Housing Units by County]]></text></element>
+		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true" hTextAlign="Center"><text><![CDATA[Texas Housing Units by County]]></text></element>
 	</title>
 
 	<columnHeader height="18">

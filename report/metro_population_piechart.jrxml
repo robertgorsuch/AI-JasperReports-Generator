@@ -38,7 +38,7 @@ GROUP BY metro ORDER BY population DESC
 	</variable>
 
 	<title height="54">
-		<element kind="staticText" x="0" y="0" width="535" height="26" fontSize="17.0" bold="true">
+		<element kind="staticText" x="0" y="0" width="535" height="26" fontSize="17.0" bold="true" hTextAlign="Center">
 			<text><![CDATA[Texas Population by Metropolitan Area]]></text>
 		</element>
 		<element kind="staticText" x="0" y="28" width="535" height="14" fontSize="9.0" forecolor="#666666">

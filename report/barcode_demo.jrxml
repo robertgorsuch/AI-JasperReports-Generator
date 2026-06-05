@@ -3,7 +3,7 @@
      Static codes here; in a data report use $F{...} in the codeExpression. -->
 <jasperReport name="barcode_demo" language="java" whenNoDataType="AllSectionsNoDetail" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
 	<title height="60">
-		<element kind="staticText" x="0" y="0" width="555" height="26" fontSize="17.0" bold="true"><text><![CDATA[Barcode / QR Code Demo]]></text></element>
+		<element kind="staticText" x="0" y="0" width="555" height="26" fontSize="17.0" bold="true" hTextAlign="Center"><text><![CDATA[Barcode / QR Code Demo]]></text></element>
 		<element kind="staticText" x="0" y="28" width="555" height="12" fontSize="9.0" forecolor="#666666"><text><![CDATA[barcode4j components: QR Code, DataMatrix, Code128.]]></text></element>
 	</title>
 	<summary height="300">
