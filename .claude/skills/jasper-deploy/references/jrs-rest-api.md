@@ -164,11 +164,18 @@ Minimal inline control that worked:
 
 ## import / export — promotion & backup  **[verified]**
 Already wrapped by `export_resource.ps1` / `import_resource.ps1` (the supported
-path for dashboards, and for moving any folder between servers).
+path for dashboards, and for moving any folder between servers). Verified two
+ways: a Supermart dashboard round-trip, and a **destructive** geocoder round-trip
+— export `county_summary` → DELETE it (`resource.not.found`) → import the zip →
+report restored (original label / dataSourceReference / jrxmlFileReference) and
+runs to a byte-identical PDF.
 - `POST /export {uris,parameters}` → `{id}`; poll `/export/{id}/state` until
   `phase=finished`; download `/export/{id}/exportFile` (the `/exportFile`
-  suffix is required — a bare `GET /export/{id}` is `405`).
-- `POST /import?update=true` (multipart zip); poll `/import/{id}/state`.
+  suffix is required — a bare `GET /export/{id}` is `405`). The zip is a `PK`
+  archive: `index.xml` + `resources/<repo-path>.xml` descriptors + `*.data`
+  blobs (jrxml etc.) + `.folder.xml` metadata + referenced datasources.
+- `POST /import?update=true` (multipart `-F file=@…;type=application/zip`); poll
+  `/import/{id}/state`. `update=false` fails on an existing resource.
 
 ---
 
