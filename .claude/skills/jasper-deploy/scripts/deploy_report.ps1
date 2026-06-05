@@ -42,6 +42,10 @@ param(
     [string[]]$ResourceFiles,   # companion resources: "name=localpath" (bundles, images, subreports)
     [switch]$Overwrite,
     [switch]$SkipSqlLint,       # bypass the SELECT-first / leading-WITH guard
+    [string[]]$Control,         # input controls: "param:kind[:label[:extra]]"
+                                #   kind=select|multiselect  extra="Food;Drink" (or lab=val;..)
+                                #   kind=single              extra=text|number|date|datetime
+    [string]$ControlsLayout = "popupScreen",
     [string]$ServerUrl,
     [string]$User,
     [string]$Password
@@ -140,4 +144,66 @@ if ($r.Code -match '^2\d\d$') {
     Write-Host "FAILED ($($r.Code))"
     if ($r.Body) { Write-Host $r.Body }
     throw "deploy failed with HTTP $($r.Code): $($r.Body)"
+}
+
+# --- input controls -------------------------------------------------------
+# Build each control as a standalone repository resource (the verified JRS
+# pattern -- embedding in the report unit is rejected) whose NAME equals the
+# report parameter ($P{name}), then reference it from the report unit. select/
+# multiselect get a listOfValues resource; single gets an embedded dataType.
+if ($Control) {
+    $parent = $TargetUri.Substring(0, $TargetUri.LastIndexOf("/"))
+    $rname  = $TargetUri.Substring($TargetUri.LastIndexOf("/") + 1)
+    $ctlFolder = "$parent/${rname}_controls"
+
+    function Put-Resource($uri, $ctype, $obj) {
+        $f = [IO.Path]::GetTempFileName()
+        ($obj | ConvertTo-Json -Depth 8) | Set-Content $f -Encoding utf8
+        try { $rr = Invoke-JrsPut -Jrs $jrs -Uri $uri -Overwrite -ContentType $ctype -JsonFile $f }
+        finally { Remove-Item $f -ErrorAction SilentlyContinue }
+        if ($rr.Code -notmatch '^2\d\d$') { throw "input control PUT $uri failed ($($rr.Code)): $($rr.Body)" }
+    }
+
+    $icRefs = @()
+    foreach ($spec in $Control) {
+        $p = $spec.Split(":", 4)
+        $cname = $p[0]; $kind = $p[1].ToLower()
+        $label = if ($p.Count -ge 3 -and $p[2]) { $p[2] } else { $cname }
+        $extra = if ($p.Count -ge 4) { $p[3] } else { "" }
+        $icUri = "$ctlFolder/$cname"
+        if ($kind -eq "select" -or $kind -eq "multiselect") {
+            $items = @()
+            foreach ($v in ($extra -split ";")) {
+                if (-not $v) { continue }
+                if ($v -match "=") { $kv = $v.Split("=", 2); $items += [ordered]@{ label = $kv[0]; value = $kv[1] } }
+                else { $items += [ordered]@{ label = $v; value = $v } }
+            }
+            $lovUri = "$ctlFolder/${cname}_lov"
+            Put-Resource $lovUri "application/repository.listOfValues+json" ([ordered]@{ label = "$label values"; items = $items })
+            $type = if ($kind -eq "select") { 3 } else { 6 }
+            Put-Resource $icUri "application/repository.inputControl+json" ([ordered]@{
+                label = $label; mandatory = $false; readOnly = $false; visible = $true; type = $type
+                listOfValues = [ordered]@{ listOfValuesReference = [ordered]@{ uri = $lovUri; version = 0 } } })
+        } elseif ($kind -eq "single") {
+            $dt = if ($extra) { $extra } else { "text" }
+            Put-Resource $icUri "application/repository.inputControl+json" ([ordered]@{
+                label = $label; mandatory = $false; readOnly = $false; visible = $true; type = 2
+                dataType = [ordered]@{ dataType = [ordered]@{ type = $dt; label = "$cname type" } } })
+        } else { throw "unknown control kind '$kind' (use select|multiselect|single)" }
+        $icRefs += [ordered]@{ inputControlReference = [ordered]@{ uri = $icUri } }
+        Write-Host "  input control: $cname ($kind) -> $icUri"
+    }
+
+    # reference the controls from the report unit
+    $cur = Invoke-JrsGet -Jrs $jrs -Uri $TargetUri
+    if ($cur.Code -notmatch '^2\d\d$') { throw "could not re-read $TargetUri to attach controls ($($cur.Code))" }
+    $ru = $cur.Body | ConvertFrom-Json
+    $ru | Add-Member -NotePropertyName inputControls -NotePropertyValue $icRefs -Force
+    $ru | Add-Member -NotePropertyName controlsLayout -NotePropertyValue $ControlsLayout -Force
+    $f2 = [IO.Path]::GetTempFileName()
+    ($ru | ConvertTo-Json -Depth 12) | Set-Content $f2 -Encoding utf8
+    try { $ur = Invoke-JrsPut -Jrs $jrs -Uri $TargetUri -Overwrite -ContentType "application/repository.reportUnit+json" -JsonFile $f2 }
+    finally { Remove-Item $f2 -ErrorAction SilentlyContinue }
+    if ($ur.Code -notmatch '^2\d\d$') { throw "attaching controls to $TargetUri failed ($($ur.Code)): $($ur.Body)" }
+    Write-Host "OK: attached $($icRefs.Count) input control(s) to $TargetUri"
 }
