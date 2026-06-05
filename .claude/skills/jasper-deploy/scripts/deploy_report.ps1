@@ -95,24 +95,16 @@ if ($ResourceFiles) {
     $desc.resources = [ordered]@{ resource = $list }
 }
 
-# --- optional overwrite: delete existing resource first ------------------
-# JRS uses optimistic locking; re-PUTting over an existing report unit fails
-# with 409 "versions not match". -Overwrite deletes it first. A delete that
-# fails for any reason other than 404 (e.g. 403) is fatal, so we don't mask it
-# as a misleading 409 on the PUT.
-if ($Overwrite) {
-    $delCode = Invoke-JrsDelete -Jrs $jrs -Uri $TargetUri
-    Write-Host "overwrite: DELETE $TargetUri -> $delCode"
-    if ($delCode -notmatch '^(2\d\d|404)$') {
-        throw "overwrite: DELETE $TargetUri returned $delCode; aborting before PUT"
-    }
-}
-
 # --- PUT to REST v2 -------------------------------------------------------
+# JRS uses optimistic locking, so a plain re-PUT over an existing report unit
+# fails with 409 "versions not match". -Overwrite passes ?overwrite=true, which
+# updates the resource IN PLACE -- no delete, so it also works for a report that
+# is a dependency of a dashboard (a delete-then-create would 403 on the delete,
+# since referenced resources are delete-protected).
 $jsonFile = [IO.Path]::GetTempFileName()
 ($desc | ConvertTo-Json -Depth 8) | Set-Content -Path $jsonFile -Encoding utf8
 try {
-    $r = Invoke-JrsPut -Jrs $jrs -Uri $TargetUri `
+    $r = Invoke-JrsPut -Jrs $jrs -Uri $TargetUri -Overwrite:$Overwrite `
         -ContentType "application/repository.reportUnit+json" -JsonFile $jsonFile
 } finally {
     Remove-Item $jsonFile -ErrorAction SilentlyContinue
@@ -124,5 +116,5 @@ if ($r.Code -match '^2\d\d$') {
 } else {
     Write-Host "FAILED ($($r.Code))"
     if ($r.Body) { Write-Host $r.Body }
-    throw "deploy failed with HTTP $($r.Code)"
+    throw "deploy failed with HTTP $($r.Code): $($r.Body)"
 }

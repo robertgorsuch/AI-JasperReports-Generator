@@ -64,6 +64,11 @@ python $skill\scaffold_jrxml.py --name metro_pop --chart bar `
 defaults to the first text column and the value to the first numeric column;
 override with `--chart-category`, `--chart-value`, `--chart-series` (multi-series
 category charts), `--chart-height`. Best with a small number of categories.
+`--chart-label-rotation -45` rotates category-axis tick labels so long bar/line
+labels don't truncate. (The scaffolder emits the correct JR7 plot per chart
+type: `line` uses `showLines/showShapes` — `showTickMarks/showTickLabels` throw
+`UnrecognizedPropertyException` on a line plot — while bar/area/stackedbar use
+`showTickMarks/showTickLabels`.)
 
 ### 2. Compile — validate jrxml -> jasper
 `scripts/compile_jrxml.ps1` compiles against the JR7 runtime. A clean compile is
@@ -263,22 +268,76 @@ The single-CSV *query-executer* report (`csvdatasource`, empty
 `<query language="csv">`) is still a harder case — build that one in Jaspersoft
 Studio — but the property-on-main-dataset form above needs no Studio.
 
-## Dashboards (author in designer; promote via export/import)
-**Do NOT try to compose a dashboard from scratch via `/rest_v2/resources`.** A JRS
-dashboard (`resourceType=dashboard`) is a descriptor + three companion files
-(`components` = frames, `layout` = a 40-wide grid of `<div data-componentId .../>`,
-`wiring` = inter-frame events). You *can* PUT a hand-built model and the server
-stores it (201) — but the JRS 10 client **silently won't render it**: the viewer
-fetches the model and never executes the frames, and the **designer shows it
-empty**, even when the stored model is byte-for-byte equivalent (same keys,
-content-type `application/dashboardComponentsSchema+json`) to a working sample.
-The designer does extra work on save that a raw resource PUT doesn't reproduce
-and that isn't visible in the served model. This was investigated thoroughly and
-abandoned — frames spin forever, no console error.
+## Dashboards (compose from a manifest, OR author in the designer)
 
-**Use the designer + export/import instead** (the supported path):
-1. Author the dashboard once in the **designer**, dragging in already-deployed
-   reports / ad hoc views, then Save:
+### Fully scripted: compose a dashboard of report dashlets from a manifest
+`scripts/build_dashlets.ps1` drives the **entire** dashboard pipeline from one
+JSON manifest — no designer needed for a dashboard whose tiles are deployed
+reports (each a tabular report with a chart in its summary band):
+
+```powershell
+$env:PGPASSWORD = "postgres"
+& $skill\build_dashlets.ps1 -Manifest report\foodmart\dashboard.json -Compose
+```
+For each `dashlets[]` entry it **scaffolds → compiles → deploys → verifies**
+(runs to PDF, asserts `200` + `%PDF-` + non-trivial size), prints a results
+table, then with **`-Compose`** assembles them into the dashboard. **Verified
+end-to-end** building the 7-tile `foodmart_kpi_dashboard_auto`. The unified
+manifest (see `report\foodmart\dashboard.json`) carries both the build spec and
+the grid layout:
+```jsonc
+{ "db":"foodmart", "dataSourceUri":"/public/Samples/Data_Sources/FoodmartDataSource",
+  "folder":"/reports/foodmart", "name":"foodmart_kpi_dashboard_auto",
+  "label":"...", "outDir":"report\\foodmart",
+  "dashlets":[ {
+    "name":"foodmart_yoy_sales", "title":"Year-over-Year Sales", "chart":"bar",
+    "chartCategory":"month","chartValue":"sales","chartSeries":"year",
+    "chartHeight":380, "landscape":true, "queryFile":"report\\foodmart\\yoy_sales.sql",
+    "x":0,"y":0,"width":40,"height":10 }, ... ] }
+```
+`x/y/width/height` place each tile on a 40-wide grid (omit them all and pass
+`-AutoGrid` for a two-column auto-layout). Use `-SkipVerify` to skip the
+run-to-PDF check.
+
+**How the compose step works (and why it renders, unlike a raw PUT).** A JRS
+dashboard is a descriptor + three companion files (`components` = the dashlet
+frames + a `DashboardProperties` singleton, `layout` = the `<div data-componentId
+data-x data-y data-width data-height>` grid, `wiring` = `@init`→`@refresh` /
+`@applyParams` events). `scripts/gen_dashboard.py` synthesizes all four from the
+manifest (the model shape is reverse-engineered from a real designer export;
+`id` = `re.sub('[^0-9A-Za-z]','_', label)`). `scripts/compose_dashboard.ps1`
+then: exports the already-deployed dashlet reports (→ a real, importable
+envelope: reportUnit descriptors + jrxml, datasource, folder chain, valid
+`index.xml`), **injects** the synthesized dashboard into it, points
+`index.xml`'s `repositoryResources` at the dashboard, re-zips with
+**forward-slash** entries (the Java importer ignores back-slash paths — a silent
+no-op), and **imports** it. Because the archive is structurally identical to a
+designer export, the imported dashboard **renders** — verified by a clean
+re-export round-trip (a broken import cannot be re-exported) and the HTML5
+viewer.
+
+> **Why import, not PUT?** You *can* PUT a hand-built dashboard model straight to
+> `/rest_v2/resources` and the server stores it (201) — but the JRS 10 client
+> **silently won't render it** (frames spin forever; the designer shows it
+> empty), even when the stored model is byte-for-byte equivalent to a working
+> one. The designer/import broker does extra work on save that a raw PUT skips.
+> The **import** path (above) reproduces that work, so it renders. Don't PUT.
+
+**Gotcha — `resource.in.use` (403).** A report that is already a dashlet of an
+**existing** dashboard is modification-locked by JRS: re-deploying it (delete or
+`?overwrite=true` PUT alike) returns `403 resource.in.use` naming the owning
+dashboard. `build_dashlets.ps1` treats this as **"in-use (kept)"** — not a
+failure — leaves the deployed version in place, still verifies it renders, and
+continues to compose. To actually push report changes, delete/recreate the
+owning dashboard (or compose under a new name) first. `deploy_report.ps1
+-Overwrite` now updates **in place** via `?overwrite=true` (no delete), which
+also dodges the delete-protection on referenced resources.
+
+### Author in the designer; promote via export/import
+For dashboards with non-report tiles (ad hoc views, filter groups, text/input
+controls) authoring is still a manual designer step:
+1. Author once in the **designer**, dragging in already-deployed reports / ad hoc
+   views, then Save:
    `http://localhost:8081/jasperserver-pro/dashboard/designer.html`
    (open an existing one at `dashboard/designer.html#<url-encoded uri>`).
 2. **Version-control / back up / promote** it with the REST v2 export+import
@@ -309,10 +368,12 @@ verified here.)
 goes in the **URL-encoded hash fragment**:
 `http://localhost:8081/jasperserver-pro/dashboard/viewer.html#%2Freports%2Fgeocoder%2Fsales_dashboard`
 
-**Note on scope:** export/import promotes/versions dashboards; it does not *create*
-them from data. Authoring is the one manual, UI step. (Ad Hoc views are likewise
-web-UI-authored.) Everything else here — reports and their embedded charts — is
-fully scripted.
+**Note on scope:** a dashboard of **report dashlets** is now fully scripted
+(`build_dashlets.ps1 -Compose`, above). Export/import additionally
+promotes/versions *any* dashboard across servers. The remaining manual step is
+authoring dashboards that use **non-report** tiles (ad hoc views, filter groups)
+— ad hoc views are themselves web-UI-authored. Everything else here — reports,
+their embedded charts, and report-tile dashboards — is fully scripted.
 
 ## Notes / gotchas
 - The live server is `jasperserver-pro` on **port 8081** (HTTP Basic). Port 8080
