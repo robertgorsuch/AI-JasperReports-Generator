@@ -97,11 +97,27 @@ A resource with no explicit ACL returns `204` and inherits from its parent
 > cause as the JSON-body quoting issue — keep complex args out of the inline
 > PowerShell→curl boundary.
 
-## attributes  **[doc-only]**
+## attributes  **[verified]** (server-level scoped + user-level single, both round-tripped)
 Server/org/user key-value attributes — usable in datasource/report expressions
 (`{attribute('name')}`), handy for not hard-coding DB creds per environment.
-- `GET/PUT/DELETE /attributes` (server level),
-  `…/organizations/{id}/attributes`, `…/users/{u}/attributes`.
+Holders: server `/attributes` · org `/organizations/{id}/attributes` · user
+`/users/{u}/attributes`. Entry shape: `{name, value, secure, inherited, holder}`.
+
+- **User / org single attribute** — there's a per-name sub-resource
+  `/users/{u}/attributes/{attrName}` (and `/organizations/{id}/…`):
+  `PUT` a single `{"name":…,"value":…}` (`application/json`) → `201`;
+  `GET` → `200`; `DELETE` → then `GET` is `resource.not.found`. Isolated and safe.
+- **Server level has NO `/attributes/{name}` sub-resource** — only the collection
+  at `/attributes`. ⚠️ **A bare `PUT /attributes` REPLACES ALL attributes** (this
+  server has ~134 system attributes — mondrian/adhoc/log4j/etc.; a full PUT would
+  wipe them). **Always scope the partial update with `?name=`:**
+  `PUT /attributes?name=foo` body `{"attribute":[{"name":"foo","value":"bar"}]}`
+  → updates only `foo`. **Verified:** count went 134 → 135 (delta exactly 1),
+  the other 134 untouched. Multiple: repeat `&name=…`.
+- `GET /attributes?name=foo` reads one; `DELETE /attributes?name=foo` removes one
+  (also scoped — verified count restored 135 → 134).
+- `secure:true` write-masks the value in reads; `?_embedded=...` and `hal+json`
+  representations are available per the WADL.
 
 ## inputControls — parameterized reports  **[verified]** (author → discover → run)
 Verified by deploying a parameterized geocoder report (`county_summary_param`:
