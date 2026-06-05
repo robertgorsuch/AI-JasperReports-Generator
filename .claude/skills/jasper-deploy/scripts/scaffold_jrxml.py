@@ -183,7 +183,7 @@ def first_numeric_col(cols):
     return None
 
 
-def build_chart(chart, cat, val, series, *, width, y, height):
+def build_chart(chart, cat, val, series, *, width, y, height, label_rotation=0):
     """Return jrxml lines for a JFreeChart <element kind="chart">."""
     chart_type, ds_kind = CHART_TYPES[chart]
     o = [f'\t\t<element kind="chart" chartType="{chart_type}" x="0" y="{y}" '
@@ -207,14 +207,25 @@ def build_chart(chart, cat, val, series, *, width, y, height):
         o.append(f'\t\t\t\t\t<valueExpression><![CDATA[$F{{{val}}}]]></valueExpression>')
         o.append('\t\t\t\t</series>')
         o.append('\t\t\t</dataset>')
-        o.append('\t\t\t<plot showTickMarks="true" showTickLabels="true"/>')
+        # JR7 plot classes differ by chart type: JRDesignLinePlot accepts only
+        # showLines/showShapes (NOT showTickMarks/showTickLabels, which throw an
+        # UnrecognizedPropertyException at compile); bar/area/stackedbar plots
+        # take showTickMarks/showTickLabels. categoryAxisTickLabelRotation
+        # (degrees, e.g. -45) is valid on every category plot and keeps long
+        # category labels from being truncated.
+        rot = (f' categoryAxisTickLabelRotation="{label_rotation}"'
+               if label_rotation else '')
+        if chart == "line":
+            o.append(f'\t\t\t<plot showLines="true" showShapes="true"{rot}/>')
+        else:
+            o.append(f'\t\t\t<plot showTickMarks="true" showTickLabels="true"{rot}/>')
     o.append('\t\t</element>')
     return o
 
 
 def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
                 margin=20, chart=None, chart_cat=None, chart_val=None,
-                chart_series=None, chart_height=300):
+                chart_series=None, chart_height=300, chart_label_rotation=0):
     col_w = page_w - 2 * margin
     widths = layout_widths(cols, col_w)
     xs = []
@@ -301,7 +312,8 @@ def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
     if chart:
         out.append(f'\t<summary height="{chart_height + 20}">')
         out.extend(build_chart(chart, chart_cat, chart_val, chart_series,
-                               width=col_w, y=10, height=chart_height))
+                               width=col_w, y=10, height=chart_height,
+                               label_rotation=chart_label_rotation))
         out.append('\t</summary>')
         out.append('')
 
@@ -334,6 +346,9 @@ def main():
     ap.add_argument("--chart-value", help="numeric value column (default: first numeric column)")
     ap.add_argument("--chart-series", help="series column for multi-series category charts")
     ap.add_argument("--chart-height", type=int, default=300)
+    ap.add_argument("--chart-label-rotation", type=int, default=0,
+                    help="rotate category-axis tick labels by N degrees (e.g. -45) "
+                         "to keep long bar/line labels from truncating")
     args = ap.parse_args()
 
     if args.query_file:
@@ -364,7 +379,8 @@ def main():
     xml = build_jrxml(args.name, title, args.subtitle, query, cols,
                       page_w=w, page_h=h, chart=args.chart, chart_cat=chart_cat,
                       chart_val=chart_val, chart_series=args.chart_series,
-                      chart_height=args.chart_height)
+                      chart_height=args.chart_height,
+                      chart_label_rotation=args.chart_label_rotation)
 
     out_path = args.out or f"{args.name}.jrxml"
     with open(out_path, "w", encoding="utf-8") as f:

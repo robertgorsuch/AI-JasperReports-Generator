@@ -42,9 +42,12 @@ function Invoke-JrsPut {
         [Parameter(Mandatory)]$Jrs,          # object from Resolve-JrsConfig
         [Parameter(Mandatory)][string]$Uri,
         [Parameter(Mandatory)][string]$ContentType,
-        [Parameter(Mandatory)][string]$JsonFile
+        [Parameter(Mandatory)][string]$JsonFile,
+        [switch]$Overwrite                       # update in place (no delete) and
+                                                 # bypass the optimistic-lock 409
     )
     $url = "$($Jrs.ServerUrl)/rest_v2/resources$Uri" + "?createFolders=true"
+    if ($Overwrite) { $url += "&overwrite=true" }
     Write-Host "PUT $url"
     $resp = & curl.exe -s -S -w "`n%{http_code}" -u "$($Jrs.User):$($Jrs.Password)" `
         -X PUT -H "Content-Type: $ContentType" -H "Accept: application/json" `
