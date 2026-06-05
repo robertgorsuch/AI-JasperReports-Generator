@@ -68,8 +68,6 @@ $ds     = $m.dataSourceUri
 if (-not $ds) { throw "manifest needs dataSourceUri" }
 $outDir = if ($m.outDir) { $m.outDir } else { "report\$($m.name)" }
 New-Item -ItemType Directory -Force $outDir | Out-Null
-$libGlob = Join-Path "C:\Users\rgorsuch\jasperreports-lib" "*"
-$compiler = Join-Path $PSScriptRoot "CompileReport.java"
 
 $results = @()
 foreach ($d in $m.dashlets) {
@@ -99,14 +97,9 @@ foreach ($d in $m.dashlets) {
     & python @sa | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "scaffold failed for $rname" }
 
-    # --- compile (fast local JR7 validity check) ---
-    # The compiler prints a harmless "SLF4J: No providers" line to stderr; under
-    # $ErrorActionPreference=Stop that turns into a terminating NativeCommandError
-    # even on a clean exit, so run it under Continue and judge by the .jasper file.
-    $jasper = [IO.Path]::ChangeExtension((Resolve-Path $jrxml).Path, ".jasper")
-    if (Test-Path $jasper) { Remove-Item $jasper }
-    & { $ErrorActionPreference = "Continue"; & java --class-path $libGlob $compiler (Resolve-Path $jrxml).Path *>$null }
-    $row.compile = if (Test-Path $jasper) { "OK" } else { "FAIL" }
+    # --- compile (fast local JR7 validity check; shared helper handles the
+    #     harmless SLF4J-on-stderr that would otherwise abort under Stop) ---
+    $row.compile = if (Invoke-JrCompile -Jrxml $jrxml) { "OK" } else { "FAIL" }
     if ($row.compile -eq "FAIL") { $results += [pscustomobject]$row; Write-Host "FAIL compile: $rname"; continue }
 
     # --- deploy (the script throws on failure rather than setting an exit code) ---

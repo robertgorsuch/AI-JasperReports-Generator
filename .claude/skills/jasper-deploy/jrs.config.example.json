@@ -2,5 +2,6 @@
   "serverUrl": "http://localhost:8081/jasperserver-pro",
   "user": "superuser",
   "password": "CHANGE_ME",
-  "dataSourceUri": "/datasources/postgis_34_sample"
+  "dataSourceUri": "/datasources/postgis_34_sample",
+  "jrLibDir": "C:\\Users\\rgorsuch\\jasperreports-lib"
 }

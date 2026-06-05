@@ -64,28 +64,15 @@ $desc = [ordered]@{
     username      = $DbUser
     password      = $DbPassword
 }
-# --- optional overwrite: update the datasource IN PLACE -------------------
-# A datasource referenced by reports can't be deleted (403), and a plain re-PUT
-# hits JRS optimistic locking (409 "versions not match"). So fetch the current
-# version and send it in the descriptor to update in place.
-if ($Overwrite) {
-    $cur = & curl.exe -s -w "`n%{http_code}" -u "$($jrs.User):$($jrs.Password)" `
-        -H "Accept: application/json" "$($jrs.ServerUrl)/rest_v2/resources$Uri"
-    $cl = $cur -split "`n"
-    if ($cl[-1].Trim() -match '^2\d\d$') {
-        try {
-            $desc.version = (($cl[0..($cl.Length - 2)] -join "`n") | ConvertFrom-Json).version
-            Write-Host "overwrite: updating existing $Uri (version $($desc.version))"
-        } catch { }
-    }
-}
-
 # --- PUT to REST v2 ------------------------------------------------------
+# -Overwrite updates the datasource IN PLACE via ?overwrite=true (no delete -- a
+# datasource referenced by reports can't be deleted, and a plain re-PUT hits
+# JRS optimistic locking with 409 "versions not match").
 $jsonFile = [IO.Path]::GetTempFileName()
 ($desc | ConvertTo-Json -Depth 4) | Set-Content -Path $jsonFile -Encoding utf8
 Write-Host "(driver=$DriverClass)"
 try {
-    $r = Invoke-JrsPut -Jrs $jrs -Uri $Uri `
+    $r = Invoke-JrsPut -Jrs $jrs -Uri $Uri -Overwrite:$Overwrite `
         -ContentType "application/repository.jdbcDataSource+json" -JsonFile $jsonFile
 } finally {
     Remove-Item $jsonFile -ErrorAction SilentlyContinue

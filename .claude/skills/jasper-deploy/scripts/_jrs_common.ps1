@@ -9,6 +9,13 @@
   Invoke-JrsPut      - PUT a descriptor file to /rest_v2/resources and return
                        the HTTP code + body.
   Invoke-JrsDelete   - DELETE a resource and return the HTTP code.
+  Invoke-JrsGet      - GET a resource (Accept json) -> { Code; Body }.
+  Resolve-JrLib      - locate the JasperReports 7 runtime jar dir
+                       (param -> env JR_LIB_DIR -> jrs.config jrLibDir -> default).
+  Invoke-JrCompile   - compile a .jrxml to .jasper with CompileReport.java,
+                       tolerating the harmless SLF4J-on-stderr that would
+                       otherwise abort a $ErrorActionPreference=Stop caller;
+                       returns $true iff the .jasper was produced.
 #>
 
 function Resolve-JrsConfig {
@@ -67,4 +74,53 @@ function Invoke-JrsDelete {
             -X DELETE "$($Jrs.ServerUrl)/rest_v2/resources$Uri"
     } finally { Remove-Item $sink -ErrorAction SilentlyContinue }
     return "$code".Trim()
+}
+
+function Invoke-JrsGet {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Jrs, [Parameter(Mandatory)][string]$Uri,
+          [string]$Accept = "application/json")
+    $resp = & curl.exe -s -w "`n%{http_code}" -u "$($Jrs.User):$($Jrs.Password)" `
+        -H "Accept: $Accept" "$($Jrs.ServerUrl)/rest_v2/resources$Uri"
+    $lines = $resp -split "`n"
+    $code = $lines[-1].Trim()
+    $body = if ($lines.Length -ge 2) { ($lines[0..($lines.Length - 2)] -join "`n").Trim() } else { "" }
+    return [pscustomobject]@{ Code = $code; Body = $body }
+}
+
+function Resolve-JrLib {
+    [CmdletBinding()]
+    param([string]$LibDir)
+    $cfgPath = Join-Path $PSScriptRoot "..\jrs.config.json"
+    $cfg = if (Test-Path $cfgPath) { Get-Content $cfgPath -Raw | ConvertFrom-Json } else { $null }
+    if ([string]::IsNullOrEmpty($LibDir)) { $LibDir = [Environment]::GetEnvironmentVariable("JR_LIB_DIR") }
+    if ([string]::IsNullOrEmpty($LibDir) -and $cfg -and ($cfg.PSObject.Properties.Name -contains "jrLibDir")) { $LibDir = $cfg.jrLibDir }
+    if ([string]::IsNullOrEmpty($LibDir)) { $LibDir = "C:\Users\rgorsuch\jasperreports-lib" }
+    if (-not (Test-Path $LibDir)) {
+        throw "JasperReports lib dir not found: $LibDir (set -LibDir, `$env:JR_LIB_DIR, or jrLibDir in jrs.config.json)"
+    }
+    return (Resolve-Path $LibDir).Path
+}
+
+function Invoke-JrCompile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Jrxml,
+        [string]$LibDir,
+        [switch]$PassThru          # also return compiler output text for diagnostics
+    )
+    $jrxmlFull = (Resolve-Path $Jrxml).Path
+    $lib = Resolve-JrLib -LibDir $LibDir
+    $cp = Join-Path $lib "*"
+    $compiler = Join-Path $PSScriptRoot "CompileReport.java"
+    if (-not (Test-Path $compiler)) { throw "CompileReport.java missing next to _jrs_common.ps1" }
+    $jasper = [IO.Path]::ChangeExtension($jrxmlFull, ".jasper")
+    if (Test-Path $jasper) { Remove-Item $jasper -Force }
+    # The compiler prints a harmless "SLF4J: No providers" line to stderr; under
+    # $ErrorActionPreference=Stop that becomes a terminating NativeCommandError
+    # even on a clean exit. Run it under Continue and judge by the .jasper file.
+    $out = & { $ErrorActionPreference = "Continue"; & java --class-path $cp $compiler $jrxmlFull 2>&1 }
+    $ok = Test-Path $jasper
+    if ($PassThru) { return [pscustomobject]@{ Ok = $ok; Jasper = $jasper; Output = ($out | Out-String) } }
+    return $ok
 }
