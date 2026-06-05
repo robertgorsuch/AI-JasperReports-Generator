@@ -93,6 +93,12 @@ Report options are named sets of input-control values saved beside a report
   (`"No options found …"` when none).
 - `PUT  /reports{uri}/options/{id}` body `{"<controlId>":[…]}` — update values.
 - `DELETE /reports{uri}/options/{id}` — remove.
+- **Run with the option applied — run the option's OWN sibling URI** as if it were
+  a report: `GET /reports/<folder>/<optionId>.pdf`. **Verified:** running
+  `…/reports/geocoder/MinEdges50k.pdf` produced the 17-county output (subtitle
+  "…at least 50000 edges", 2.4 KB) vs. the 254-county default (13.8 KB). NOTE: a
+  `?reportOptions=<id>` query param on the *report's* URL did **not** apply the
+  saved values here (still got the default) — use the option resource URI.
 
 ## queryExecutor — run a Domain query for raw data  **[verified, Domain-only]**
 Returns query results without building a report — **but the only resource it
