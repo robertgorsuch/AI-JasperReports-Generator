@@ -20,25 +20,19 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$Jrxml,
-    [string]$LibDir = "C:\Users\rgorsuch\jasperreports-lib"
+    [string]$LibDir          # default resolves via env JR_LIB_DIR / jrs.config jrLibDir
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "_jrs_common.ps1")
 
 if (-not (Test-Path $Jrxml)) { throw "jrxml not found: $Jrxml" }
-if (-not (Test-Path $LibDir)) { throw "JasperReports lib dir not found: $LibDir" }
-
-$compiler = Join-Path $PSScriptRoot "CompileReport.java"
-if (-not (Test-Path $compiler)) { throw "CompileReport.java missing next to this script" }
-
 $jrxmlFull = (Resolve-Path $Jrxml).Path
-$cp = Join-Path $LibDir "*"
-
 Write-Host "Compiling $jrxmlFull ..."
-& java --class-path $cp $compiler $jrxmlFull
-$code = $LASTEXITCODE
-if ($code -ne 0) { throw "compilation failed (exit $code)" }
 
-$jasper = [System.IO.Path]::ChangeExtension($jrxmlFull, ".jasper")
-if (-not (Test-Path $jasper)) { throw "compile reported success but $jasper is missing" }
-Write-Host "OK: $jasper"
+$res = Invoke-JrCompile -Jrxml $jrxmlFull -LibDir $LibDir -PassThru
+if (-not $res.Ok) {
+    Write-Host $res.Output
+    throw "compilation failed: $jrxmlFull (no .jasper produced)"
+}
+Write-Host "OK: $($res.Jasper)"

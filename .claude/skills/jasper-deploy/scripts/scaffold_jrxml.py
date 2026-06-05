@@ -66,6 +66,32 @@ def label_for(col: str) -> str:
     return " ".join(w.capitalize() for w in col.replace("_", " ").split())
 
 
+# --- SQL lint ----------------------------------------------------------------
+def lint_sql(query: str):
+    """Warnings for a JRS report query. The JRS SQL security validator requires
+    statements to begin with SELECT; a leading WITH (CTE) compiles locally but
+    is rejected at fill time (JSSecurityException). Returns [(level, msg), ...]."""
+    import re
+    s = query.strip()
+    while True:                                   # strip leading SQL comments
+        if s.startswith("--"):
+            nl = s.find("\n"); s = s[nl + 1:].lstrip() if nl >= 0 else ""
+        elif s.startswith("/*"):
+            end = s.find("*/"); s = s[end + 2:].lstrip() if end >= 0 else ""
+        else:
+            break
+    m = re.match(r"(?i)([a-z]+)", s)
+    kw = m.group(1).lower() if m else ""
+    if kw == "with":
+        return [("ERROR", "query begins with WITH (CTE): JRS rejects this at fill "
+                 "time even though it compiles locally. Push each CTE into a FROM "
+                 "subquery so the statement starts with SELECT.")]
+    if kw and kw != "select":
+        return [("WARN", f"query begins with '{kw}', not SELECT; JRS requires "
+                 "report queries to start with SELECT.")]
+    return []
+
+
 # --- column introspection via psql -------------------------------------------
 def introspect(query: str, host, port, user, db) -> list:
     """Return [(column_name, udt_name), ...] for the query's result set."""
@@ -359,6 +385,9 @@ def main():
 
     if "PGPASSWORD" not in os.environ:
         sys.stderr.write("WARNING: PGPASSWORD not set; psql may prompt or fail.\n")
+
+    for level, msg in lint_sql(query):
+        sys.stderr.write(f"SQL {level}: {msg}\n")
 
     cols = introspect(query, args.host, args.port, args.user, args.db)
 

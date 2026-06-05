@@ -41,6 +41,7 @@ param(
     [string]$DataSourceUri,
     [string[]]$ResourceFiles,   # companion resources: "name=localpath" (bundles, images, subreports)
     [switch]$Overwrite,
+    [switch]$SkipSqlLint,       # bypass the SELECT-first / leading-WITH guard
     [string]$ServerUrl,
     [string]$User,
     [string]$Password
@@ -51,6 +52,28 @@ $ErrorActionPreference = "Stop"
 
 if (-not (Test-Path $Jrxml)) { throw "jrxml not found: $Jrxml" }
 $jrxmlFull = (Resolve-Path $Jrxml).Path
+
+# --- SQL lint: a leading WITH (CTE) or non-SELECT query compiles locally but
+#     the JRS SQL security validator rejects it at fill time (JSSecurityException
+#     surfaced as a generic 400). Catch it before deploying.
+if (-not $SkipSqlLint) {
+    $jx = Get-Content $jrxmlFull -Raw
+    $mq = [regex]::Match($jx, '(?s)<query[^>]*language="SQL"[^>]*>\s*<!\[CDATA\[(.*?)\]\]>')
+    if ($mq.Success) {
+        $q = $mq.Groups[1].Value.Trim()
+        while ($true) {                              # strip leading SQL comments
+            if ($q.StartsWith("--"))     { $i = $q.IndexOf("`n"); $q = if ($i -ge 0) { $q.Substring($i + 1).TrimStart() } else { "" } }
+            elseif ($q.StartsWith("/*")) { $i = $q.IndexOf("*/");  $q = if ($i -ge 0) { $q.Substring($i + 2).TrimStart() } else { "" } }
+            else { break }
+        }
+        $kw = ([regex]::Match($q, "(?i)^[a-z]+")).Value.ToLower()
+        if ($kw -eq "with") {
+            throw "SQL lint: query begins with WITH (CTE). JRS rejects this at fill time though it compiles locally. Rewrite each CTE as a FROM subquery so the statement starts with SELECT, or pass -SkipSqlLint. (See SKILL.md gotchas.)"
+        } elseif ($kw -and $kw -ne "select") {
+            Write-Warning "SQL lint: query begins with '$kw', not SELECT; JRS requires report queries to start with SELECT."
+        }
+    }
+}
 
 # --- resolve config (param -> env -> jrs.config.json, validated) ----------
 $jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password
