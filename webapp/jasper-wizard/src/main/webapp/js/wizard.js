@@ -41,6 +41,7 @@ $$('.navitem').forEach(t => t.addEventListener('click', () => {
   $$('.panel').forEach(x => x.classList.remove('active'));
   t.classList.add('active');
   $('#panel-' + t.dataset.panel).classList.add('active');
+  if (t.dataset.panel === 'summary') loadSummary();
   if (t.dataset.panel === 'dashboard') { loadReportPicker(); loadDashboardList(); }
   if (t.dataset.panel === 'datasource') loadDatasourceList();
 }));
@@ -52,6 +53,60 @@ let jrsBase = '';
   try { const h = await getJson('/health'); jrsBase = h.server || ''; el.textContent = (h.jrsUp ? '● ' : '○ ') + h.server; el.classList.add(h.jrsUp ? 'up' : 'down'); }
   catch { el.textContent = 'unreachable'; el.classList.add('down'); }
 })();
+
+/* ----------------------------------------------------- summary ------------ */
+const REPO_LABELS = {
+  reportUnit: 'Reports', dashboard: 'Dashboards', adhocDataView: 'Ad Hoc Views',
+  semanticLayerDataSource: 'Domains', jdbcDataSource: 'Data Sources', olapUnit: 'OLAP Views',
+  inputControl: 'Input Controls', query: 'Queries', file: 'Files', folder: 'Folders'
+};
+const SERVER_LABELS = {
+  version: 'Version', edition: 'Edition', editionName: 'Edition name', licenseType: 'License',
+  build: 'Build', expiration: 'License expiration', dateFormat: 'Date format',
+  datetimeFormat: 'Datetime format', features: 'Features'
+};
+function metric(n, label) { return '<div class="metric"><div class="num">' + (n ?? 0) + '</div><div class="lbl">' + label + '</div></div>'; }
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+async function loadSummary() {
+  const box = $('#sum_body'); box.innerHTML = '<em>gathering metadata…</em>';
+  let s;
+  try { s = await getJson('/summary'); } catch (e) { box.innerHTML = banner(false, 'Could not load summary'); return; }
+  if (!s.ok) { box.innerHTML = banner(false, 'Summary failed'); return; }
+  const repo = s.repository || {}, id = s.identity || {}, sch = s.scheduling || {}, srv = s.server || {};
+
+  // headline metric cards
+  let cards = '<div class="cards">' +
+    metric(repo.reportUnit, 'Reports') + metric(repo.dashboard, 'Dashboards') +
+    metric(repo.adhocDataView, 'Ad Hoc Views') + metric(repo.semanticLayerDataSource, 'Domains') +
+    metric(repo.jdbcDataSource, 'Data Sources') + metric(sch.jobs, 'Scheduled Jobs') +
+    metric(id.organizations, 'Organizations') + metric(id.users, 'Users') + metric(id.roles, 'Roles') +
+    '</div>';
+
+  // server / runtime card (render whatever serverInfo provides)
+  let srows = '';
+  Object.keys(SERVER_LABELS).forEach(k => {
+    if (srv[k] === undefined || srv[k] === null) return;
+    let v = Array.isArray(srv[k]) ? srv[k].join(', ') : srv[k];
+    srows += '<tr><th>' + SERVER_LABELS[k] + '</th><td>' + esc(v) + '</td></tr>';
+  });
+  const serverCard = '<div class="sumcard"><h3>Server &amp; runtime</h3><table class="kv">' +
+    (srows || '<tr><td>(serverInfo unavailable)</td></tr>') + '</table></div>';
+
+  // repository inventory
+  let irows = '';
+  Object.keys(REPO_LABELS).forEach(k => { irows += '<tr><th>' + REPO_LABELS[k] + '</th><td>' + (repo[k] ?? 0) + '</td></tr>'; });
+  const invCard = '<div class="sumcard"><h3>Repository inventory</h3><table class="kv">' + irows + '</table></div>';
+
+  // data sources
+  const ds = resourceList(s.datasources || {});
+  const dsCard = '<div class="sumcard wide"><h3>Data sources (' + ds.length + ')</h3><table><thead><tr><th>label</th><th>uri</th></tr></thead><tbody>' +
+    (ds.length ? ds.map(d => '<tr><td>' + esc(d.label) + '</td><td><small>' + esc(d.uri) + '</small></td></tr>').join('') : '<tr><td colspan="2"><em>none</em></td></tr>') +
+    '</tbody></table></div>';
+
+  box.innerHTML = cards + '<div class="sumgrid">' + serverCard + invCard + '</div>' + dsCard;
+}
+$('#sum_refresh').addEventListener('click', loadSummary);
 
 /* -------------------------------------------------- datasource lists ------ */
 async function loadDatasources() {

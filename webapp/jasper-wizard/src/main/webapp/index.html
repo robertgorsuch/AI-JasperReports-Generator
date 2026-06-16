@@ -24,6 +24,8 @@
 
   <div class="shell">
     <nav class="side">
+      <div class="navgroup">Overview</div>
+      <button class="navitem" data-panel="summary">📈 Server Summary</button>
       <div class="navgroup">Create</div>
       <button class="navitem active" data-panel="report">📊 Report</button>
       <button class="navitem" data-panel="dashboard">🗂️ Dashboard</button>
@@ -40,6 +42,13 @@
     </nav>
 
     <main>
+      <!-- =========================== SUMMARY =========================== -->
+      <section class="panel" id="panel-summary">
+        <div class="nav"><h2 style="margin:0">Server summary</h2><button class="ghost" id="sum_refresh">Refresh</button></div>
+        <p class="lead">Live metadata &amp; runtime characteristics of this JasperReports Server and its repository.</p>
+        <div id="sum_body"><em>loading&hellip;</em></div>
+      </section>
+
       <!-- ============================ REPORT ============================ -->
       <section class="panel active" id="panel-report">
         <ol class="steps" id="reportSteps"><li class="on">Source</li><li>Query</li><li>Design</li><li>Review</li></ol>

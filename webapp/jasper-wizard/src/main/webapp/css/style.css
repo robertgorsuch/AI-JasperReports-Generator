@@ -121,3 +121,17 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spa
 td small { color: var(--muted); }
 .tablewrap { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 11px; margin-top: 10px; }
 .tag { background: #e7f0ff; color: var(--brand-deep); font-size: 11px; padding: 2px 8px; border-radius: 12px; white-space: nowrap; font-weight: 600; }
+
+/* ---------------------------------------------------- summary dashboard --- */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 12px; margin: 6px 0 20px; }
+.metric { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 14px; text-align: center; position: relative; overflow: hidden; }
+.metric::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--grad-accent); }
+.metric .num { font-family: var(--font-head); font-size: 30px; font-weight: 800; color: var(--ink); line-height: 1; letter-spacing: -.5px; }
+.metric .lbl { margin-top: 6px; font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+.sumgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .sumgrid { grid-template-columns: 1fr; } }
+.sumcard { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+.sumcard.wide { margin-top: 0; }
+.sumcard h3 { margin: 0 0 8px; font-size: 14px; color: var(--ink); }
+table.kv th { width: 44%; color: var(--muted); font-weight: 600; text-transform: none; letter-spacing: 0; font-size: 13px; }
+table.kv td { color: var(--ink-2); word-break: break-word; }

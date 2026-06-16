@@ -77,6 +77,7 @@ public class WizardServlet extends HttpServlet {
         try {
             switch (p) {
                 case "/health":           health(resp); return;
+                case "/summary":          summary(resp); return;
                 case "/datasources":      proxy("/rest_v2/resources?type=jdbcDataSource&recursive=true", resp); return;
                 case "/reports":          proxy("/rest_v2/resources?folderUri=" + JrsClient.enc(param(req,"folder","/reports")) + "&type=reportUnit&recursive=true", resp); return;
                 case "/resources":        listResources(req, resp); return;
@@ -434,6 +435,76 @@ public class WizardServlet extends HttpServlet {
     }
 
     // ============================================================== shared ===
+
+    /**
+     * Aggregate the server's metadata + runtime characteristics and the repository
+     * inventory into one JSON document (one round-trip for the UI):
+     *  - server:      raw serverInfo (version, edition, license, build, formats, features)
+     *  - repository:  count of resources per type
+     *  - identity:    organizations / users / roles counts
+     *  - scheduling:  total scheduled jobs
+     *  - datasources: the JDBC datasource list (raw)
+     */
+    private void summary(HttpServletResponse resp) throws IOException {
+        String server = okBody(jrs.get("/rest_v2/serverInfo"));
+        String[] types = {"reportUnit", "dashboard", "adhocDataView", "semanticLayerDataSource",
+                          "jdbcDataSource", "olapUnit", "inputControl", "query", "file", "folder"};
+        StringBuilder repo = new StringBuilder("{");
+        for (int i = 0; i < types.length; i++) {
+            int c = countJsonArray(okBody(jrs.get("/rest_v2/resources?type=" + types[i] + "&recursive=true")), "resourceLookup");
+            if (i > 0) repo.append(",");
+            repo.append(Json.str(types[i])).append(":").append(c);
+        }
+        repo.append("}");
+        int users = countJsonArray(okBody(jrs.get("/rest_v2/users")), "user");
+        int roles = countJsonArray(okBody(jrs.get("/rest_v2/roles")), "role");
+        int orgs  = countJsonArray(okBody(jrs.get("/rest_v2/organizations")), "organization");
+        int jobs  = countJsonArray(okBody(jrs.get("/rest_v2/jobs")), "jobsummary");
+        String ds = okBody(jrs.get("/rest_v2/resources?type=jdbcDataSource&recursive=true"));
+        if (ds.isEmpty()) ds = "{}";
+        if (server.isEmpty()) server = "{}";
+
+        String out = "{\"ok\":true"
+                + ",\"server\":" + server
+                + ",\"repository\":" + repo
+                + ",\"identity\":{\"organizations\":" + orgs + ",\"users\":" + users + ",\"roles\":" + roles + "}"
+                + ",\"scheduling\":{\"jobs\":" + jobs + "}"
+                + ",\"datasources\":" + ds + "}";
+        json(resp, 200, out);
+    }
+
+    private static String okBody(JrsClient.Resp r) {
+        return (r != null && r.body != null && !r.body.isEmpty() && r.code < 400) ? r.body : "";
+    }
+
+    /** Count the elements of a named JSON array without a full parser: walk the
+     *  array body tracking string/escape state and brace/bracket depth, counting
+     *  top-level commas. Robust for arrays of objects or scalars; 0 if empty/absent. */
+    static int countJsonArray(String json, String key) {
+        if (json == null) return 0;
+        int k = json.indexOf("\"" + key + "\"");
+        if (k < 0) return 0;
+        int open = json.indexOf('[', k);
+        if (open < 0) return 0;
+        int depth = 0, commas = 0;
+        boolean inStr = false, esc = false, any = false;
+        for (int i = open + 1; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (inStr) {
+                if (esc) esc = false;
+                else if (c == '\\') esc = true;
+                else if (c == '"') inStr = false;
+                continue;
+            }
+            if (c == '"') { inStr = true; any = true; }
+            else if (c == '[' || c == '{') { depth++; any = true; }
+            else if (c == ']') { if (depth == 0) break; depth--; }
+            else if (c == '}') { depth--; }
+            else if (c == ',') { if (depth == 0) commas++; }
+            else if (!Character.isWhitespace(c)) any = true;
+        }
+        return any ? commas + 1 : 0;
+    }
 
     private void health(HttpServletResponse resp) throws IOException {
         boolean up = false;
