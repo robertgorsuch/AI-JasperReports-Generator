@@ -20,8 +20,9 @@ against a local **JasperReports Server 10**.
 - **JasperReports Server:** PRO at `http://localhost:8081/jasperserver-pro` (`superuser`/`superuser`).
   The `jasper-deploy` skill (its `SKILL.md`) automates scaffolding reports from SQL, deploying them,
   verifying renders, composing dashboards from a JSON manifest, and the rest of the JRS resource set:
-  data sources (JDBC + non-JDBC), shared style templates (`.jrtx`), single-table Domains, ad hoc views
-  (list/export/import), and UI themes.
+  data sources (JDBC + non-JDBC incl. AWS), shared style templates (`.jrtx`), single-table Domains,
+  ad hoc views (list/export/import), UI themes, query-based & cascading input controls, repository
+  permissions/attributes, and OLAP/Mondrian (schema + connection). Its `smoke_test.ps1` is an 18-step gate.
 
 ## The things that will bite you (gotchas)
 
@@ -38,6 +39,10 @@ against a local **JasperReports Server 10**.
    Reports that are dashlets are modification-locked (`403 resource.in.use`) until the owning dashboard is removed.
 8. **Style templates & Domains** — a `.jrtx` default style is `default="true"` (not 6.x `isDefault`); a
    Domain's schema.xml must be embedded inline in the `create_domain.ps1` descriptor, not pre-uploaded.
+9. **PowerShell 5.1 (new skill scripts)** — `?` is a legal variable-name char, so build URLs as
+   `"${base}?name="` not `"$base?name="` (else `405`); `ConvertTo-Json` unwraps single-element arrays
+   to scalars (server `400`), so emit those as hand-built JSON. AWS datasource `-Region` is the endpoint
+   host (`us-east-1.amazonaws.com`), not `us-east-1`.
 
 ## Key prerequisites
 

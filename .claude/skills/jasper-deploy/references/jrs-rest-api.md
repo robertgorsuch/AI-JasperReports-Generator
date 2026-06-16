@@ -339,10 +339,22 @@ Out of scope for *authoring*, but the deployed artifacts are directly embeddable
   report `<template>` expression (`scaffold_style_template.py` +
   `scaffold_jrxml.py --style-template`). Default-style attr is `default="true"`.
 - **Non-JDBC datasources**: `jndiJdbcDataSource` / `beanDataSource` /
-  `customDataSource` / `virtualDataSource` via `create_datasource.ps1 -Type`.
+  `customDataSource` / `virtualDataSource` / `awsDataSource` via
+  `create_datasource.ps1 -Type`. AWS `region` is the endpoint host
+  (`us-east-1.amazonaws.com`), not the bare code.
+- **Query-based + cascading input controls**: `deploy_report.ps1
+  -QueryControl/-QueryMultiControl` builds a `query` resource + an inputControl
+  (type 4 single / 7 multi, `valueColumn`+`visibleColumns`+`queryReference`);
+  cascade via `$P{parent}` in the child query SQL.
+- **OLAP / Mondrian**: `create_mondrian.ps1` uploads an `olapMondrianSchema`
+  (standalone file resource) + creates a `secureMondrianConnection`
+  (`dataSource.dataSourceReference` + `schema.schemaReference`); an `olapUnit`
+  view is best-effort (creating it opens the connection + validates the MDX).
+- **Permissions / attributes**: `manage_permissions.ps1`, `manage_attributes.ps1`
+  (see the verified sections above).
 
 ### Deliberately out of scope
-Users/roles/organizations admin, OLAP, diagnostics,
+Users/roles/organizations admin, XML/A endpoint config, diagnostics,
 install/upgrade/security/telemetry — present in the API and in the `docs/` PDFs,
 but outside this skill's remit. Discover them via the WADL or the `docs/` guides
 if ever needed.

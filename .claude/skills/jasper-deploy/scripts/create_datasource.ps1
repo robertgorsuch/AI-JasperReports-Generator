@@ -24,7 +24,7 @@
   Repository URI for the datasource, e.g. /datasources/postgis_34_sample.
 
 .PARAMETER Type
-  Datasource type: jdbc (default) | jndi | bean | custom | virtual.
+  Datasource type: jdbc (default) | jndi | bean | custom | virtual | aws.
 
 .PARAMETER Label
   Human-readable label. Defaults to the last URI segment.
@@ -60,7 +60,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$Uri,
-    [ValidateSet("jdbc", "jndi", "bean", "custom", "virtual")][string]$Type = "jdbc",
+    [ValidateSet("jdbc", "jndi", "bean", "custom", "virtual", "aws")][string]$Type = "jdbc",
     [string]$Label,
     [string]$Description = "",
     # jdbc
@@ -81,6 +81,15 @@ param(
     [hashtable]$Properties,
     # virtual
     [System.Collections.IDictionary]$SubDataSources,
+    # aws (extends jdbc; uses ConnectionUrl/DriverClass/DbUser/DbPassword too)
+    [string]$AccessKey,
+    [string]$SecretKey,
+    [string]$RoleArn,
+    # JRS region value is the AWS endpoint host, e.g. us-east-1.amazonaws.com,
+    # eu-west-1.amazonaws.com (NOT the bare "us-east-1" code nor the SDK enum name).
+    [string]$Region = "us-east-1.amazonaws.com",
+    [string]$DbInstanceIdentifier,
+    [string]$DbService = "postgresql",
     [switch]$Overwrite,
     [string]$ServerUrl,
     [string]$User,
@@ -139,6 +148,22 @@ switch ($Type) {
         })
         $desc = [ordered]@{ label = $Label; description = $Description; subDataSources = $subs }
         Write-Host "(virtual subDataSources=$($SubDataSources.Count))"
+    }
+    "aws" {
+        # awsDataSource extends jdbcDataSource with AWS RDS auto-connect fields.
+        # connectionUrl can be left to JRS to derive from region+dbInstanceIdentifier,
+        # but supplying it (or letting the PG default build) keeps it explicit.
+        if (-not $ConnectionUrl) { $ConnectionUrl = "jdbc:postgresql://${DbHost}:${DbPort}/${Database}" }
+        $contentType = "application/repository.awsDataSource+json"
+        $desc = [ordered]@{
+            label = $Label; description = $Description
+            driverClass = $DriverClass; connectionUrl = $ConnectionUrl
+            username = $DbUser; password = $DbPassword
+            accessKey = $AccessKey; secretKey = $SecretKey; roleARN = $RoleArn
+            region = $Region; dbName = $Database; dbInstanceIdentifier = $DbInstanceIdentifier
+            dbService = $DbService
+        }
+        Write-Host "(aws region=$Region dbService=$DbService)"
     }
 }
 

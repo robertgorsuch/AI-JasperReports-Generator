@@ -6,9 +6,11 @@ description: >-
   generate or hand-edit a JR7 (JasperReports 7) .jrxml, compile a .jrxml to
   .jasper, publish/deploy a report to the Jasper(Reports) Server, or export/import
   (promote, back up, version-control) a dashboard or other repository resource.
-  Also covers data sources (JDBC and non-JDBC: JNDI/bean/custom/virtual),
+  Also covers data sources (JDBC and non-JDBC: JNDI/bean/custom/virtual/AWS),
   shared JR style templates (.jrtx), single-table Domains (semantic layer),
-  ad hoc views (list/inspect/export/import), and JRS UI themes (CSS).
+  ad hoc views (list/inspect/export/import), JRS UI themes (CSS), query-based
+  and cascading input controls, repository permissions and attributes, and
+  OLAP/Mondrian (schema + secure connection).
   Covers the full design-compile-deploy pipeline against a local PostgreSQL
   database and a JasperReports Server REST v2 endpoint.
 ---
@@ -156,7 +158,7 @@ Defaults target PostgreSQL `localhost:5432`; override with
 `-Debug`), so the database-name parameter is `-Database`.
 
 **Non-JDBC datasources** — `create_datasource.ps1 -Type` also emits
-`jndi|bean|custom|virtual` descriptors (the matching
+`jndi|bean|custom|virtual|aws` descriptors (the matching
 `application/repository.<type>DataSource+json` media type):
 ```powershell
 & $skill\create_datasource.ps1 -Type jndi    -Uri /datasources/fm_jndi -JndiName jdbc/foodmart
@@ -164,12 +166,17 @@ Defaults target PostgreSQL `localhost:5432`; override with
 & $skill\create_datasource.ps1 -Type custom  -Uri /datasources/cds -ServiceClass com.acme.MyDsService -Properties @{k="v"}
 & $skill\create_datasource.ps1 -Type virtual -Uri /datasources/combined `
     -SubDataSources ([ordered]@{ fm='/public/Samples/Data_Sources/FoodmartDataSource'; pg='/datasources/postgis_34_sample' })
+& $skill\create_datasource.ps1 -Type aws     -Uri /datasources/rds -DbInstanceIdentifier mydb `
+    -Database foodmart -AccessKey AKIA... -SecretKey ...   # -Region defaults to us-east-1.amazonaws.com
 ```
-**Verified:** `jndi` and `virtual` create (`201`) and round-trip. NOTE: creating
-a non-JDBC datasource validates the **descriptor shape** and stores the resource;
-actually *connecting* needs the server-side prerequisite (a JNDI resource in the
-app server, a Spring bean on the classpath, a custom data-source service, or —
-for `virtual` — the referenced sub-datasources).
+**Verified:** `jndi`, `virtual`, and `aws` create (`201`) and round-trip. NOTE:
+creating a non-JDBC datasource validates the **descriptor shape** and stores the
+resource; actually *connecting* needs the server-side prerequisite (a JNDI
+resource in the app server, a Spring bean on the classpath, a custom data-source
+service, the referenced sub-datasources, or live AWS creds). **AWS `-Region`
+gotcha:** the value is the AWS **endpoint host** (`us-east-1.amazonaws.com`,
+`eu-west-1.amazonaws.com`), NOT the bare `us-east-1` code (which `400`s
+"invalid Region").
 
 ### 3. Deploy — publish to JasperReports Server (REST v2)
 `scripts/deploy_report.ps1` wraps the jrxml in a reportUnit descriptor (jrxml
@@ -200,6 +207,18 @@ report unit is retrievable at its URI.
   repository resources under `<report>_controls/` and referenced (the verified
   pattern — embedding controls in the report unit is rejected). Verify with
   `GET /rest_v2/reports/{uri}/inputControls`.
+- **`-QueryControl` / `-QueryMultiControl`** (`string[]`) attach **query-backed**
+  controls whose option list comes from SQL. Format
+  `"param|valueCol|visibleCols|SQL"` (`|`-delimited; SQL is last so it may contain
+  `|`; `visibleCols` comma-separated, defaults to `valueCol`). Each gets a companion
+  `query` resource on the report's datasource (so `-DataSourceUri` is required).
+  **Cascading:** reference a parent control as `$P{parent}` in a child's SQL and
+  pass the parent earlier in the array — the child's options then filter by the
+  parent's selection. (single = inputControl type 4, multi = type 7.) **Verified
+  end-to-end:** a Product_Family → Product_Department cascade returns 16 / 4 / 6
+  departments for Food / Drink / Non-Consumable via
+  `GET /rest_v2/reports/{uri}/inputControls/{child}/values?{parent}=…`. PowerShell
+  arrays take comma-separated values (`-QueryControl $a,$b`), not a repeated flag.
 
 **Credentials** resolve in order: script params → env vars
 `JRS_URL`/`JRS_USER`/`JRS_PASS` → `jrs.config.json` in the skill root. Copy
@@ -615,6 +634,52 @@ the CSS serves back from its repo URI. The scaffolded selectors (banner, primary
 buttons, login, table headers) are a **starting point** — refine against your
 install's actual markup.
 
+## OLAP / Mondrian
+Server-side OLAP is three resources: an `olapMondrianSchema` (the Mondrian
+cube/dimension XML, a file resource), a `secureMondrianConnection` binding a JDBC
+datasource to that schema, and optionally an `olapUnit` analysis view (a saved
+MDX query). `scripts/create_mondrian.ps1` does all three:
+```powershell
+& $skill\create_mondrian.ps1 -Uri /analysis/foodmart -SchemaFile report\foodmart_schema.xml `
+    -DataSourceUri /public/Samples/Data_Sources/FoodmartDataSource -Label "Foodmart OLAP" -Overwrite `
+    -ViewUri /analysis/foodmart_sales `
+    -MdxQuery "select {[Measures].[Unit Sales]} on columns, {[Product].[All Products]} on rows from Sales"
+```
+**Verified:** the schema uploads + the `secureMondrianConnection` creates (`201`)
+and round-trips (`schema.schemaReference` + `dataSource.dataSourceReference`).
+Unlike a Domain, a Mondrian schema is a **standalone** resource (referenced, not
+embedded). **The `olapUnit` view is best-effort:** creating it OPENS the
+connection and validates the MDX against the live cube, so it `500`s unless the
+schema actually parses against the backing DB (tables/columns must match) — the
+script warns and still leaves the schema + connection in place. Grab a sample
+schema to start from: `GET /rest_v2/resources/public/Samples/OLAP/Schemas/FoodmartSchema2013.xml`.
+
+## Permissions & attributes
+`scripts/manage_permissions.ps1` get/set/clear repository ACLs via the
+`permissions` service:
+```powershell
+& $skill\manage_permissions.ps1 -Action get   -Uri /reports/geocoder -Effective
+& $skill\manage_permissions.ps1 -Action set   -Uri /reports/geocoder -Recipient role:/ROLE_USER -Mask 30
+& $skill\manage_permissions.ps1 -Action clear -Uri /reports/geocoder      # back to inherited (204)
+```
+`-Recipient`/`-Mask` are parallel arrays (one mask per recipient); `set` uses
+`Content-Type: application/collection+json` (NOT `…collection.permission+json`,
+which `415`s). Masks: 1=administer, 2=read+delete, 18=read+write, 30=read-only,
+32=execute-only. **Verified:** set → confirm → clear round-trip.
+
+`scripts/manage_attributes.ps1` get/set/delete a key-value attribute at server /
+org / user scope (usable in datasource/report expressions as `{attribute('name')}`):
+```powershell
+& $skill\manage_attributes.ps1 -Scope server -Action set -Name dbHost -Value db.prod.internal
+& $skill\manage_attributes.ps1 -Scope user   -UserName jdoe -Action set -Name region -Value west
+& $skill\manage_attributes.ps1 -Scope server -Action delete -Name dbHost
+```
+**Verified:** server-scope set → get → delete round-trip. **Two gotchas the script
+handles:** (1) a bare `PUT /attributes` REPLACES ALL ~134 system attributes, so
+the server scope is **always `?name=`-scoped**; (2) PowerShell 5.1 treats `?` as a
+variable-name char, so the path is built with `${base}` braces (else `"$base?name"`
+silently drops the base and `405`s).
+
 ## Notes / gotchas
 - The live server is `jasperserver-pro` on **port 8081** (HTTP Basic). Port 8080
   hosts an unrelated Bearer-token-gated Java service that 401s every path — not JRS.
@@ -624,8 +689,11 @@ install's actual markup.
   alert (CRUD) → composes a dashboard (report + text tile) → deploys a **style
   template** and runs a report that references it → creates a single-table
   **Domain** → creates a non-JDBC (**jndi**) datasource → deploys a UI **theme** →
-  tears down, asserting each of the 13 steps under a throwaway `/reports/_smoke`
-  (the theme lives under `/themes` and is cleaned up too).
+  creates an **AWS** datasource → deploys a report with **cascading query input
+  controls** (asserts the child option count changes per parent) → sets+clears
+  **permissions** → server **attribute** CRUD → creates a **Mondrian** schema +
+  connection → tears down, asserting each of the 18 steps under a throwaway
+  `/reports/_smoke` (the theme lives under `/themes` and is cleaned up too).
 - **JR runtime lib dir** resolves via `-LibDir` → `$env:JR_LIB_DIR` → `jrs.config.json`
   `jrLibDir` → the machine default; set `jrLibDir` on a fresh clone. The shared
   `Invoke-JrCompile` helper also absorbs the harmless SLF4J-on-stderr that would

@@ -9,7 +9,9 @@
     -> verify_report (content) -> run to PDF -> schedule_job CRUD -> manage_alert
     CRUD -> compose a dashboard (report + text tile) -> style template (.jrtx)
     referenced by a report -> single-table Domain -> non-JDBC (jndi) datasource
-    -> UI theme deploy -> teardown.
+    -> UI theme deploy -> AWS datasource -> cascading query input controls
+    -> permissions set/clear -> server attribute CRUD -> Mondrian schema+connection
+    -> teardown.
   Prints PASS/FAIL per step and throws if any step fails. Leaves nothing behind
   unless -KeepArtifacts.
 
@@ -153,6 +155,67 @@ GROUP BY 1 ORDER BY 2 DESC
         $themeOk = (Invoke-JrsGet -Jrs $jrs -Uri "/themes/$themeName/overrides_custom.css").Code -match '^2\d\d$'
     } catch { $themeOk = $false }
     step "theme" $themeOk
+
+    # 6f. AWS datasource (descriptor-shape validation)
+    $awsOk = $false
+    try {
+        & "$skill\create_datasource.ps1" -Type aws -Uri "$Folder/smoke_aws" -DbInstanceIdentifier smokedb `
+            -Database $Database -AccessKey AKIASMOKE -SecretKey shh -Overwrite @cred *>$null
+        $awsOk = (Invoke-JrsGet -Jrs $jrs -Uri "$Folder/smoke_aws").Code -match '^2\d\d$'
+    } catch { $awsOk = $false }
+    step "datasource-aws" $awsOk
+
+    # 6g. cascading query-based input controls on a report
+    $qcOk = $false
+    try {
+        @"
+SELECT pc.product_department AS department, count(*)::int AS n
+FROM product p JOIN product_class pc ON pc.product_class_id=p.product_class_id
+WHERE ('All'=`$P{Product_Family} OR pc.product_family=`$P{Product_Family})
+GROUP BY 1 ORDER BY 2 DESC
+"@ | Set-Content "$work\casc.sql" -Encoding ascii
+        & python "$skill\scaffold_jrxml.py" --name smoke_casc --db $Database --title "Cascade" `
+            --param "Product_Family:string:All" --query-file "$work\casc.sql" --out "$work\smoke_casc.jrxml" *>$null
+        $qcParent = "Product_Family|product_family|product_family|SELECT DISTINCT product_family FROM product_class ORDER BY 1"
+        $qcChild  = "Product_Department|product_department|product_department|SELECT DISTINCT pc.product_department FROM product_class pc WHERE pc.product_family=`$P{Product_Family} ORDER BY 1"
+        & "$skill\deploy_report.ps1" -Jrxml "$work\smoke_casc.jrxml" -TargetUri "$Folder/smoke_casc" `
+            -Label "Cascade" -DataSourceUri $DataSourceUri -Overwrite -QueryControl $qcParent,$qcChild @cred *>$null
+        # cascading proof: child option count must differ by parent value
+        $vFood = ((Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/reports$Folder/smoke_casc/inputControls/Product_Department/values?Product_Family=Food").Body | ConvertFrom-Json).inputControlState.options.Count
+        $vDrink = ((Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/reports$Folder/smoke_casc/inputControls/Product_Department/values?Product_Family=Drink").Body | ConvertFrom-Json).inputControlState.options.Count
+        $qcOk = ($vFood -gt 0 -and $vDrink -gt 0 -and $vFood -ne $vDrink)
+    } catch { $qcOk = $false }
+    step "query-control-cascade" $qcOk
+
+    # 6h. permissions set -> confirm -> clear round-trip on the report folder
+    $permOk = $false
+    try {
+        & "$skill\manage_permissions.ps1" -Action set -Uri $rptUri -Recipient role:/ROLE_USER -Mask 30 @cred *>$null
+        $hasPerm = ((Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/permissions$rptUri").Body) -match "ROLE_USER"
+        & "$skill\manage_permissions.ps1" -Action clear -Uri $rptUri @cred *>$null
+        $permOk = $hasPerm
+    } catch { $permOk = $false }
+    step "permissions" $permOk
+
+    # 6i. server attribute set -> get -> delete round-trip (scoped, safe)
+    $attrOk = $false
+    try {
+        & "$skill\manage_attributes.ps1" -Scope server -Action set -Name jd_smoke_attr -Value hi @cred *>$null
+        $hasAttr = ((Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/attributes?name=jd_smoke_attr").Body) -match "jd_smoke_attr"
+        & "$skill\manage_attributes.ps1" -Scope server -Action delete -Name jd_smoke_attr @cred *>$null
+        $attrOk = $hasAttr
+    } catch { $attrOk = $false }
+    step "attributes" $attrOk
+
+    # 6j. OLAP: Mondrian schema + secureMondrianConnection (shape/round-trip)
+    $olapOk = $false
+    try {
+        & curl.exe -s -u "$($jrs.User):$($jrs.Password)" "$($jrs.ServerUrl)/rest_v2/resources/public/Samples/OLAP/Schemas/FoodmartSchema2013.xml" -o "$work\mondrian.xml" 2>$null
+        & "$skill\create_mondrian.ps1" -Uri "$Folder/smoke_olap" -SchemaFile "$work\mondrian.xml" `
+            -DataSourceUri $DataSourceUri -Label "Smoke OLAP" -Overwrite @cred *>$null
+        $olapOk = (Invoke-JrsGet -Jrs $jrs -Uri "$Folder/smoke_olap").Code -match '^2\d\d$'
+    } catch { $olapOk = $false }
+    step "mondrian" $olapOk
 }
 finally {
     if (-not $KeepArtifacts) {

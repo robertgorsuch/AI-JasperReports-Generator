@@ -147,19 +147,21 @@ and the reverse-engineered dashboard model.
 |--------|---------|
 | `scaffold_jrxml.py` | Introspect a SQL query → emit a JR7 tabular report. Flags: `--chart`/`--chart-label-rotation`, `--param`, `--group-by`, `--highlight`, `--drill`, `--crosstab`, `--subreport`, `--style-template`. |
 | `compile_jrxml.ps1` | Compile `.jrxml` → `.jasper` (fast JR7 validity check; via shared `Invoke-JrCompile`). |
-| `create_datasource.ps1` | Create/update a datasource: JDBC plus `-Type jndi\|bean\|custom\|virtual` (`-Overwrite` updates in place). |
-| `deploy_report.ps1` | PUT a report unit. `-Overwrite` updates in place (works for in-use reports); SQL-lint guard; `-Control "param:kind[:label[:extra]]"` attaches input controls. |
+| `create_datasource.ps1` | Create/update a datasource: JDBC plus `-Type jndi\|bean\|custom\|virtual\|aws` (`-Overwrite` updates in place). |
+| `deploy_report.ps1` | PUT a report unit. `-Overwrite` updates in place (works for in-use reports); SQL-lint guard; `-Control` attaches static input controls; `-QueryControl`/`-QueryMultiControl` attach query-backed + cascading controls. |
 | `verify_report.ps1` (+ `pdf_verify.py`) | Run a deployed report and assert HTTP + CSV row-count/contains + a visual baseline diff. |
 | `scaffold_style_template.py` | Emit a shared JR7 `.jrtx` style template from a palette (upload as a file resource; reference via `scaffold_jrxml.py --style-template`). |
 | `scaffold_domain_schema.py` / `create_domain.ps1` | Introspect a table → single-table Domain `schema.xml`; create the `semanticLayerDataSource` (schema embedded inline). |
 | `manage_adhoc.ps1` | Ad hoc views (`adhocDataView`): `list` / `get` (inspect JSON) / `export` / `import` / `delete`. |
 | `scaffold_theme.py` / `deploy_theme.ps1` | Emit an `overrides_custom.css` from a palette; deploy a CSS file or theme folder and `-Activate` it per organization. |
+| `create_mondrian.ps1` | OLAP: upload a Mondrian schema + create a `secureMondrianConnection` (and best-effort an MDX `olapUnit` view). |
+| `manage_permissions.ps1` / `manage_attributes.ps1` | Repository ACLs (get/set/clear) and server/org/user attributes (get/set/delete). |
 | `build_dashlets.ps1` | Manifest-driven: scaffold→compile→deploy→verify each dashlet; `-Compose` then builds the dashboard. |
 | `gen_dashboard.py` / `compose_dashboard.ps1` | Synthesize a dashboard (report/text/image tiles, auto-grid, wiring) and import it so it renders. |
 | `export_resource.ps1` / `import_resource.ps1` | Export/import any resource (back up, version, restore). |
 | `promote.ps1` | Export from a source server, import into a target — dev→prod promotion. |
 | `teardown_dashboard.ps1` | Delete a dashboard then (optionally) its report tiles + `_controls`, in lock-safe order. |
-| `smoke_test.ps1` | 13-step end-to-end regression gate (scaffold→…→compose→style template→domain→jndi datasource→theme→teardown under `/reports/_smoke`). |
+| `smoke_test.ps1` | 18-step end-to-end regression gate (scaffold→…→style template→domain→jndi/aws datasource→theme→cascading query controls→permissions→attributes→mondrian→teardown under `/reports/_smoke`). |
 | `upload_file.ps1`, `deploy_jr_samples.ps1`, `_jrs_common.ps1` | File upload, bulk sample deploy, shared helpers. |
 
 **Quick start**
@@ -197,9 +199,18 @@ $skill = ".\.claude\skills\jasper-deploy\scripts"; $env:PGPASSWORD = "postgres"
 7. **Style templates (`.jrtx`)**: the default-style attribute is **`default="true"`**, NOT the 6.x
    `isDefault="true"` (JR7 parses the `.jrtx` with strict Jackson → `UnrecognizedPropertyException` as a
    generic `400` at fill time, not a compile error). `scaffold_style_template.py` emits the correct form.
-8. **Non-JDBC datasources**: `create_datasource.ps1 -Type jndi|bean|custom|virtual` validates the
+8. **Non-JDBC datasources**: `create_datasource.ps1 -Type jndi|bean|custom|virtual|aws` validates the
    **descriptor shape** and stores the resource; *connecting* still needs the server-side prerequisite
-   (JNDI resource / Spring bean / custom service / referenced sub-datasources).
-9. **JR7 line plot**: use `showLines`/`showShapes`, not `showTickMarks`/`showTickLabels` (the scaffolder
+   (JNDI resource / Spring bean / custom service / referenced sub-datasources / live AWS creds).
+   The AWS `-Region` value is the **endpoint host** (`us-east-1.amazonaws.com`), not the bare code.
+9. **OLAP `olapUnit` is best-effort**: the schema + `secureMondrianConnection` create reliably, but a
+   saved analysis view OPENS the connection and validates the MDX against the live cube, so it `500`s
+   unless the Mondrian schema parses against the backing DB. `create_mondrian.ps1` warns and keeps the
+   schema + connection.
+10. **PowerShell 5.1 quirks (in the new scripts)**: `?` is a legal variable-name char, so a URL built as
+    `"$base?name="` drops the base (→ `405`) — use `"${base}?name="`. And `ConvertTo-Json` unwraps a
+    single-element array property to a scalar (server `400`s `ArrayList from String`) — emit such arrays
+    as hand-built JSON. (`manage_attributes.ps1` / `deploy_report.ps1` handle both.)
+11. **JR7 line plot**: use `showLines`/`showShapes`, not `showTickMarks`/`showTickLabels` (the scaffolder
    handles this). The harmless SLF4J "no providers" line goes to stderr and can abort a
    `$ErrorActionPreference=Stop` wrapper — `Invoke-JrCompile` absorbs it.

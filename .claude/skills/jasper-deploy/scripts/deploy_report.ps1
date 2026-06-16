@@ -45,6 +45,11 @@ param(
     [string[]]$Control,         # input controls: "param:kind[:label[:extra]]"
                                 #   kind=select|multiselect  extra="Food;Drink" (or lab=val;..)
                                 #   kind=single              extra=text|number|date|datetime
+    [string[]]$QueryControl,    # query-backed single-select control:
+                                #   "param|valueCol|visibleCols|SQL"  (SQL is last, may contain |;
+                                #   visibleCols comma-separated, defaults to valueCol). Cascade by
+                                #   referencing a parent control as $P{parent} in the SQL.
+    [string[]]$QueryMultiControl,  # same format, multi-select (type 7)
     [string]$ControlsLayout = "popupScreen",
     [string]$ServerUrl,
     [string]$User,
@@ -151,7 +156,7 @@ if ($r.Code -match '^2\d\d$') {
 # pattern -- embedding in the report unit is rejected) whose NAME equals the
 # report parameter ($P{name}), then reference it from the report unit. select/
 # multiselect get a listOfValues resource; single gets an embedded dataType.
-if ($Control) {
+if ($Control -or $QueryControl -or $QueryMultiControl) {
     $parent = $TargetUri.Substring(0, $TargetUri.LastIndexOf("/"))
     $rname  = $TargetUri.Substring($TargetUri.LastIndexOf("/") + 1)
     $ctlFolder = "$parent/${rname}_controls"
@@ -192,6 +197,45 @@ if ($Control) {
         } else { throw "unknown control kind '$kind' (use select|multiselect|single)" }
         $icRefs += [ordered]@{ inputControlReference = [ordered]@{ uri = $icUri } }
         Write-Host "  input control: $cname ($kind) -> $icUri"
+    }
+
+    # query-backed controls (single = type 4, multi = type 7). Each gets a
+    # companion `query` resource on the report's datasource; cascading works by
+    # referencing a parent control as $P{parent} in the SQL (parent must be
+    # listed/created first so it resolves). Process parents before children by
+    # passing them earlier in -QueryControl.
+    $queryGroups = @()
+    if ($QueryControl)      { $queryGroups += ,@($QueryControl, 4) }
+    if ($QueryMultiControl) { $queryGroups += ,@($QueryMultiControl, 7) }
+    foreach ($grp in $queryGroups) {
+        $specs, $qtype = $grp
+        if (-not $DataSourceUri) { throw "query controls require a datasource (-DataSourceUri); the control's query runs on it" }
+        foreach ($spec in $specs) {
+            $f = $spec -split "\|", 4    # param|valueCol|visibleCols|SQL (SQL last, may contain |)
+            if ($f.Count -lt 4) { throw "query control '$spec' must be 'param|valueCol|visibleCols|SQL'" }
+            $cname = $f[0]; $valueCol = $f[1]
+            $visible = if ($f[2]) { @($f[2] -split ",") } else { @($valueCol) }
+            $sql = $f[3]
+            $qUri  = "$ctlFolder/${cname}_query"
+            $icUri = "$ctlFolder/$cname"
+            Put-Resource $qUri "application/repository.query+json" ([ordered]@{
+                label = "$cname query"; language = "sql"; value = $sql
+                dataSource = [ordered]@{ dataSourceReference = [ordered]@{ uri = $DataSourceUri; version = 0 } } })
+            # Build visibleColumns JSON by hand: PS 5.1 ConvertTo-Json unwraps a
+            # single-element array to a scalar string, which the server rejects
+            # (ArrayList from String value). Emit an explicit JSON array.
+            $visJson = "[" + (($visible | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join ",") + "]"
+            $icJson = "{`"label`":`"$cname`",`"mandatory`":false,`"readOnly`":false,`"visible`":true," +
+                      "`"type`":$qtype,`"valueColumn`":`"$valueCol`",`"visibleColumns`":$visJson," +
+                      "`"query`":{`"queryReference`":{`"uri`":`"$qUri`",`"version`":0}}}"
+            $icf = [IO.Path]::GetTempFileName()
+            $icJson | Set-Content $icf -Encoding utf8
+            try { $icr = Invoke-JrsPut -Jrs $jrs -Uri $icUri -Overwrite -ContentType "application/repository.inputControl+json" -JsonFile $icf }
+            finally { Remove-Item $icf -ErrorAction SilentlyContinue }
+            if ($icr.Code -notmatch '^2\d\d$') { throw "query control PUT $icUri failed ($($icr.Code)): $($icr.Body)" }
+            $icRefs += [ordered]@{ inputControlReference = [ordered]@{ uri = $icUri } }
+            Write-Host "  input control: $cname (query type $qtype, value=$valueCol) -> $icUri"
+        }
     }
 
     # reference the controls from the report unit
