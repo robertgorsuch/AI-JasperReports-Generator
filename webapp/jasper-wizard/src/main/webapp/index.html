@@ -12,160 +12,233 @@
       <span class="logo">JR</span>
       <div>
         <h1>Jaspersoft Artifact Wizard</h1>
-        <p class="sub">Create &amp; deploy reports, dashboards and data sources &mdash; no JRXML required</p>
+        <p class="sub">Self-service reports, dashboards, data &amp; delivery &mdash; no JRXML required</p>
       </div>
     </div>
     <div class="server" id="serverInfo">connecting&hellip;</div>
   </header>
 
-  <nav class="tabs">
-    <button class="tab active" data-tab="report">1 &middot; Report</button>
-    <button class="tab" data-tab="dashboard">2 &middot; Dashboard</button>
-    <button class="tab" data-tab="datasource">Data Source</button>
-  </nav>
+  <div class="shell">
+    <nav class="side">
+      <div class="navgroup">Create</div>
+      <button class="navitem active" data-panel="report">📊 Report</button>
+      <button class="navitem" data-panel="dashboard">🗂️ Dashboard</button>
+      <button class="navitem" data-panel="datasource">🔌 Data Source</button>
+      <button class="navitem" data-panel="domain">🧩 Domain</button>
+      <button class="navitem" data-panel="theme">🎨 Theme</button>
+      <div class="navgroup">Run &amp; deliver</div>
+      <button class="navitem" data-panel="run">▶️ Run &amp; Export</button>
+      <button class="navitem" data-panel="schedule">⏰ Schedule</button>
+      <div class="navgroup">Manage</div>
+      <button class="navitem" data-panel="repository">📁 Repository</button>
+      <button class="navitem" data-panel="adhoc">🔎 Ad Hoc Views</button>
+      <button class="navitem" data-panel="permissions">🔐 Permissions</button>
+    </nav>
 
-  <main>
-    <!-- ============================ REPORT ============================ -->
-    <section class="panel active" id="tab-report">
-      <div class="wizard">
-        <ol class="steps" id="reportSteps">
-          <li class="on">Source</li><li>Query</li><li>Design</li><li>Review</li>
-        </ol>
+    <main>
+      <!-- ============================ REPORT ============================ -->
+      <section class="panel active" id="panel-report">
+        <ol class="steps" id="reportSteps"><li class="on">Source</li><li>Query</li><li>Design</li><li>Review</li></ol>
 
-        <!-- step 1: source -->
         <div class="step on" data-step="0">
           <h2>Where does the data come from?</h2>
-          <label>JasperServer data source
-            <select id="r_ds"></select>
-          </label>
-          <label>Local PostgreSQL database <span class="hint">(used to inspect the query's columns)</span>
-            <select id="r_db">
-              <option value="postgis_34_sample">postgis_34_sample</option>
-              <option value="foodmart">foodmart</option>
-            </select>
+          <label>JasperServer data source <select id="r_ds"></select></label>
+          <label>Local PostgreSQL database <span class="hint">(to inspect the query's columns)</span>
+            <select id="r_db"><option value="postgis_34_sample">postgis_34_sample</option><option value="foodmart">foodmart</option></select>
           </label>
           <div class="nav"><span></span><button class="primary next">Next</button></div>
         </div>
 
-        <!-- step 2: query -->
         <div class="step" data-step="1">
           <h2>What should the report show?</h2>
-          <label>Report name <span class="hint">(repository id, letters/numbers/underscore)</span>
-            <input id="r_name" placeholder="top_5_customers_revenue">
-          </label>
-          <label>Title <input id="r_title" placeholder="Top 5 Customers"></label>
-          <label>Subtitle <input id="r_subtitle" placeholder="by Total Revenue"></label>
+          <label>Report name <span class="hint">(letters/numbers/underscore)</span><input id="r_name" placeholder="top_5_customers_revenue"></label>
+          <div class="grid2">
+            <label>Title <input id="r_title" placeholder="Top 5 Customers"></label>
+            <label>Subtitle <input id="r_subtitle" placeholder="by Total Revenue"></label>
+          </div>
           <label>SQL query <span class="hint">(must start with SELECT)</span>
             <textarea id="r_query" rows="6" placeholder="SELECT customer_name, revenue FROM ... ORDER BY revenue DESC LIMIT 5"></textarea>
           </label>
+          <button class="ghost" id="r_preview_btn">▶ Preview query</button>
+          <div id="r_preview_out"></div>
           <div class="nav"><button class="ghost prev">Back</button><button class="primary next">Next</button></div>
         </div>
 
-        <!-- step 3: design -->
         <div class="step" data-step="2">
           <h2>How should it look?</h2>
           <div class="grid2">
             <label>Visual template
-              <select id="r_template">
-                <option value="slate">Slate</option>
-                <option value="corporate">Corporate</option>
-                <option value="forest">Forest</option>
-                <option value="minimal">Minimal</option>
-                <option value="dark">Dark</option>
-              </select>
+              <select id="r_template"><option>slate</option><option>corporate</option><option>forest</option><option>minimal</option><option>dark</option></select>
             </label>
             <label>Chart
-              <select id="r_chart">
-                <option value="none">None (table only)</option>
-                <option value="pie">Pie</option>
-                <option value="pie3d">Pie 3D</option>
-                <option value="bar">Bar</option>
-                <option value="bar3d">Bar 3D</option>
-                <option value="line">Line</option>
-                <option value="area">Area</option>
-                <option value="stackedbar">Stacked bar</option>
-              </select>
+              <select id="r_chart"><option value="none">None (table only)</option><option>pie</option><option>pie3d</option><option>bar</option><option>bar3d</option><option>line</option><option>area</option><option>stackedbar</option></select>
             </label>
           </div>
           <div class="grid2 chartopts" id="r_chartopts">
-            <label>Chart category column <input id="r_chartCategory" placeholder="customer_name"></label>
-            <label>Chart value column <input id="r_chartValue" placeholder="revenue"></label>
+            <label>Chart category column <select id="r_chartCategory"><option value="">—</option></select></label>
+            <label>Chart value column <select id="r_chartValue"><option value="">—</option></select></label>
           </div>
           <div class="grid2">
-            <label>Group by column <span class="hint">(optional subtotals)</span><input id="r_groupBy" placeholder=""></label>
-            <label>Page size
-              <select id="r_pageSize"><option value="letter">Letter</option><option value="a4">A4</option></select>
-            </label>
+            <label>Group by <span class="hint">(optional subtotals)</span><select id="r_groupBy"><option value="">—</option></select></label>
+            <label>Page <select id="r_pageSize"><option value="letter">Letter</option><option value="a4">A4</option></select></label>
           </div>
-          <label class="check"><input type="checkbox" id="r_landscape"> Landscape orientation</label>
+          <label class="check"><input type="checkbox" id="r_landscape"> Landscape</label>
+          <hr>
+          <label class="check"><input type="checkbox" id="r_filter_on"> Add an interactive filter (input control)</label>
+          <div id="r_filter_box" class="filterbox off">
+            <div class="grid2">
+              <label>Parameter name <span class="hint">used as <code>$P{name}</code> in the query</span><input id="r_param_name" placeholder="minRevenue"></label>
+              <label>Type <select id="r_param_type"><option>integer</option><option>decimal</option><option>string</option><option>date</option></select></label>
+            </div>
+            <div class="grid2">
+              <label>Default value <input id="r_param_default" placeholder="0"></label>
+              <label>Control kind <select id="r_param_kind"><option value="single:number">number box</option><option value="single:text">text box</option><option value="single:date">date picker</option><option value="select">select list</option></select></label>
+            </div>
+            <label>Select-list options <span class="hint">(only for "select list"; semicolon-separated)</span><input id="r_param_opts" placeholder="Food;Drink;Non-Consumable"></label>
+            <p class="hint">Remember to reference <code>$P{name}</code> in your query (step 2), e.g. <code>WHERE revenue &gt;= $P{minRevenue}</code>.</p>
+          </div>
           <div class="nav"><button class="ghost prev">Back</button><button class="primary next">Next</button></div>
         </div>
 
-        <!-- step 4: review -->
         <div class="step" data-step="3">
           <h2>Review &amp; deploy</h2>
           <label>Target folder <input id="r_folder" value="/reports/wizard"></label>
           <pre class="review" id="r_review"></pre>
-          <div class="nav">
-            <button class="ghost prev">Back</button>
-            <button class="primary" id="r_deploy">Deploy report</button>
-          </div>
+          <div class="nav"><button class="ghost prev">Back</button><button class="primary" id="r_deploy">Deploy report</button></div>
         </div>
-      </div>
 
-      <aside class="result" id="r_result" hidden>
-        <h3>Result</h3>
-        <div id="r_status"></div>
-        <div id="r_preview"></div>
-        <details><summary>Log</summary><pre id="r_log"></pre></details>
-      </aside>
-    </section>
+        <aside class="result" id="r_result" hidden>
+          <h3>Result</h3><div id="r_status"></div><div id="r_previewframe"></div>
+          <details><summary>Log</summary><pre id="r_log"></pre></details>
+        </aside>
+      </section>
 
-    <!-- ========================== DASHBOARD ========================== -->
-    <section class="panel" id="tab-dashboard">
-      <h2>Compose a dashboard</h2>
-      <p class="lead">Pick deployed reports to arrange as tiles, then publish.</p>
-      <div class="grid2">
-        <label>Dashboard name <input id="d_name" placeholder="sales_dashboard"></label>
-        <label>Label <input id="d_label" placeholder="Sales Dashboard"></label>
-      </div>
-      <div class="grid2">
-        <label>Folder <input id="d_folder" value="/reports/wizard"></label>
-        <label>Columns <select id="d_cols"><option>1</option><option selected>2</option><option>3</option></select></label>
-      </div>
-      <label>Available reports <span class="hint">(check the tiles to include)</span></label>
-      <div class="picker" id="d_reports"><em>loading&hellip;</em></div>
-      <div class="nav"><button class="ghost" id="d_refresh">Refresh list</button><button class="primary" id="d_deploy">Deploy dashboard</button></div>
-      <aside class="result" id="d_result" hidden>
-        <h3>Result</h3><div id="d_status"></div>
-        <details><summary>Log</summary><pre id="d_log"></pre></details>
-      </aside>
-    </section>
+      <!-- ========================== DASHBOARD ========================== -->
+      <section class="panel" id="panel-dashboard">
+        <h2>Compose a dashboard</h2>
+        <p class="lead">Arrange deployed reports as tiles, then publish.</p>
+        <div class="grid2">
+          <label>Name <input id="d_name" placeholder="sales_dashboard"></label>
+          <label>Label <input id="d_label" placeholder="Sales Dashboard"></label>
+        </div>
+        <div class="grid2">
+          <label>Folder <input id="d_folder" value="/reports/wizard"></label>
+          <label>Columns <select id="d_cols"><option>1</option><option selected>2</option><option>3</option></select></label>
+        </div>
+        <label>Available reports <span class="hint">(check tiles to include)</span></label>
+        <div class="picker" id="d_reports"><em>loading…</em></div>
+        <div class="nav"><button class="ghost" id="d_refresh">Refresh</button><button class="primary" id="d_deploy">Deploy dashboard</button></div>
+        <aside class="result" id="d_result" hidden><h3>Result</h3><div id="d_status"></div><details><summary>Log</summary><pre id="d_log"></pre></details></aside>
+      </section>
 
-    <!-- ========================= DATASOURCE ========================= -->
-    <section class="panel" id="tab-datasource">
-      <h2>Register a JDBC data source</h2>
-      <p class="lead">Connects JasperServer to a PostgreSQL database so reports can run.</p>
-      <div class="grid2">
-        <label>Repository URI <input id="s_uri" placeholder="/datasources/my_db"></label>
-        <label>Label <input id="s_label" placeholder="My Database"></label>
-      </div>
-      <div class="grid2">
-        <label>Database name <input id="s_database" placeholder="foodmart"></label>
-        <label>Host <input id="s_host" value="localhost"></label>
-      </div>
-      <div class="grid2">
-        <label>Port <input id="s_port" value="5432"></label>
-        <label>DB user <input id="s_dbUser" value="postgres"></label>
-      </div>
-      <label>DB password <input id="s_dbPassword" type="password" value="postgres"></label>
-      <div class="nav"><span></span><button class="primary" id="s_create">Create data source</button></div>
-      <aside class="result" id="s_result" hidden>
-        <h3>Result</h3><div id="s_status"></div>
-        <details><summary>Log</summary><pre id="s_log"></pre></details>
-      </aside>
-    </section>
-  </main>
+      <!-- ========================= DATASOURCE ========================= -->
+      <section class="panel" id="panel-datasource">
+        <h2>Register a JDBC data source</h2>
+        <p class="lead">Connects JasperServer to a PostgreSQL database.</p>
+        <div class="grid2"><label>Repository URI <input id="s_uri" placeholder="/datasources/my_db"></label><label>Label <input id="s_label" placeholder="My Database"></label></div>
+        <div class="grid2"><label>Database <input id="s_database" placeholder="foodmart"></label><label>Host <input id="s_host" value="localhost"></label></div>
+        <div class="grid2"><label>Port <input id="s_port" value="5432"></label><label>DB user <input id="s_dbUser" value="postgres"></label></div>
+        <label>DB password <input id="s_dbPassword" type="password" value="postgres"></label>
+        <div class="nav"><span></span><button class="primary" id="s_create">Create data source</button></div>
+        <aside class="result" id="s_result" hidden><h3>Result</h3><div id="s_status"></div><details><summary>Log</summary><pre id="s_log"></pre></details></aside>
+      </section>
+
+      <!-- =========================== DOMAIN =========================== -->
+      <section class="panel" id="panel-domain">
+        <h2>Create a Domain (semantic layer)</h2>
+        <p class="lead">Exposes a single table as business-friendly fields for Ad Hoc views.</p>
+        <div class="grid2"><label>Domain name <input id="dm_name" placeholder="foodmart_product"></label><label>Label <input id="dm_label" placeholder="Foodmart Product"></label></div>
+        <div class="grid2"><label>Table <input id="dm_table" placeholder="product"></label><label>Local DB <select id="dm_db"><option>foodmart</option><option>postgis_34_sample</option></select></label></div>
+        <label>JasperServer data source <select id="dm_ds"></select></label>
+        <div class="nav"><span></span><button class="primary" id="dm_create">Create domain</button></div>
+        <aside class="result" id="dm_result" hidden><h3>Result</h3><div id="dm_status"></div><details><summary>Log</summary><pre id="dm_log"></pre></details></aside>
+      </section>
+
+      <!-- ============================ THEME =========================== -->
+      <section class="panel" id="panel-theme">
+        <h2>Deploy a UI theme</h2>
+        <p class="lead">Restyle the JasperServer web UI from a palette.</p>
+        <div class="grid2"><label>Theme name <input id="t_name" placeholder="corporate"></label>
+          <label>Palette <select id="t_palette"><option>corporate</option><option>slate</option><option>forest</option><option>minimal</option><option>dark</option></select></label></div>
+        <div class="nav"><span></span><button class="primary" id="t_deploy">Deploy theme</button></div>
+        <p class="hint">Preview after deploy by appending <code>&amp;theme=&lt;name&gt;</code> to any logged-in JRS URL.</p>
+        <aside class="result" id="t_result" hidden><h3>Result</h3><div id="t_status"></div><details><summary>Log</summary><pre id="t_log"></pre></details></aside>
+      </section>
+
+      <!-- ========================= RUN & EXPORT ======================= -->
+      <section class="panel" id="panel-run">
+        <h2>Run &amp; export a report</h2>
+        <p class="lead">Apply filters, choose a format, and download.</p>
+        <div class="grid2">
+          <label>Folder <input id="x_folder" value="/reports"></label>
+          <label>Report <select id="x_report"><option value="">— pick a folder, then refresh —</option></select></label>
+        </div>
+        <button class="ghost" id="x_refresh">Refresh reports</button>
+        <div id="x_controls"></div>
+        <div class="grid2">
+          <label>Format <select id="x_format"><option>pdf</option><option>xlsx</option><option>csv</option><option>docx</option><option>pptx</option><option>html</option></select></label>
+          <label class="check" style="margin-top:28px"><input type="checkbox" id="x_async"> Large report (async)</label>
+        </div>
+        <div class="nav"><button class="ghost" id="x_open">Open in browser</button><button class="primary" id="x_download">Download</button></div>
+        <div id="x_previewframe"></div>
+      </section>
+
+      <!-- =========================== SCHEDULE ========================= -->
+      <section class="panel" id="panel-schedule">
+        <h2>Schedule report delivery</h2>
+        <p class="lead">Recurring or one-off, saved to the repository and/or emailed.</p>
+        <div class="grid2"><label>Folder <input id="j_folder" value="/reports"></label><label>Report <select id="j_report"></select></label></div>
+        <button class="ghost" id="j_refresh">Refresh reports</button>
+        <div class="grid2"><label>Label <input id="j_label" placeholder="Daily sales"></label>
+          <label>Start <select id="j_startType"><option value="now">now</option><option value="at">at date…</option></select></label></div>
+        <label id="j_startDate_wrap" class="off">Start date <input id="j_startDate" placeholder="2026-12-01 09:00:00"></label>
+        <div class="grid2">
+          <label>Recurrence <select id="j_recurUnit"><option value="">once</option><option>MINUTE</option><option>HOUR</option><option>DAY</option><option>WEEK</option></select></label>
+          <label>Every <input id="j_recurInterval" value="1" type="number" min="1"></label>
+        </div>
+        <div class="grid2"><label>Formats <input id="j_formats" value="PDF" placeholder="PDF,XLSX"></label><label>Email to <span class="hint">(optional)</span><input id="j_mailTo" placeholder="ops@example.com"></label></div>
+        <div class="nav"><button class="ghost" id="j_list">List jobs</button><button class="primary" id="j_create">Schedule</button></div>
+        <aside class="result" id="j_result" hidden><h3>Result</h3><div id="j_status"></div><div id="j_jobs"></div><details><summary>Log</summary><pre id="j_log"></pre></details></aside>
+      </section>
+
+      <!-- ========================== REPOSITORY ======================== -->
+      <section class="panel" id="panel-repository">
+        <h2>Repository browser</h2>
+        <p class="lead">Browse, run, export, or delete deployed resources.</p>
+        <div class="grid2">
+          <label>Folder <input id="b_folder" value="/reports"></label>
+          <label>Type <select id="b_type"><option value="">all</option><option value="reportUnit">reports</option><option value="dashboard">dashboards</option><option value="jdbcDataSource">data sources</option><option value="semanticLayerDataSource">domains</option><option value="folder">folders</option></select></label>
+        </div>
+        <div class="nav"><span></span><button class="primary" id="b_browse">Browse</button></div>
+        <div id="b_list"></div>
+      </section>
+
+      <!-- ========================== AD HOC ============================ -->
+      <section class="panel" id="panel-adhoc">
+        <h2>Ad Hoc views</h2>
+        <p class="lead">List and export (back up / promote) Ad Hoc views.</p>
+        <label>Folder <input id="a_folder" value="/public/Samples/Ad_Hoc_Views"></label>
+        <div class="nav"><span></span><button class="primary" id="a_browse">List views</button></div>
+        <div id="a_list"></div>
+      </section>
+
+      <!-- ========================= PERMISSIONS ======================== -->
+      <section class="panel" id="panel-permissions">
+        <h2>Permissions</h2>
+        <p class="lead">View and set who can access a repository resource.</p>
+        <label>Resource URI <input id="p_uri" placeholder="/reports/wizard"></label>
+        <div class="nav"><span></span><button class="ghost" id="p_get">Get effective</button></div>
+        <pre class="review" id="p_view"></pre>
+        <hr>
+        <div class="grid2">
+          <label>Recipient <input id="p_recipient" placeholder="role:/ROLE_USER"></label>
+          <label>Access <select id="p_mask"><option value="1">Administer</option><option value="18">Read+Write</option><option value="30" selected>Read-only</option><option value="32">Execute-only</option><option value="2">Read+Delete</option></select></label>
+        </div>
+        <div class="nav"><button class="ghost" id="p_clear">Clear (inherit)</button><button class="primary" id="p_set">Set permission</button></div>
+        <aside class="result" id="p_result" hidden><h3>Result</h3><div id="p_status"></div><details><summary>Log</summary><pre id="p_log"></pre></details></aside>
+      </section>
+    </main>
+  </div>
 
   <script src="js/wizard.js"></script>
 </body>

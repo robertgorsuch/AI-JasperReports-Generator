@@ -59,6 +59,11 @@ public class ScriptRunner {
         return run(cmd);
     }
 
+    /** Run an arbitrary command (e.g. psql) given as a full argv list. */
+    public Result exec(List<String> command) {
+        return run(command);
+    }
+
     private Result run(List<String> cmd) {
         ProcessBuilder pb = new ProcessBuilder(cmd);
         if (workingDir != null) pb.directory(workingDir);
