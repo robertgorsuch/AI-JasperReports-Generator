@@ -24,7 +24,7 @@ FROM geocode('1100 Congress Ave, Austin, TX 78701', 1) AS g;   -- rating 0, exac
 |------|----------|
 | `scripts/` | TIGER data loaders (verified curl downloads + CRC retry). `load_tiger_nation.bat`, `load_remaining.ps1`, etc. |
 | `report/`  | JasperReports: `*_jr7.jrxml` (native JR 7) + 6.x version, JDBC data adapter, compile/fill harnesses. `report/foodmart/` holds the deployable KPI reports + `dashboard.json` manifest |
-| `.claude/skills/jasper-deploy/` | The **jasper-deploy skill**: scripts (`scaffold_jrxml.py`, `deploy_report.ps1`, `build_dashlets.ps1`, `compose_dashboard.ps1`, `verify_report.ps1`, `promote.ps1`, `teardown_dashboard.ps1`, `smoke_test.ps1`, …), `SKILL.md`, and `references/` (JR7 schema, JRS REST API, dashboard model) |
+| `.claude/skills/jasper-deploy/` | The **jasper-deploy skill**: scripts for reports (`scaffold_jrxml.py`, `deploy_report.ps1`, `verify_report.ps1`), dashboards (`build_dashlets.ps1`, `compose_dashboard.ps1`), style templates (`scaffold_style_template.py`), domains (`scaffold_domain_schema.py`, `create_domain.ps1`), ad hoc views (`manage_adhoc.ps1`), datasources (`create_datasource.ps1`), themes (`scaffold_theme.py`, `deploy_theme.ps1`), lifecycle (`promote.ps1`, `teardown_dashboard.ps1`, `smoke_test.ps1`), plus `SKILL.md` and `references/` (JR7 schema, JRS REST API, dashboard model) |
 | `maps/`    | Self-contained Leaflet HTML visualizations (open in a browser) |
 | `backups/` | Versioned JRS export archives (dashboards) for restore / dev→prod promotion |
 | `output/`  | Generated PDF / GeoJSON / CSV (not tracked — regenerate from the DB) |
@@ -57,13 +57,23 @@ FROM geocode('1100 Congress Ave, Austin, TX 78701', 1) AS g;   -- rating 0, exac
   charts (pie/bar/line/area/stacked + label rotation), `--param` (parameters), `--group-by` (subtotals),
   `--highlight` (conditional formatting), `--drill` (drill-down links), `--crosstab` (pivot), `--subreport`.
 - **Compile & deploy** — `compile_jrxml.ps1`, `deploy_report.ps1` (in-place overwrite, SQL-lint guard,
-  and `-Control` to attach interactive input controls), `create_datasource.ps1`.
+  and `-Control` to attach interactive input controls).
+- **Data sources** — `create_datasource.ps1` creates JDBC plus non-JDBC types
+  (`-Type jndi|bean|custom|virtual`).
+- **Style templates** — `scaffold_style_template.py` emits a shared `.jrtx`; `scaffold_jrxml.py
+  --style-template` references it via `<template>` so many reports share one centrally-managed look.
+- **Domains (semantic layer)** — `scaffold_domain_schema.py` + `create_domain.ps1` introspect a table
+  into a single-table Domain (`semanticLayerDataSource`) for Ad Hoc / Domain reporting.
 - **Verify** — `verify_report.ps1` asserts HTTP + CSV row-count/contained-text + a visual baseline diff.
 - **Dashboards (no designer)** — `build_dashlets.ps1` + `compose_dashboard.ps1` build a dashboard of
   report / **text** / **image** tiles from one JSON manifest and import it so it actually renders
   (a raw REST PUT renders blank — see `references/dashboard-model.md`).
+- **Ad hoc views** — `manage_adhoc.ps1` lists / inspects / exports / imports `adhocDataView` resources
+  (authoring stays in the designer; everything around it is scripted).
+- **UI themes** — `scaffold_theme.py` emits an `overrides_custom.css` from a palette; `deploy_theme.ps1`
+  deploys + activates it per organization.
 - **Lifecycle** — `export_resource.ps1` / `import_resource.ps1`, `promote.ps1` (dev→prod),
-  `teardown_dashboard.ps1`, and `smoke_test.ps1` (end-to-end regression gate).
+  `teardown_dashboard.ps1`, and `smoke_test.ps1` (13-step end-to-end regression gate).
 
 A 7-tile **Foodmart KPI dashboard** built this way is the reference example
 (`report/foodmart/dashboard.json`). Full reference: the skill's `SKILL.md`, and [RUNBOOK.md](RUNBOOK.md) §9.

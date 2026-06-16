@@ -19,9 +19,11 @@ against a local **JasperReports Server 10**.
   `maps\` (Leaflet HTML), `output\` (PDF, exports). **Read `tx-geocoder\RUNBOOK.md` for the full reference.**
 - **JasperReports Server:** PRO at `http://localhost:8081/jasperserver-pro` (`superuser`/`superuser`).
   The `jasper-deploy` skill (its `SKILL.md`) automates scaffolding reports from SQL, deploying them,
-  verifying renders, and composing dashboards from a JSON manifest.
+  verifying renders, composing dashboards from a JSON manifest, and the rest of the JRS resource set:
+  data sources (JDBC + non-JDBC), shared style templates (`.jrtx`), single-table Domains, ad hoc views
+  (list/export/import), and UI themes.
 
-## The 5 things that will bite you (gotchas)
+## The things that will bite you (gotchas)
 
 1. **Use `curl.exe`, not wget** — wget's installer source is not reachable from this environment.
 2. **Always verify downloads with `7z t` + retry** — the census CDN returns silently corrupt zips (HTTP 200).
@@ -30,9 +32,12 @@ against a local **JasperReports Server 10**.
 5. **In PowerShell, pass Maven `-D…` args after `--%`** or they get mangled.
 6. **JRS report queries must start with `SELECT`** — a leading `WITH` (CTE) compiles locally but the
    server rejects it at fill time (`deploy_report.ps1` now lints+blocks it; push CTEs into a `FROM` subquery).
-7. **JRS dashboards: import, don't PUT** — a hand-built model PUT to `/rest_v2/resources` renders blank;
-   `compose_dashboard.ps1` imports a designer-equivalent archive instead. Reports that are dashlets are
-   modification-locked (`403 resource.in.use`) until the owning dashboard is removed.
+7. **JRS dashboards (and ad hoc views): import, don't PUT** — a hand-built dashboard model PUT to
+   `/rest_v2/resources` renders blank, and an ad hoc view PUT is rejected `500 "bytes is null"`;
+   `compose_dashboard.ps1` / `manage_adhoc.ps1` use the designer-equivalent export/import archive instead.
+   Reports that are dashlets are modification-locked (`403 resource.in.use`) until the owning dashboard is removed.
+8. **Style templates & Domains** — a `.jrtx` default style is `default="true"` (not 6.x `isDefault`); a
+   Domain's schema.xml must be embedded inline in the `create_domain.ps1` descriptor, not pre-uploaded.
 
 ## Key prerequisites
 

@@ -145,17 +145,21 @@ and the reverse-engineered dashboard model.
 
 | Script | Purpose |
 |--------|---------|
-| `scaffold_jrxml.py` | Introspect a SQL query → emit a JR7 tabular report. Flags: `--chart`/`--chart-label-rotation`, `--param`, `--group-by`, `--highlight`, `--drill`, `--crosstab`, `--subreport`. |
+| `scaffold_jrxml.py` | Introspect a SQL query → emit a JR7 tabular report. Flags: `--chart`/`--chart-label-rotation`, `--param`, `--group-by`, `--highlight`, `--drill`, `--crosstab`, `--subreport`, `--style-template`. |
 | `compile_jrxml.ps1` | Compile `.jrxml` → `.jasper` (fast JR7 validity check; via shared `Invoke-JrCompile`). |
-| `create_datasource.ps1` | Create/update a JDBC datasource (`-Overwrite` updates in place). |
+| `create_datasource.ps1` | Create/update a datasource: JDBC plus `-Type jndi\|bean\|custom\|virtual` (`-Overwrite` updates in place). |
 | `deploy_report.ps1` | PUT a report unit. `-Overwrite` updates in place (works for in-use reports); SQL-lint guard; `-Control "param:kind[:label[:extra]]"` attaches input controls. |
 | `verify_report.ps1` (+ `pdf_verify.py`) | Run a deployed report and assert HTTP + CSV row-count/contains + a visual baseline diff. |
+| `scaffold_style_template.py` | Emit a shared JR7 `.jrtx` style template from a palette (upload as a file resource; reference via `scaffold_jrxml.py --style-template`). |
+| `scaffold_domain_schema.py` / `create_domain.ps1` | Introspect a table → single-table Domain `schema.xml`; create the `semanticLayerDataSource` (schema embedded inline). |
+| `manage_adhoc.ps1` | Ad hoc views (`adhocDataView`): `list` / `get` (inspect JSON) / `export` / `import` / `delete`. |
+| `scaffold_theme.py` / `deploy_theme.ps1` | Emit an `overrides_custom.css` from a palette; deploy a CSS file or theme folder and `-Activate` it per organization. |
 | `build_dashlets.ps1` | Manifest-driven: scaffold→compile→deploy→verify each dashlet; `-Compose` then builds the dashboard. |
 | `gen_dashboard.py` / `compose_dashboard.ps1` | Synthesize a dashboard (report/text/image tiles, auto-grid, wiring) and import it so it renders. |
 | `export_resource.ps1` / `import_resource.ps1` | Export/import any resource (back up, version, restore). |
 | `promote.ps1` | Export from a source server, import into a target — dev→prod promotion. |
 | `teardown_dashboard.ps1` | Delete a dashboard then (optionally) its report tiles + `_controls`, in lock-safe order. |
-| `smoke_test.ps1` | End-to-end regression gate (scaffold→…→compose→teardown under `/reports/_smoke`). |
+| `smoke_test.ps1` | 13-step end-to-end regression gate (scaffold→…→compose→style template→domain→jndi datasource→theme→teardown under `/reports/_smoke`). |
 | `upload_file.ps1`, `deploy_jr_samples.ps1`, `_jrs_common.ps1` | File upload, bulk sample deploy, shared helpers. |
 
 **Quick start**
@@ -183,9 +187,19 @@ $skill = ".\.claude\skills\jasper-deploy\scripts"; $env:PGPASSWORD = "postgres"
    rejected); the control's name must equal the `$P{param}` it drives.
 5. **Subreport** `--subreport` must reference a jrxml **file** resource (e.g. `…/rpt_files/Label_main_jrxml`),
    not a report unit.
-6. **Designer-only**: interactive filter groups / input-control dashboard tiles and **ad hoc views** can't
-   be synthesized (they need designer temp resources / a Domain semantic layer) — author them in the web
-   UI and promote with `export`/`import`/`promote.ps1`.
-7. **JR7 line plot**: use `showLines`/`showShapes`, not `showTickMarks`/`showTickLabels` (the scaffolder
+6. **Domains & ad hoc views are scripted now.** Single-table Domains: `scaffold_domain_schema.py` +
+   `create_domain.ps1` (the schema.xml must be **embedded inline** in the descriptor — a pre-uploaded
+   `schemaFileReference` 500s `resource.does.not.exist`; and the schema's `datasourceId` must equal the
+   `-DataSourceUri` leaf). Ad hoc views: `manage_adhoc.ps1` lists/inspects/exports/imports them (a raw
+   JSON **PUT is rejected `500 "bytes is null"`** — move them via export/import, like dashboards). What's
+   still designer-only: an ad hoc view's interactive state, multi-table Domains (joins), and filter-group /
+   input-control dashboard tiles — author those in the web UI and promote with `export`/`import`/`promote.ps1`.
+7. **Style templates (`.jrtx`)**: the default-style attribute is **`default="true"`**, NOT the 6.x
+   `isDefault="true"` (JR7 parses the `.jrtx` with strict Jackson → `UnrecognizedPropertyException` as a
+   generic `400` at fill time, not a compile error). `scaffold_style_template.py` emits the correct form.
+8. **Non-JDBC datasources**: `create_datasource.ps1 -Type jndi|bean|custom|virtual` validates the
+   **descriptor shape** and stores the resource; *connecting* still needs the server-side prerequisite
+   (JNDI resource / Spring bean / custom service / referenced sub-datasources).
+9. **JR7 line plot**: use `showLines`/`showShapes`, not `showTickMarks`/`showTickLabels` (the scaffolder
    handles this). The harmless SLF4J "no providers" line goes to stderr and can abort a
    `$ErrorActionPreference=Stop` wrapper — `Invoke-JrCompile` absorbs it.
