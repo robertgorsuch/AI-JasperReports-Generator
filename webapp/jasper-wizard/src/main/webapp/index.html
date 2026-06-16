@@ -145,6 +145,11 @@
         <label>DB password <input id="s_dbPassword" type="password" value="postgres"></label>
         <div class="nav"><span></span><button class="primary" id="s_create">Create data source</button></div>
         <aside class="result" id="s_result" hidden><h3>Result</h3><div id="s_status"></div><details><summary>Log</summary><pre id="s_log"></pre></details></aside>
+
+        <hr>
+        <div class="nav"><h2 style="margin:0">Existing data sources</h2><button class="ghost" id="s_refresh">Refresh</button></div>
+        <p class="lead">Data sources already registered on JasperServer.</p>
+        <div id="s_list"><em>loading…</em></div>
       </section>
 
       <!-- =========================== DOMAIN =========================== -->

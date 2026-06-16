@@ -42,6 +42,7 @@ $$('.navitem').forEach(t => t.addEventListener('click', () => {
   t.classList.add('active');
   $('#panel-' + t.dataset.panel).classList.add('active');
   if (t.dataset.panel === 'dashboard') loadReportPicker();
+  if (t.dataset.panel === 'datasource') loadDatasourceList();
 }));
 
 /* ------------------------------------------------------ health ------------ */
@@ -181,11 +182,28 @@ $('#s_create').addEventListener('click', async () => {
   try {
     const res = await postForm('/datasources', { uri: $('#s_uri').value.trim(), label: $('#s_label').value.trim(), database: $('#s_database').value.trim(), host: $('#s_host').value.trim(), port: $('#s_port').value.trim(), dbUser: $('#s_dbUser').value.trim(), dbPassword: $('#s_dbPassword').value });
     $('#s_log').textContent = res.output || res.error || '';
-    if (res.ok) { $('#s_status').innerHTML = banner(true, 'Created ' + res.uri); loadDatasources(); }
+    if (res.ok) { $('#s_status').innerHTML = banner(true, 'Created ' + res.uri); loadDatasources(); loadDatasourceList(); }
     else $('#s_status').innerHTML = banner(false, 'Failed — see log');
   } catch (e) { $('#s_status').innerHTML = banner(false, e.message); }
   finally { b.disabled = false; b.textContent = 'Create data source'; }
 });
+
+async function loadDatasourceList() {
+  const box = $('#s_list'); box.innerHTML = '<em>loading…</em>';
+  try {
+    const list = resourceList(await getJson('/datasources'));
+    if (!list.length) { box.innerHTML = '<em>No data sources registered yet.</em>'; return; }
+    box.innerHTML = '<table><thead><tr><th>label</th><th>uri</th><th></th></tr></thead><tbody>' +
+      list.map(d => '<tr><td>' + d.label + '</td><td><small>' + d.uri + '</small></td>' +
+        '<td><button class="ghost sm" data-dsuse="' + d.uri + '">use in report</button></td></tr>').join('') +
+      '</tbody></table>';
+    $$('#s_list [data-dsuse]').forEach(b => b.addEventListener('click', () => {
+      $('.navitem[data-panel=report]').click();
+      const sel = $('#r_ds'); sel.value = b.dataset.dsuse; showStep(0);
+    }));
+  } catch (e) { box.innerHTML = '<em>error loading data sources</em>'; }
+}
+$('#s_refresh').addEventListener('click', loadDatasourceList);
 
 /* =========================== DOMAIN ===================================== */
 $('#dm_create').addEventListener('click', async () => {
