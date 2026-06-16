@@ -680,6 +680,77 @@ the server scope is **always `?name=`-scoped**; (2) PowerShell 5.1 treats `?` as
 variable-name char, so the path is built with `${base}` braces (else `"$base?name"`
 silently drops the base and `405`s).
 
+## Users, roles & organizations (admin)
+Tenant/identity administration over the REST v2 `users`, `roles`, and
+`organizations` services. All resolve credentials the same way as the other
+scripts and pass JSON bodies from a file. **Verified end-to-end** (create→get→
+delete round-trips for roles and users; org list + read; options below).
+
+`scripts/manage_users.ps1` — user CRUD + role assignment. `create`/`delete`/`get`
+hit `/rest_v2/users/{username}` (or `/rest_v2/organizations/{org}/users/{username}`
+when `-Organization` is given); `PUT` both creates and updates (idempotent on
+username). **Gotcha:** the JRS auth password is `-JrsPassword` here, because
+`-Password` is the *new user's* initial password.
+```powershell
+& $skill\manage_users.ps1 -Action list   -Organization organization_1
+& $skill\manage_users.ps1 -Action create -UserName jdoe -FullName "Jane Doe" `
+    -Password "Secret123!" -Roles ROLE_USER,ROLE_ADMINISTRATOR -Organization organization_1
+& $skill\manage_users.ps1 -Action delete -UserName jdoe -Organization organization_1
+```
+
+`scripts/manage_roles.ps1` — role CRUD (`/rest_v2/roles/{name}`, `PUT` create/
+update). Pass `-Organization` for a tenant-scoped role.
+```powershell
+& $skill\manage_roles.ps1 -Action list
+& $skill\manage_roles.ps1 -Action create -Name ROLE_ANALYST -Organization organization_1
+& $skill\manage_roles.ps1 -Action delete -Name ROLE_ANALYST -Organization organization_1
+```
+
+`scripts/manage_organizations.ps1` — organization (tenant) CRUD. **Gotcha:**
+create is **POST on the collection** (`/rest_v2/organizations?createDefaultUsers=true`,
+WADL id `putOrganization`), not a `PUT {id}`; `update` is a read-modify-write
+`PUT {id}` (so e.g. setting `-Theme` doesn't blank other fields) — this is the
+same `{"theme":…}` activation `deploy_theme.ps1 -Activate` performs.
+```powershell
+& $skill\manage_organizations.ps1 -Action list
+& $skill\manage_organizations.ps1 -Action create -Id acme -TenantName "ACME Inc"
+& $skill\manage_organizations.ps1 -Action update -Id organization_1 -Theme corporate
+& $skill\manage_organizations.ps1 -Action delete -Id acme
+```
+
+## Async report run, saved options & cache
+`scripts/run_report_async.ps1` — run a report through the `reportExecutions`
+service (submit → poll `…/status` until `ready` → download `…/outputResource`).
+The proper path for large/slow fills that time out on the synchronous
+`/reports/{uri}.{fmt}` endpoint. The final download uses a direct `curl -o` so
+binary output is byte-intact. **Verified** (32 KB PDF round-trip).
+```powershell
+& $skill\run_report_async.ps1 -ReportUri /reports/foodmart/top_5_customers_revenue -OutFile out\rpt.pdf
+& $skill\run_report_async.ps1 -ReportUri /reports/geocoder/county_summary_param `
+    -Format xlsx -Parameters @{ minEdges = 50000 } -OutFile out\county.xlsx
+```
+
+`scripts/manage_options.ps1` — "report options": named saved sets of input-control
+values stored beside a report (`/rest_v2/reports{uri}/options`). **Verified**
+create→list→run→delete on `county_summary_param`/`minEdges` (the 50k option ran to
+the 17-county filtered PDF). **Gotcha:** to *run* with the saved values, run the
+option's OWN sibling URI as a report (`GET /reports/<folder>/<id>.pdf`) — a
+`?reportOptions=<id>` query on the report URL does **not** apply them.
+```powershell
+$rpt = "/reports/foodmart/sample_report"
+& $skill\manage_options.ps1 -Action create -ReportUri $rpt -Label Food_Snacks -Values @{ category="Food"; department=@("Snacks","Dairy") }
+& $skill\manage_options.ps1 -Action list   -ReportUri $rpt
+& $skill\manage_options.ps1 -Action run    -ReportUri $rpt -Id Food_Snacks -OutFile out\opt.pdf
+& $skill\manage_options.ps1 -Action delete -ReportUri $rpt -Id Food_Snacks
+```
+
+`scripts/manage_cache.ps1` — clear a server cache via `DELETE /rest_v2/caches/{id}`
+(invalidate the Ad Hoc / query result cache after the data changes). The service
+is DELETE-only — there is no list-all GET. **Verified:** `queryCache` → `204`.
+```powershell
+& $skill\manage_cache.ps1 -CacheId queryCache
+```
+
 ## Notes / gotchas
 - The live server is `jasperserver-pro` on **port 8081** (HTTP Basic). Port 8080
   hosts an unrelated Bearer-token-gated Java service that 401s every path — not JRS.

@@ -352,9 +352,22 @@ Out of scope for *authoring*, but the deployed artifacts are directly embeddable
   view is best-effort (creating it opens the connection + validates the MDX).
 - **Permissions / attributes**: `manage_permissions.ps1`, `manage_attributes.ps1`
   (see the verified sections above).
+- **Users / roles / organizations**: `manage_users.ps1`, `manage_roles.ps1`,
+  `manage_organizations.ps1`. **[verified]** role + user create→get→delete on
+  `organization_1`; org list/read. `PUT /rest_v2/users/{u}` and `/roles/{name}`
+  create-or-update (idempotent); org-scope via `/organizations/{org}/users|roles`.
+  **Org create is POST on the collection** (`/organizations?createDefaultUsers=true`,
+  WADL id `putOrganization`) — NOT a `PUT {id}`; org `update` is a `PUT {id}`
+  read-modify-write (the `{"theme":…}` path `deploy_theme.ps1 -Activate` uses).
+  User descriptor: `{fullName,password,enabled,externallyDefined,roles:[{name}]}`.
+- **Async run / options / caches**: `run_report_async.ps1` (reportExecutions
+  submit→poll→download, **[verified]** 32 KB PDF), `manage_options.ps1` (saved
+  input-control sets, **[verified]** create→list→run→delete — run the option's own
+  sibling URI), `manage_cache.ps1` (`DELETE /rest_v2/caches/{id}`, DELETE-only —
+  no list GET; **[verified]** `queryCache` → `204`).
 
 ### Deliberately out of scope
-Users/roles/organizations admin, XML/A endpoint config, diagnostics,
-install/upgrade/security/telemetry — present in the API and in the `docs/` PDFs,
-but outside this skill's remit. Discover them via the WADL or the `docs/` guides
-if ever needed.
+XML/A endpoint config, diagnostics, install/upgrade/security/telemetry — present
+in the API and in the `docs/` PDFs, but outside this skill's remit. Discover them
+via the WADL or the `docs/` guides if ever needed. (Users/roles/organizations
+admin — previously out of scope — is now scripted; see above.)
