@@ -41,14 +41,15 @@ $$('.navitem').forEach(t => t.addEventListener('click', () => {
   $$('.panel').forEach(x => x.classList.remove('active'));
   t.classList.add('active');
   $('#panel-' + t.dataset.panel).classList.add('active');
-  if (t.dataset.panel === 'dashboard') loadReportPicker();
+  if (t.dataset.panel === 'dashboard') { loadReportPicker(); loadDashboardList(); }
   if (t.dataset.panel === 'datasource') loadDatasourceList();
 }));
 
 /* ------------------------------------------------------ health ------------ */
+let jrsBase = '';
 (async () => {
   const el = $('#serverInfo');
-  try { const h = await getJson('/health'); el.textContent = (h.jrsUp ? '● ' : '○ ') + h.server; el.classList.add(h.jrsUp ? 'up' : 'down'); }
+  try { const h = await getJson('/health'); jrsBase = h.server || ''; el.textContent = (h.jrsUp ? '● ' : '○ ') + h.server; el.classList.add(h.jrsUp ? 'up' : 'down'); }
   catch { el.textContent = 'unreachable'; el.classList.add('down'); }
 })();
 
@@ -160,6 +161,21 @@ async function loadReportPicker() {
   });
 }
 $('#d_refresh').addEventListener('click', loadReportPicker);
+
+async function loadDashboardList() {
+  const box = $('#d_dashlist'); box.innerHTML = '<em>loading…</em>';
+  try {
+    const list = resourceList(await getJson('/resources?folder=' + encodeURIComponent('/') + '&type=dashboard'));
+    if (!list.length) { box.innerHTML = '<em>No dashboards deployed yet.</em>'; return; }
+    box.innerHTML = '<table><thead><tr><th>label</th><th>uri</th><th></th></tr></thead><tbody>' +
+      list.map(d => '<tr><td>' + d.label + '</td><td><small>' + d.uri + '</small></td>' +
+        '<td><button class="ghost sm" data-dashview="' + d.uri + '">view</button></td></tr>').join('') +
+      '</tbody></table>';
+    $$('#d_dashlist [data-dashview]').forEach(b => b.addEventListener('click', () =>
+      window.open(jrsBase + '/dashboard/viewer.html#' + encodeURIComponent(b.dataset.dashview), '_blank')));
+  } catch (e) { box.innerHTML = '<em>error loading dashboards</em>'; }
+}
+$('#d_dashrefresh').addEventListener('click', loadDashboardList);
 $('#d_deploy').addEventListener('click', async () => {
   const b = $('#d_deploy'), name = $('#d_name').value.trim(), picked = $$('#d_reports input:checked').map(c => c.value);
   if (!name) { alert('Dashboard name required.'); return; }
@@ -170,6 +186,7 @@ $('#d_deploy').addEventListener('click', async () => {
     const res = await postForm('/dashboards', { name, label: $('#d_label').value.trim() || name, folder: $('#d_folder').value.trim() || '/reports/wizard', cols: $('#d_cols').value, reports: picked.join(',') });
     $('#d_log').textContent = res.output || res.error || '';
     $('#d_status').innerHTML = res.ok ? banner(true, 'Dashboard at ' + res.dashboardUri + ' — <a href="' + res.viewerUrl + '" target="_blank">open viewer ↗</a>') : banner(false, 'Failed — see log');
+    if (res.ok) loadDashboardList();
   } catch (e) { $('#d_status').innerHTML = banner(false, e.message); }
   finally { b.disabled = false; b.textContent = 'Deploy dashboard'; }
 });
