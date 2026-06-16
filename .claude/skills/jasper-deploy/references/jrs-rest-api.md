@@ -323,9 +323,26 @@ auto-generates this embed code from the repository UI.
   success flag, then screenshot.
 Out of scope for *authoring*, but the deployed artifacts are directly embeddable.
 
+### Now in scope (scripted) — see SKILL.md
+- **Domains / semantic layer** (`semanticLayerDataSource`): single-table Domains
+  are scaffolded + created (`scaffold_domain_schema.py` + `create_domain.ps1`).
+  The schema.xml must be **embedded inline** in the descriptor
+  (`schema.schemaFile.content`), not a pre-uploaded `schemaFileReference` (which
+  500s `resource.does.not.exist`). Multi-table = Designer + export/import.
+- **Ad Hoc views** (`adhocDataView`): list / get-to-JSON / export / import
+  (`manage_adhoc.ps1`). A raw JSON PUT is rejected `500 "bytes is null"` (carries
+  a companion binary) — move them with the export/import envelope, like dashboards.
+- **Themes**: deploy CSS + activate per organization (`deploy_theme.ps1`,
+  `scaffold_theme.py`). Theme files are repository **file** resources under a
+  `Themes` folder; activation is `PUT /rest_v2/organizations/{id}` `{"theme":…}`.
+- **Style templates** (`.jrtx`): a repository file resource referenced by a
+  report `<template>` expression (`scaffold_style_template.py` +
+  `scaffold_jrxml.py --style-template`). Default-style attr is `default="true"`.
+- **Non-JDBC datasources**: `jndiJdbcDataSource` / `beanDataSource` /
+  `customDataSource` / `virtualDataSource` via `create_datasource.ps1 -Type`.
+
 ### Deliberately out of scope
-Users/roles/organizations admin, domains/semantic layer (incl. `queryExecutor`,
-above), Ad Hoc / OLAP, themes, diagnostics, install/upgrade/security/telemetry —
-present in the API and in the `docs/` PDFs, but outside this skill's
-geocoder-reporting remit. Discover them via the WADL or the `docs/` guides if
-ever needed.
+Users/roles/organizations admin, OLAP, diagnostics,
+install/upgrade/security/telemetry — present in the API and in the `docs/` PDFs,
+but outside this skill's remit. Discover them via the WADL or the `docs/` guides
+if ever needed.

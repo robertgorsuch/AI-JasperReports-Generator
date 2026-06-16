@@ -7,7 +7,9 @@
   Exercises, against the foodmart DB + JRS, under a throwaway -Folder:
     scaffold (chart + param + highlight) -> compile -> deploy (+ input control)
     -> verify_report (content) -> run to PDF -> schedule_job CRUD -> manage_alert
-    CRUD -> compose a dashboard (report + text tile) -> teardown.
+    CRUD -> compose a dashboard (report + text tile) -> style template (.jrtx)
+    referenced by a report -> single-table Domain -> non-JDBC (jndi) datasource
+    -> UI theme deploy -> teardown.
   Prints PASS/FAIL per step and throws if any step fails. Leaves nothing behind
   unless -KeepArtifacts.
 
@@ -33,6 +35,7 @@ if (-not $env:PGPASSWORD) { Write-Warning "PGPASSWORD not set; scaffold introspe
 $skill = $PSScriptRoot
 $work = "out\smoke"; New-Item -ItemType Directory -Force $work | Out-Null
 $rptUri = "$Folder/smoke_rpt"; $dashUri = "$Folder/smoke_dash"
+$themeName = "jd_smoke_theme"; $dsLeaf = ($DataSourceUri -split "/")[-1]
 $script:pass = 0; $script:fail = 0
 function step($name, $ok) {
     if ($ok) { Write-Host "PASS  $name"; $script:pass++ } else { Write-Host "FAIL  $name"; $script:fail++ }
@@ -108,12 +111,56 @@ GROUP BY 1 ORDER BY 2 DESC
     & "$skill\compose_dashboard.ps1" -Manifest $manifest @cred *>$null
     $d = Invoke-JrsGet -Jrs $jrs -Uri $dashUri
     step "compose-dashboard" ($d.Code -match '^2\d\d$')
+
+    # 6b. style template (.jrtx) -> a report referencing it runs to PDF
+    $styleOk = $false
+    try {
+        & python "$skill\scaffold_style_template.py" --name jd_smoke --palette corporate --out "$work\jd_smoke.jrtx" *>$null
+        & "$skill\upload_file.ps1" -File "$work\jd_smoke.jrtx" -Uri "$Folder/jd_smoke" -Type xml -Overwrite @cred *>$null
+        & python "$skill\scaffold_jrxml.py" --name smoke_styled --db $Database --title "Styled" `
+            --style-template "$Folder/jd_smoke" --query-file "$work\smoke.sql" --out "$work\smoke_styled.jrxml" *>$null
+        & "$skill\deploy_report.ps1" -Jrxml "$work\smoke_styled.jrxml" -TargetUri "$Folder/smoke_styled" `
+            -Label "Styled" -DataSourceUri $DataSourceUri -Overwrite @cred *>$null
+        $sc = & curl.exe -s -o "$work\smoke_styled.pdf" -w "%{http_code}" -u "$($jrs.User):$($jrs.Password)" "$($jrs.ServerUrl)/rest_v2/reports$Folder/smoke_styled.pdf"
+        $styleOk = ("$sc".Trim() -eq "200" -and ((Get-Content "$work\smoke_styled.pdf" -Raw) -like "%PDF-*"))
+    } catch { $styleOk = $false }
+    step "style-template" $styleOk
+
+    # 6c. single-table Domain (semantic layer) over the smoke datasource's product table
+    $domOk = $false
+    try {
+        & python "$skill\scaffold_domain_schema.py" --name smoke_dom --table product --db $Database `
+            --datasource-id $dsLeaf --out "$work\smoke_dom_schema.xml" *>$null
+        & "$skill\create_domain.ps1" -Uri "$Folder/smoke_domain" -SchemaFile "$work\smoke_dom_schema.xml" `
+            -DataSourceUri $DataSourceUri -Label "Smoke Domain" -Overwrite @cred *>$null
+        $domOk = (Invoke-JrsGet -Jrs $jrs -Uri "$Folder/smoke_domain").Code -match '^2\d\d$'
+    } catch { $domOk = $false }
+    step "domain" $domOk
+
+    # 6d. non-JDBC datasource (jndi -- descriptor-shape validation)
+    $dsOk = $false
+    try {
+        & "$skill\create_datasource.ps1" -Type jndi -Uri "$Folder/smoke_jndi" -JndiName jdbc/smoke -Overwrite @cred *>$null
+        $dsOk = (Invoke-JrsGet -Jrs $jrs -Uri "$Folder/smoke_jndi").Code -match '^2\d\d$'
+    } catch { $dsOk = $false }
+    step "datasource-jndi" $dsOk
+
+    # 6e. UI theme scaffold + deploy (cleaned up in finally -- it lives under /themes)
+    $themeOk = $false
+    try {
+        & python "$skill\scaffold_theme.py" --name $themeName --palette corporate --out "$work\overrides_custom.css" *>$null
+        & "$skill\deploy_theme.ps1" -CssFile "$work\overrides_custom.css" -Name $themeName -Overwrite @cred *>$null
+        $themeOk = (Invoke-JrsGet -Jrs $jrs -Uri "/themes/$themeName/overrides_custom.css").Code -match '^2\d\d$'
+    } catch { $themeOk = $false }
+    step "theme" $themeOk
 }
 finally {
     if (-not $KeepArtifacts) {
-        # 7. teardown (dashboard, report, control folder, then the smoke folder)
+        # 7. teardown (dashboard, report, control folder, then the smoke folder,
+        #    plus the UI theme which lives under /themes outside $Folder)
         try { & "$skill\teardown_dashboard.ps1" -Uri $dashUri -IncludeReports @cred *>$null } catch {}
         Invoke-JrsDelete -Jrs $jrs -Uri $Folder | Out-Null
+        Invoke-JrsDelete -Jrs $jrs -Uri "/themes/$themeName" | Out-Null
         $gone = (Invoke-JrsGet -Jrs $jrs -Uri $dashUri).Code -notmatch '^2\d\d$'
         step "teardown" $gone
     }

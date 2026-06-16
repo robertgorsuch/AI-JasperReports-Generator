@@ -6,6 +6,9 @@ description: >-
   generate or hand-edit a JR7 (JasperReports 7) .jrxml, compile a .jrxml to
   .jasper, publish/deploy a report to the Jasper(Reports) Server, or export/import
   (promote, back up, version-control) a dashboard or other repository resource.
+  Also covers data sources (JDBC and non-JDBC: JNDI/bean/custom/virtual),
+  shared JR style templates (.jrtx), single-table Domains (semantic layer),
+  ad hoc views (list/inspect/export/import), and JRS UI themes (CSS).
   Covers the full design-compile-deploy pipeline against a local PostgreSQL
   database and a JasperReports Server REST v2 endpoint.
 ---
@@ -98,6 +101,35 @@ type: `line` uses `showLines/showShapes` — `showTickMarks/showTickLabels` thro
   (e.g. `/reports/x/rpt_files/Label_main_jrxml`, or one uploaded with
   `upload_file.ps1`) — not a reportUnit.
 
+### 1b. Shared style templates (.jrtx)
+Instead of repeating inline colors/fonts in every report, factor styling into a
+**shared style template** (`.jrtx`) deployed once and referenced by many reports
+— change the `.jrtx`, redeploy it, and every consuming report restyles.
+
+`scripts/scaffold_style_template.py` emits a JR7 `.jrtx` (root `<jasperTemplate>`
+with named `<style>`s) from the same palettes as `--template`:
+```powershell
+python $skill\scaffold_style_template.py --name jd_corporate --palette corporate `
+    --out report\jd_corporate.jrtx      # palette in slate|corporate|forest|minimal|dark; --font, --base-size
+```
+Styles emitted: `jdBase` (the **default** style — sets fontName/base color for
+every text element), plus `jdTitle/jdSubtitle/jdColumnHeader/jdDetail/
+jdGroupHeader/jdGroupFooter/jdPageFooter` for hand-referencing via `style="…"`.
+Deploy the `.jrtx` as a repository **file** resource, then reference it from a
+scaffold with `--style-template`:
+```powershell
+& $skill\upload_file.ps1 -File report\jd_corporate.jrtx -Uri /styles/jd_corporate -Type xml -Overwrite
+python $skill\scaffold_jrxml.py --name styled_rpt --style-template /styles/jd_corporate `
+    --query "SELECT …" --out report\styled_rpt.jrxml   # emits <template><![CDATA["repo:/styles/jd_corporate"]]></template>
+```
+`--style-template` wraps a leading-`/` value as `repo:URI`; JRS resolves it at
+fill time and applies the template's default style. **Verified end-to-end**
+(deploy + run-to-PDF, `200` + `%PDF-`). **Gotcha:** JR7 parses the `.jrtx` with
+the same strict Jackson deserializer as a `.jrdax` — the default-style attribute
+is **`default="true"`**, NOT the 6.x `isDefault="true"` (a wrong name throws
+`UnrecognizedPropertyException` at fill time as a generic `400`, not a clean
+compile error).
+
 ### 2. Compile — validate jrxml -> jasper
 `scripts/compile_jrxml.ps1` compiles against the JR7 runtime. A clean compile is
 the fastest check that the jrxml is JR7-valid before deploying.
@@ -122,6 +154,22 @@ Defaults target PostgreSQL `localhost:5432`; override with
 `-DbHost -DbPort -DbUser -DbPassword`, or pass a full `-ConnectionUrl` and
 `-DriverClass` for another engine. NOTE: PowerShell reserves `-Db` (alias of
 `-Debug`), so the database-name parameter is `-Database`.
+
+**Non-JDBC datasources** — `create_datasource.ps1 -Type` also emits
+`jndi|bean|custom|virtual` descriptors (the matching
+`application/repository.<type>DataSource+json` media type):
+```powershell
+& $skill\create_datasource.ps1 -Type jndi    -Uri /datasources/fm_jndi -JndiName jdbc/foodmart
+& $skill\create_datasource.ps1 -Type bean    -Uri /datasources/fm_bean -BeanName myDsBean -BeanMethod getDataSource
+& $skill\create_datasource.ps1 -Type custom  -Uri /datasources/cds -ServiceClass com.acme.MyDsService -Properties @{k="v"}
+& $skill\create_datasource.ps1 -Type virtual -Uri /datasources/combined `
+    -SubDataSources ([ordered]@{ fm='/public/Samples/Data_Sources/FoodmartDataSource'; pg='/datasources/postgis_34_sample' })
+```
+**Verified:** `jndi` and `virtual` create (`201`) and round-trip. NOTE: creating
+a non-JDBC datasource validates the **descriptor shape** and stores the resource;
+actually *connecting* needs the server-side prerequisite (a JNDI resource in the
+app server, a Spring bean on the classpath, a custom data-source service, or —
+for `virtual` — the referenced sub-datasources).
 
 ### 3. Deploy — publish to JasperReports Server (REST v2)
 `scripts/deploy_report.ps1` wraps the jrxml in a reportUnit descriptor (jrxml
@@ -488,10 +536,84 @@ goes in the **URL-encoded hash fragment**:
 
 **Note on scope:** a dashboard of **report dashlets** is now fully scripted
 (`build_dashlets.ps1 -Compose`, above). Export/import additionally
-promotes/versions *any* dashboard across servers. The remaining manual step is
-authoring dashboards that use **non-report** tiles (ad hoc views, filter groups)
-— ad hoc views are themselves web-UI-authored. Everything else here — reports,
-their embedded charts, and report-tile dashboards — is fully scripted.
+promotes/versions *any* dashboard across servers. **Ad hoc views** and
+**Domains** now have their own scripted lifecycle (see those sections below):
+single-table Domains are scaffolded + created outright, and ad hoc views are
+listed/inspected/exported/imported (authoring an ad hoc view's interactive state
+is still web-UI, but everything around it is scripted). The remaining manual step
+is authoring dashboards whose tiles are **filter groups / input controls** drawn
+in the designer. Everything else here — reports, their embedded charts,
+report-tile dashboards, style templates, datasources, domains, and themes — is
+scripted.
+
+## Domains (semantic layer)
+A **Domain** (`semanticLayerDataSource`) is a business-friendly view of a
+datasource that Ad Hoc views and Domain reports query. It is two resources: a
+descriptor binding a JDBC datasource to a **schema.xml** (tables, fields, and the
+"items" exposed to the designer).
+
+A **single-table** Domain is fully scripted. `scripts/scaffold_domain_schema.py`
+introspects one table's columns (psql/`information_schema`) and emits the
+`schema.xml`; `scripts/create_domain.ps1` creates the Domain:
+```powershell
+$env:PGPASSWORD = "postgres"
+python $skill\scaffold_domain_schema.py --name foodmart_product --table product `
+    --db foodmart --datasource-id FoodmartDataSource --out report\foodmart_product_schema.xml
+& $skill\create_domain.ps1 -Uri /domains/foodmart_product `
+    -SchemaFile report\foodmart_product_schema.xml `
+    -DataSourceUri /public/Samples/Data_Sources/FoodmartDataSource -Label "Foodmart Product" -Overwrite
+```
+**Verified:** the Domain creates (`201`), the schema **materializes** at
+`<Uri>_files/schema.xml`, the descriptor round-trips, and its
+`GET /rest_v2/domains{uri}/metadata` behaves identically to the shipped sample
+Domains. **Two gotchas the script handles:** (1) the schema's
+`<jdbcTable datasourceId="…">` must equal the **leaf** of `-DataSourceUri` (pass
+it as `--datasource-id`; the script warns on a mismatch). (2) the schema must be
+**embedded inline** in the descriptor (`schema.schemaFile.content` base64, like a
+reportUnit's jrxml) — a pre-uploaded `schemaFileReference` fails `500
+resource.does.not.exist` because the `_files` child is orphaned until the parent
+exists. **Multi-table** Domains (joins/`joinInfo`) are authored in the Domain
+Designer and promoted with `export_resource.ps1`/`import_resource.ps1`.
+
+## Ad hoc views
+An **Ad Hoc view** (`adhocDataView`) is authored interactively in the Ad Hoc
+Designer over a Topic (a jrxml file), a Domain, or a datasource. Its descriptor
+carries a large opaque `query.multiAxis` + `component` state plus a companion
+binary, so it is **not** scaffolded from scratch and a raw JSON **PUT does not
+work** (the server rejects it `500 "bytes is null"` — the same don't-PUT lesson
+as dashboards). `scripts/manage_adhoc.ps1` makes the lifecycle scriptable:
+```powershell
+& $skill\manage_adhoc.ps1 -Action list   -Folder /public/Samples/Ad_Hoc_Views
+& $skill\manage_adhoc.ps1 -Action get    -Uri <view> -OutFile backups\view.json   # inspect / diff (not redeployable)
+& $skill\manage_adhoc.ps1 -Action export -Uri <view> -OutFile backups\view.zip    # portable backup (carries Topic/Domain)
+& $skill\manage_adhoc.ps1 -Action import -Zip backups\view.zip                     # restore / clone / promote
+```
+**Verified:** list, get-to-JSON, and the export→import round-trip. `export`/
+`import` wrap the proven `export_resource.ps1`/`import_resource.ps1` envelope
+(carries the view *and* its backing Topic/Domain, re-imports rendering-intact);
+`promote.ps1` does dev→prod in one step.
+
+## UI themes (CSS)
+A **theme** restyles the JRS web UI via a folder of CSS (key file
+`overrides_custom.css`) under a `Themes` folder. `scripts/scaffold_theme.py`
+emits a starter `overrides_custom.css` from a palette; `scripts/deploy_theme.ps1`
+deploys it (one CSS file or a whole folder incl. images/fonts) and can activate
+it for an organization:
+```powershell
+python $skill\scaffold_theme.py --name corporate --palette corporate --out themes\corporate\overrides_custom.css
+& $skill\deploy_theme.ps1 -CssFile themes\corporate\overrides_custom.css -Name corporate -Overwrite
+# or a full theme folder, deployed to an org and made active:
+& $skill\deploy_theme.ps1 -ThemeDir themes\corporate -Name corporate `
+    -ThemesFolder /organizations/organization_1/themes -Activate -Organization organization_1
+```
+Themes take effect immediately (no restart). Without `-Activate`, preview by
+appending **`&theme=<name>`** to any logged-in JRS UI URL. Activation is a
+property of the **organization** (`PUT /rest_v2/organizations/{id}`
+`{"theme":"<name>"}`). `-Overwrite` deletes an existing same-named theme folder
+first (the ZIP-upload UI refuses to overwrite). **Verified:** scaffold → deploy →
+the CSS serves back from its repo URI. The scaffolded selectors (banner, primary
+buttons, login, table headers) are a **starting point** — refine against your
+install's actual markup.
 
 ## Notes / gotchas
 - The live server is `jasperserver-pro` on **port 8081** (HTTP Basic). Port 8080
@@ -499,8 +621,11 @@ their embedded charts, and report-tile dashboards — is fully scripted.
 - **Smoke test:** after editing any script, run `scripts/smoke_test.ps1`
   (`$env:PGPASSWORD="postgres"` first) — it scaffolds → compiles → deploys (+input
   control) → verifies content → runs to PDF → schedules a job (CRUD) → sets an
-  alert (CRUD) → composes a dashboard (report + text tile) → tears down, asserting
-  each of the 9 steps under a throwaway `/reports/_smoke`.
+  alert (CRUD) → composes a dashboard (report + text tile) → deploys a **style
+  template** and runs a report that references it → creates a single-table
+  **Domain** → creates a non-JDBC (**jndi**) datasource → deploys a UI **theme** →
+  tears down, asserting each of the 13 steps under a throwaway `/reports/_smoke`
+  (the theme lives under `/themes` and is cleaned up too).
 - **JR runtime lib dir** resolves via `-LibDir` → `$env:JR_LIB_DIR` → `jrs.config.json`
   `jrLibDir` → the machine default; set `jrLibDir` on a fresh clone. The shared
   `Invoke-JrCompile` helper also absorbs the harmless SLF4J-on-stderr that would

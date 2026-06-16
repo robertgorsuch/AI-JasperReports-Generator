@@ -415,7 +415,7 @@ def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
                 margin=20, chart=None, chart_cat=None, chart_val=None,
                 chart_series=None, chart_height=300, chart_label_rotation=0,
                 params=None, group_by=None, drills=None, highlights=None,
-                crosstab=None, subreport=None, theme=None):
+                crosstab=None, subreport=None, theme=None, style_template=None):
     t = THEMES.get(theme or DEFAULT_THEME, THEMES[DEFAULT_THEME])
     col_w = page_w - 2 * margin
     widths = layout_widths(cols, col_w)
@@ -443,6 +443,14 @@ def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
            f'pageWidth="{page_w}" pageHeight="{page_h}" columnWidth="{col_w}" '
            f'leftMargin="{margin}" rightMargin="{margin}" '
            f'topMargin="{margin}" bottomMargin="{margin}">']
+
+    # external style template (shared .jrtx). Must precede <style>/<parameter>.
+    # JRS resolves a "repo:/path" expression against the repository at fill time;
+    # the template's isDefault style sets fontName/base color for all text.
+    if style_template:
+        expr = ('"repo:' + style_template + '"') if style_template.startswith("/") else f'"{style_template}"'
+        out.append(f'\t<template><![CDATA[{expr}]]></template>')
+        out.append('')
 
     # conditional-format styles (referenced by detail cells via style="..")
     for sname, cond, color in hl_defs:
@@ -663,6 +671,11 @@ def main():
                     help=f"visual template / color palette (default: {DEFAULT_THEME}). "
                          "Sets the column-header band, title/subtitle, group band, "
                          "row rule and footer colors. 'minimal' uses no header fill.")
+    ap.add_argument("--style-template", metavar="JRTX_URI",
+                    help="reference a shared .jrtx style template (see "
+                         "scaffold_style_template.py). A leading-'/' value is wrapped "
+                         "as repo:URI; the template's isDefault style sets the report "
+                         "font/base color centrally. Deploy the .jrtx with upload_file.ps1.")
     ap.add_argument("--chart", choices=list(CHART_TYPES),
                     help="also add a JFreeChart in the summary band "
                          "(pie|pie3d|bar|bar3d|line|area|stackedbar)")
@@ -775,7 +788,7 @@ def main():
                       chart_label_rotation=args.chart_label_rotation,
                       params=params, group_by=args.group_by, drills=drills,
                       highlights=highlights, crosstab=crosstab, subreport=subreport,
-                      theme=args.template)
+                      theme=args.template, style_template=args.style_template)
 
     out_path = args.out or f"{args.name}.jrxml"
     with open(out_path, "w", encoding="utf-8") as f:
