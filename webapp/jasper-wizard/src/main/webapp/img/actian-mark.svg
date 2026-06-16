@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 86" role="img" aria-label="Actian">
+  <!-- nested chevron "mountain" mark, light -> deep blue (sampled from actian.com) -->
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round" stroke-width="7">
+    <path d="M9 70 L50 8  L91 70" stroke="#A6CEF6"/>
+    <path d="M20 74 L50 25 L80 74" stroke="#3B8EF0"/>
+    <path d="M31 78 L50 42 L69 78" stroke="#2C53C8"/>
+  </g>
+  <path d="M50 58 L41 80 L59 80 Z" fill="#1E3A9E"/>
+</svg>

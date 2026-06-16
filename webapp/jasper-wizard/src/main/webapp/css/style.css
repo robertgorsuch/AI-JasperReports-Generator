@@ -35,8 +35,9 @@ h1, h2, h3, .wordmark, .navgroup, th, .steps li { font-family: var(--font-head);
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 64px;
   background: var(--ink); color: #fff; border-bottom: 3px solid transparent; border-image: var(--grad-accent) 1; }
 .brand { display: flex; align-items: center; gap: 16px; }
-.wordmark { font-weight: 800; font-size: 26px; letter-spacing: -.5px; color: #fff; line-height: 1; }
-.wordmark .tld { color: var(--teal-2); }
+.brand-logo { display: flex; align-items: center; gap: 11px; }
+.brand-logo .mark { height: 38px; width: auto; display: block; }
+.wordmark { font-weight: 800; font-size: 24px; letter-spacing: 3px; color: #fff; line-height: 1; }
 .divider { width: 1px; height: 30px; background: rgba(255,255,255,.22); }
 .topbar h1 { font-size: 15px; font-weight: 600; margin: 0; color: #fff; letter-spacing: .1px; }
 .sub { margin: 1px 0 0; color: #9fb0c4; font-size: 12px; }
