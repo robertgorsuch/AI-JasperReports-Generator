@@ -14,7 +14,7 @@ ORDER BY t.month_of_year
 	<field name="sales" class="java.math.BigDecimal"/>
 
 	<title height="44">
-		<element kind="staticText" x="0" y="0" width="802" height="24" fontSize="16.0" bold="true"><text><![CDATA[Monthly Sales Trend]]></text></element>
+		<element kind="staticText" x="0" y="0" width="802" height="24" fontSize="16.0" bold="true" forecolor="#000000"><text><![CDATA[Monthly Sales Trend]]></text></element>
 		<element kind="staticText" x="0" y="26" width="802" height="14" fontSize="9.0" forecolor="#666666"><text><![CDATA[Foodmart store sales by month]]></text></element>
 	</title>
 
@@ -38,7 +38,7 @@ ORDER BY t.month_of_year
 		<element kind="textField" x="769" y="2" width="33" height="12" forecolor="#666666" fontSize="8.0" evaluationTime="Report"><expression><![CDATA[" " + $V{PAGE_NUMBER}]]></expression></element>
 	</pageFooter>
 
-	<summary height="400">
+	<summary height="402">
 		<element kind="chart" chartType="line" x="0" y="10" width="802" height="380" evaluationTime="Report">
 			<dataset kind="category">
 				<series>

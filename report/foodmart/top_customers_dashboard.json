@@ -1,0 +1,17 @@
+{
+  "folder": "/reports/foodmart",
+  "name": "top_customers_dashboard",
+  "label": "Top Customers Dashboard",
+  "dashlets": [
+    {
+      "kind": "report",
+      "name": "top_5_customers_revenue",
+      "title": "Top 5 Customers by Revenue",
+      "reportUri": "/reports/foodmart/top_5_customers_revenue",
+      "x": 0,
+      "y": 0,
+      "width": 40,
+      "height": 10
+    }
+  ]
+}

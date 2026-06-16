@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Two-layer Texas choropleth heatmap (JR7-native). The map itself is rendered
+  upstream by report/render_tx_store_map.py (PostGIS county geometry + geocoded
+  foodmart store/warehouse points) into a single PNG, uploaded to the repository
+  and embedded here via a repo: image expression. No query / no datasource: the
+  report is a styled frame around the pre-rendered map image.
+    Layer 1: Texas counties shaded by 2020 Census population (choropleth heatmap).
+    Layer 2: foodmart stores (circles) + warehouses (squares) relocated to real
+             Texas cities and geocoded against the TIGER place layer.
+-->
+<jasperReport name="tx_store_warehouse_map" language="java"
+              pageWidth="842" pageHeight="760" columnWidth="802"
+              leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20"
+              whenNoDataType="AllSectionsNoDetail">
+	<title height="720">
+		<element kind="staticText" x="0" y="0" width="802" height="26"
+		         fontSize="16.0" bold="true" hTextAlign="Center">
+			<text><![CDATA[Texas Population by County  +  Foodmart Stores & Warehouses]]></text>
+		</element>
+		<element kind="staticText" x="0" y="26" width="802" height="16"
+		         fontSize="9.0" forecolor="#666666" hTextAlign="Center">
+			<text><![CDATA[Layer 1: 2020 Census population choropleth (county).   Layer 2: foodmart stores & warehouses relocated to Texas cities, geocoded via the TIGER place layer.]]></text>
+		</element>
+		<element kind="image" x="0" y="46" width="802" height="672"
+		         scaleImage="RetainShape" hImageAlign="Center" vImageAlign="Middle">
+			<expression><![CDATA["repo:/reports/foodmart/tx_store_warehouse_map_png"]]></expression>
+		</element>
+	</title>
+</jasperReport>

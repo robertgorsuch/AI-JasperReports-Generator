@@ -1,0 +1,1146 @@
+{
+  "info": {
+    "name": "Jaspersoft REST API v10.0.0",
+    "description": "Comprehensive collection for JasperReports Server 10.0.0 REST v2 API endpoints. Verified against localhost:8081/jasperserver-pro with HTTP Basic Auth (superuser/superuser).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Resources - Repository CRUD",
+      "item": [
+        {
+          "name": "List Resources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/resources?folderUri=/reports&recursive=true&type=reportUnit",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "resources"],
+              "query": [
+                {
+                  "key": "folderUri",
+                  "value": "/reports"
+                },
+                {
+                  "key": "recursive",
+                  "value": "true"
+                },
+                {
+                  "key": "type",
+                  "value": "reportUnit",
+                  "description": "Filter by type: reportUnit, jdbcDataSource, folder, etc."
+                }
+              ]
+            },
+            "description": "List resources in a folder. Use type=jdbcDataSource for datasources."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Resource",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/resources/reports/foodmart/top_5_customers_revenue",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "resources", "reports", "foodmart", "top_5_customers_revenue"]
+            },
+            "description": "Fetch a specific resource descriptor"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Resource",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/rest_v2/resources/reports/geocoder/test_report",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "resources", "reports", "geocoder", "test_report"]
+            },
+            "description": "Delete a resource. Returns 204 No Content on success. Recursive on folders."
+          },
+          "response": []
+        },
+        {
+          "name": "List Datasources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/resources?type=jdbcDataSource&recursive=true",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "resources"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "jdbcDataSource"
+                },
+                {
+                  "key": "recursive",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "List all JDBC datasources"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reports - Synchronous Execution",
+      "item": [
+        {
+          "name": "Run Report as PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/top_5_customers_revenue.pdf",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "top_5_customers_revenue.pdf"]
+            },
+            "description": "Fill and export a report synchronously. Formats: pdf, xlsx, csv, html, docx, pptx, rtf, ods, odt, xml"
+          },
+          "response": []
+        },
+        {
+          "name": "Run Report as Excel",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/top_5_customers_revenue.xlsx",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "top_5_customers_revenue.xlsx"]
+            },
+            "description": "Export as XLSX (Excel format)"
+          },
+          "response": []
+        },
+        {
+          "name": "Run Report as CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/top_5_customers_revenue.csv",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "top_5_customers_revenue.csv"]
+            },
+            "description": "Export as CSV format"
+          },
+          "response": []
+        },
+        {
+          "name": "Run Report with Parameters",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/sample_report.pdf?param1=value1&param2=value2",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "sample_report.pdf"],
+              "query": [
+                {
+                  "key": "param1",
+                  "value": "value1"
+                },
+                {
+                  "key": "param2",
+                  "value": "value2"
+                }
+              ]
+            },
+            "description": "Run report with input control values as query parameters"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Report Executions - Asynchronous",
+      "item": [
+        {
+          "name": "Submit Report Execution (Async)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reportUnitUri\": \"/reports/foodmart/top_5_customers_revenue\",\n  \"outputFormat\": \"pdf\",\n  \"interactive\": false,\n  \"async\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reportExecutions",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reportExecutions"]
+            },
+            "description": "Submit an asynchronous report execution request. Returns requestId to poll."
+          },
+          "response": []
+        },
+        {
+          "name": "Check Execution Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reportExecutions/{{request_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reportExecutions", "{{request_id}}", "status"]
+            },
+            "description": "Poll execution status. Returns value: 'queued', 'execution', or 'ready'"
+          },
+          "response": []
+        },
+        {
+          "name": "Download Report Output",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reportExecutions/{{request_id}}/exports/{{export_id}}/outputResource",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reportExecutions", "{{request_id}}", "exports", "{{export_id}}", "outputResource"]
+            },
+            "description": "Download the output file once status is 'ready'"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Execution Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reportExecutions/{{request_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reportExecutions", "{{request_id}}"]
+            },
+            "description": "Get full execution details including exports array with export IDs"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Input Controls",
+      "item": [
+        {
+          "name": "List Input Controls",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/top_5_customers_revenue/inputControls",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "top_5_customers_revenue", "inputControls"]
+            },
+            "description": "List all input controls for a report"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Input Control Values",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/sample_report/inputControls/category/values",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "sample_report", "inputControls", "category", "values"]
+            },
+            "description": "Get available values for an input control (query-backed)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Input Control Values with Cascade",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/sample_report/inputControls/department/values?category=Food",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "sample_report", "inputControls", "department", "values"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Food",
+                  "description": "Parent input control value for cascading"
+                }
+              ]
+            },
+            "description": "Get cascading input control values filtered by parent control"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Jobs - Scheduling",
+      "item": [
+        {
+          "name": "Create Job",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/job+json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/job+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Daily Sales Report\",\n  \"source\": {\n    \"reportUnitURI\": \"/reports/foodmart/top_5_customers_revenue\",\n    \"parameters\": {}\n  },\n  \"trigger\": {\n    \"simpleTrigger\": {\n      \"timezone\": \"America/Chicago\",\n      \"startType\": 1,\n      \"occurrenceCount\": -1,\n      \"recurrenceInterval\": 1,\n      \"recurrenceIntervalUnit\": \"DAY\"\n    }\n  },\n  \"baseOutputFilename\": \"top_5_customers\",\n  \"outputFormats\": {\n    \"outputFormat\": [\"PDF\", \"XLSX\"]\n  },\n  \"repositoryDestination\": {\n    \"folderURI\": \"/reports/foodmart\",\n    \"saveToRepository\": true,\n    \"overwriteFiles\": true\n  },\n  \"mailNotification\": {\n    \"toAddresses\": \"ops@example.com\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rest_v2/jobs",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "jobs"]
+            },
+            "description": "Create a new scheduled job. startType: 1=now, 2=at startDate. occurrenceCount: 1=once, -1=forever"
+          },
+          "response": []
+        },
+        {
+          "name": "List Jobs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/jobs?reportUnitURI=/reports/foodmart/top_5_customers_revenue",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "jobs"],
+              "query": [
+                {
+                  "key": "reportUnitURI",
+                  "value": "/reports/foodmart/top_5_customers_revenue"
+                }
+              ]
+            },
+            "description": "List jobs for a specific report"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Job",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/job+json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/jobs/{{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "jobs", "{{job_id}}"]
+            },
+            "description": "Get full job descriptor"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Job",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/rest_v2/jobs/{{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "jobs", "{{job_id}}"]
+            },
+            "description": "Delete a scheduled job"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Alerts - Data Threshold Notifications",
+      "item": [
+        {
+          "name": "Create Alert",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/alert+json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/alert+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"High Revenue Alert\",\n  \"trigger\": {\n    \"simpleTrigger\": {\n      \"timezone\": \"America/Chicago\",\n      \"startType\": 1,\n      \"occurrenceCount\": -1\n    }\n  },\n  \"source\": {\n    \"reportUnitURI\": \"/reports/foodmart/top_5_customers_revenue\"\n  },\n  \"baseOutputFilename\": \"revenue_alert\",\n  \"outputFormats\": {\n    \"outputFormat\": [\"PDF\"]\n  },\n  \"repositoryDestination\": {\n    \"folderURI\": \"/reports/foodmart\",\n    \"saveToRepository\": true\n  },\n  \"mailNotification\": {\n    \"toAddresses\": {\n      \"address\": [\"ops@example.com\"]\n    }\n  },\n  \"dataPointAlert\": {\n    \"name\": \"Total Revenue Alert\",\n    \"dataPoint\": {\n      \"elementUUID\": \"element-uuid-here\"\n    },\n    \"operator\": \"greaterOrEqual\",\n    \"thresholdValue\": 1000000,\n    \"dataPointType\": \"NUMERIC\",\n    \"resourceURI\": \"/reports/foodmart/top_5_customers_revenue\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rest_v2/alerts",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "alerts"]
+            },
+            "description": "Create a data-driven alert. Fires when a report element crosses a threshold."
+          },
+          "response": []
+        },
+        {
+          "name": "List Alerts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/alerts",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "alerts"]
+            },
+            "description": "List all alerts"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alert",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/alert+json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/alerts/{{alert_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "alerts", "{{alert_id}}"]
+            },
+            "description": "Get full alert descriptor"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Alert",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/rest_v2/alerts/{{alert_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "alerts", "{{alert_id}}"]
+            },
+            "description": "Delete an alert"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Permissions",
+      "item": [
+        {
+          "name": "Get Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/permissions/reports/foodmart/top_5_customers_revenue",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "permissions", "reports", "foodmart", "top_5_customers_revenue"]
+            },
+            "description": "Get explicit permissions on a resource"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Effective Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/permissions/reports/foodmart/top_5_customers_revenue?effectivePermissions=true",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "permissions", "reports", "foodmart", "top_5_customers_revenue"],
+              "query": [
+                {
+                  "key": "effectivePermissions",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Get resolved/inherited permissions"
+          },
+          "response": []
+        },
+        {
+          "name": "Set Permissions",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/collection+json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permission\": [\n    {\n      \"uri\": \"repo:/reports/foodmart/top_5_customers_revenue\",\n      \"recipient\": \"role:/ROLE_USER\",\n      \"mask\": 30\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rest_v2/permissions/reports/foodmart/top_5_customers_revenue",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "permissions", "reports", "foodmart", "top_5_customers_revenue"]
+            },
+            "description": "Set explicit permissions. Masks: 1=administer, 2=read+delete, 18=read+write, 30=read-only, 32=execute-only"
+          },
+          "response": []
+        },
+        {
+          "name": "Clear Permissions (Inherit)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/collection+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permission\": []\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rest_v2/permissions/reports/foodmart/top_5_customers_revenue",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "permissions", "reports", "foodmart", "top_5_customers_revenue"]
+            },
+            "description": "Clear explicit permissions to restore inheritance from parent"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Attributes",
+      "item": [
+        {
+          "name": "Set Server Attribute",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"db.prod.internal\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rest_v2/attributes?name=dbHost",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "attributes"],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "dbHost"
+                }
+              ]
+            },
+            "description": "Set a server-level attribute (scope query param required)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attribute",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/attributes?name=dbHost",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "attributes"],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "dbHost"
+                }
+              ]
+            },
+            "description": "Get attribute value"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Attribute",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/rest_v2/attributes?name=dbHost",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "attributes"],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "dbHost"
+                }
+              ]
+            },
+            "description": "Delete an attribute"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Export & Import",
+      "item": [
+        {
+          "name": "Export Resource",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uris\": [\"/reports/foodmart/top_5_customers_revenue\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rest_v2/export",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "export"]
+            },
+            "description": "Start a resource export. Returns exportId to poll."
+          },
+          "response": []
+        },
+        {
+          "name": "Check Export Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/export/{{export_id}}/state",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "export", "{{export_id}}", "state"]
+            },
+            "description": "Poll export status until phase=finished"
+          },
+          "response": []
+        },
+        {
+          "name": "Download Export",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/rest_v2/export/{{export_id}}/exportFile",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "export", "{{export_id}}", "exportFile"]
+            },
+            "description": "Download the exported file (zip archive) once status is finished"
+          },
+          "response": []
+        },
+        {
+          "name": "Import Resource",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/import?update=true",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "import"],
+              "query": [
+                {
+                  "key": "update",
+                  "value": "true",
+                  "description": "true to overwrite existing, false to fail on conflict"
+                }
+              ]
+            },
+            "description": "Import a resource from a zip file (multipart upload). Returns importId to poll."
+          },
+          "response": []
+        },
+        {
+          "name": "Check Import Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/import/{{import_id}}/state",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "import", "{{import_id}}", "state"]
+            },
+            "description": "Poll import status until phase=finished"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Dashboards",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/resources/reports/foodmart/top_customers_dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "resources", "reports", "foodmart", "top_customers_dashboard"]
+            },
+            "description": "Get dashboard descriptor"
+          },
+          "response": []
+        },
+        {
+          "name": "View Dashboard in Browser",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8081/jasperserver-pro/dashboard/viewer.html#%2Freports%2Ffoodmart%2Ftop_customers_dashboard",
+              "protocol": "http",
+              "host": ["localhost:8081"],
+              "path": ["jasperserver-pro", "dashboard", "viewer.html"]
+            },
+            "description": "Open dashboard in HTML5 viewer (navigate with this URL in browser)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Domains",
+      "item": [
+        {
+          "name": "Get Domain Metadata",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/domains/foodmart_product/metadata",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "domains", "foodmart_product", "metadata"]
+            },
+            "description": "Get Domain schema and available fields"
+          },
+          "response": []
+        },
+        {
+          "name": "List Domains",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/resources?type=semanticLayerDataSource&recursive=true",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "resources"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "semanticLayerDataSource"
+                },
+                {
+                  "key": "recursive",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "List all Domains in repository"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Options - Saved Input Control Sets",
+      "item": [
+        {
+          "name": "Create Option",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": [\"Food\"],\n  \"department\": [\"Snacks\", \"Dairy\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/sample_report/options?label=Food_Snacks_Dairy",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "sample_report", "options"],
+              "query": [
+                {
+                  "key": "label",
+                  "value": "Food_Snacks_Dairy"
+                }
+              ]
+            },
+            "description": "Create a named set of input control values"
+          },
+          "response": []
+        },
+        {
+          "name": "List Options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/sample_report/options",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "sample_report", "options"]
+            },
+            "description": "List saved options for a report"
+          },
+          "response": []
+        },
+        {
+          "name": "Run Report with Option",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/Food_Snacks_Dairy.pdf",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "Food_Snacks_Dairy.pdf"]
+            },
+            "description": "Run the report using the saved option's values"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Option",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/rest_v2/reports/reports/foodmart/sample_report/options/{{option_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "reports", "reports", "foodmart", "sample_report", "options", "{{option_id}}"]
+            },
+            "description": "Delete a saved option"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Organizations & Users",
+      "item": [
+        {
+          "name": "List Organizations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/organizations",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "organizations"]
+            },
+            "description": "List all organizations"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Organization",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/organizations/organization_1",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "organizations", "organization_1"]
+            },
+            "description": "Get organization details"
+          },
+          "response": []
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/users",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "users"]
+            },
+            "description": "List all users"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/users/superuser",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "users", "superuser"]
+            },
+            "description": "Get user details"
+          },
+          "response": []
+        },
+        {
+          "name": "List Roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rest_v2/roles",
+              "host": ["{{base_url}}"],
+              "path": ["rest_v2", "roles"]
+            },
+            "description": "List all roles"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{username}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{password}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Set default values if not already set",
+          "if (!pm.environment.get('base_url')) {",
+          "  pm.environment.set('base_url', 'http://localhost:8081/jasperserver-pro');",
+          "}",
+          "if (!pm.environment.get('username')) {",
+          "  pm.environment.set('username', 'superuser');",
+          "}",
+          "if (!pm.environment.get('password')) {",
+          "  pm.environment.set('password', 'superuser');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8081/jasperserver-pro",
+      "type": "string"
+    },
+    {
+      "key": "username",
+      "value": "superuser",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "superuser",
+      "type": "string"
+    },
+    {
+      "key": "request_id",
+      "value": "",
+      "type": "string",
+      "description": "Report execution request ID from async execution"
+    },
+    {
+      "key": "export_id",
+      "value": "",
+      "type": "string",
+      "description": "Export ID from reportExecutions endpoint"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string",
+      "description": "Job ID from scheduling endpoint"
+    },
+    {
+      "key": "alert_id",
+      "value": "",
+      "type": "string",
+      "description": "Alert ID from alerts endpoint"
+    },
+    {
+      "key": "option_id",
+      "value": "",
+      "type": "string",
+      "description": "Option ID from saved input control sets"
+    }
+  ]
+}

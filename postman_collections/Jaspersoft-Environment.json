@@ -1,0 +1,62 @@
+{
+  "id": "jaspersoft-env",
+  "name": "Jaspersoft - Local",
+  "values": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8081/jasperserver-pro",
+      "type": "string",
+      "enabled": true
+    },
+    {
+      "key": "username",
+      "value": "superuser",
+      "type": "string",
+      "enabled": true
+    },
+    {
+      "key": "password",
+      "value": "superuser",
+      "type": "string",
+      "enabled": true
+    },
+    {
+      "key": "request_id",
+      "value": "",
+      "type": "string",
+      "enabled": true,
+      "description": "Report execution request ID - set from async execution response"
+    },
+    {
+      "key": "export_id",
+      "value": "",
+      "type": "string",
+      "enabled": true,
+      "description": "Export ID - set from reportExecutions endpoint"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string",
+      "enabled": true,
+      "description": "Job ID - set from scheduling endpoint"
+    },
+    {
+      "key": "alert_id",
+      "value": "",
+      "type": "string",
+      "enabled": true,
+      "description": "Alert ID - set from alerts endpoint"
+    },
+    {
+      "key": "option_id",
+      "value": "",
+      "type": "string",
+      "enabled": true,
+      "description": "Option ID - set from saved input control sets"
+    }
+  ],
+  "_postman_variable_scope": "environment",
+  "_postman_exported_at": "2026-06-16T10:57:00.000Z",
+  "_postman_exported_using": "Postman/11.0.0"
+}

@@ -1,0 +1,269 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version last-->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Performance Summary" language="groovy" pageWidth="455" pageHeight="210" orientation="Landscape" columnWidth="455" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" resourceBundle="supermart" whenResourceMissingType="Key" uuid="47c7cdbc-0dc4-49a4-9257-8063861d15fc">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="ireport.jasperserver.reportUnit" value="/public/Samples/Reports/14._World_Map"/>
+	<property name="ireport.jasperserver.url" value="http://localhost:8080/jasperserver-pro/"/>
+	<property name="com.jaspersoft.studio.unit." value="pixel"/>
+	<property name="ireport.jasperserver.report.resource" value="/public/Samples/Reports/14._World_Map_files/main_jrxml"/>
+	<property name="ireport.callouts" value="callouts.1.fg=0,0,0\n callouts.1.bg=255,255,0\n "/>
+	<property name="com.jaspersoft.studio.unit.pageHeight" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.pageWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.topMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.bottomMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.leftMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.rightMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnSpacing" value="pixel"/>
+	<subDataset name="chart Dataset" uuid="966f43e9-e39a-4837-bf7e-991a2724b8ef">
+		<property name="com.jaspersoft.studio.data.defaultdataadapter" value="Foodmart"/>
+		<parameter name="Product_Family" class="java.lang.String">
+			<defaultValueExpression><![CDATA["All"]]></defaultValueExpression>
+		</parameter>
+		<queryString>
+			<![CDATA[select substr(tab1.Mon,1,3) as Mon, tab1.Sales as Sales, (tab1.Sales - tab2.Sales) as Profit
+from
+(select *
+from
+(select t.month_of_year as Mon_id, t.the_month as Mon, sum(fact.store_sales) as Sales
+from sales_fact_1998 fact
+inner join time_by_day t on t.time_id = fact.time_id
+inner join product p on p.product_id = fact.product_id
+inner join product_class pc on pc.product_class_id = p.product_class_id
+where ($P{Product_Family}='All' or pc.product_family=$P{Product_Family})
+group by t.the_month,t.month_of_year
+union
+select 12 as Mon_id, 'Dec' as Mon, 93546.74 as Sales) a
+order by a.Mon_id) tab1,
+(select t.month_of_year as Mon_id, t.the_month as Mon, sum(fact.store_sales) as Sales
+from sales_fact_1997 fact
+inner join time_by_day t on t.time_id = fact.time_id
+inner join product p on p.product_id = fact.product_id
+inner join product_class pc on pc.product_class_id = p.product_class_id
+where ($P{Product_Family}='All' or pc.product_family=$P{Product_Family})
+group by t.the_month,t.month_of_year,t.the_year
+order by t.month_of_year) tab2
+where tab1.Mon_id = tab2.Mon_id]]>
+		</queryString>
+		<field name="sales" class="java.math.BigDecimal"/>
+		<field name="mon" class="java.lang.String"/>
+		<field name="profit" class="java.math.BigDecimal"/>
+	</subDataset>
+	<subDataset name="demographics dataset" uuid="c24cb8c1-9663-4523-a29d-e5b090386e3e">
+		<property name="com.jaspersoft.studio.data.defaultdataadapter" value="Localhost Foodmart"/>
+		<parameter name="Product_Family" class="java.lang.String">
+			<defaultValueExpression><![CDATA["All"]]></defaultValueExpression>
+		</parameter>
+		<queryString>
+			<![CDATA[select r.gender,r.sales_state_province,r.totsales from (SELECT (case when gender='F' then 'Female' else 'Male' end) as gender,sales_state_province,sum(store_sales) as totsales FROM sales_fact_1997 s inner join store st on s.store_id=st.store_id
+inner join region r on r.region_id=st.region_id
+inner join customer c on c.customer_id=s.customer_id
+inner join product p on p.product_id=s.product_id
+inner join product_class pc on p.product_class_id=pc.product_class_id
+where ($P{Product_Family}='All' or pc.product_family=$P{Product_Family}) and sales_state_province in ('BC','CA','DF','Guerrero','Jalisco')
+group by gender,sales_state_province
+union
+SELECT (case when gender='F' then 'Female' else 'Male' end) as gender,sales_state_province,sum(store_sales) as totsales FROM sales_fact_1998 s inner join store st on s.store_id=st.store_id
+inner join region r on r.region_id=st.region_id
+inner join customer c on c.customer_id=s.customer_id
+inner join product p on p.product_id=s.product_id
+inner join product_class pc on p.product_class_id=pc.product_class_id
+where ($P{Product_Family}='All' or pc.product_family=$P{Product_Family}) and sales_state_province in ('BC','CA','DF','Guerrero','Jalisco')
+group by gender,sales_state_province
+)r
+order by r.gender desc,r.sales_state_province]]>
+		</queryString>
+		<field name="gender" class="java.lang.String"/>
+		<field name="sales_state_province" class="java.lang.String"/>
+		<field name="totsales" class="java.math.BigDecimal"/>
+	</subDataset>
+	<subDataset name="ScatterDataset" uuid="4003c99e-81c1-41bd-ae1e-f03c41d18bb5">
+		<property name="com.jaspersoft.studio.data.defaultdataadapter" value="Foodmart"/>
+		<parameter name="Product_Family" class="java.lang.String">
+			<defaultValueExpression><![CDATA["All"]]></defaultValueExpression>
+		</parameter>
+		<queryString>
+			<![CDATA[select pc.product_category as ProductCAtegory, c.gender as Gender, sum(fact.store_sales) as StoreSales,sum(fact.unit_sales) as UnitSales
+from sales_fact_1998 fact
+inner join customer c on c.customer_id = fact.customer_id
+inner join product p on p.product_id = fact.product_id
+inner join product_class pc on pc.product_class_id = p.product_class_id
+where pc.product_category != 'Snack Foods' and pc.product_category != 'Vegetables' and
+($P{Product_Family}='All' or pc.product_family=$P{Product_Family})
+group by  c.gender,pc.product_category
+order by 1]]>
+		</queryString>
+		<field name="gender" class="java.lang.String"/>
+		<field name="productcategory" class="java.lang.String"/>
+		<field name="storesales" class="java.math.BigDecimal"/>
+		<field name="unitsales" class="java.math.BigDecimal"/>
+	</subDataset>
+	<parameter name="Product_Family" class="java.lang.String">
+		<defaultValueExpression><![CDATA["All"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+ round(sum(f.store_sales),2)as sales,r.sales_country
+from
+ region r,store s,sales_fact_1998 f,product p,product_class pc
+where r.region_id=s.region_id and s.store_id=f.store_id and
+pc.product_class_id = p.product_class_id
+and p.product_id = f.product_id
+and ($P{Product_Family}='All' or pc.product_family=$P{Product_Family})
+group by 2]]>
+	</queryString>
+	<field name="sales" class="java.math.BigDecimal"/>
+	<field name="sales_country" class="java.lang.String"/>
+	<summary>
+		<band height="199" splitType="Stretch">
+			<property name="local_mesure_unitheight" value="pixel"/>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<textField>
+				<reportElement x="2" y="2" width="450" height="30" forecolor="#0980BA" uuid="0bf3e708-cb6d-40cd-a671-ce9d2bd99a76">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Left" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="14" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$R{ActualvsPlan}]]></textFieldExpression>
+			</textField>
+			<componentElement>
+				<reportElement positionType="Float" stretchType="RelativeToTallestObject" x="2" y="34" width="450" height="165" forecolor="#000000" backcolor="#FFFFFF" uuid="c5afe712-bd1e-40ef-aad7-741b4de7b0ff">
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+				</reportElement>
+				<fm:map xmlns:fm="http://jaspersoft.com/fusion" xsi:schemaLocation="http://jaspersoft.com/fusion http://jaspersoft.com/schema/fusion.xsd">
+					<fm:mapNameExpression><![CDATA["WorldwithCountries"]]></fm:mapNameExpression>
+					<fm:mapProperty name="includeNameInLabels">
+						<fm:propertyExpression><![CDATA[Boolean.FALSE]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="legendPosition">
+						<fm:propertyExpression><![CDATA["RIGHT"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="showBevel">
+						<fm:propertyExpression><![CDATA[Boolean.FALSE]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="useSNameInToolTip">
+						<fm:propertyExpression><![CDATA[Boolean.FALSE]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="numberSuffix">
+						<fm:propertyExpression><![CDATA[" USD"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="legendAllowDrag">
+						<fm:propertyExpression><![CDATA[true]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="legendBorderColor">
+						<fm:propertyExpression><![CDATA[(-1)]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="legendShadow">
+						<fm:propertyExpression><![CDATA[false]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="markerRadius">
+						<fm:propertyExpression><![CDATA[10]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="baseFont">
+						<fm:propertyExpression><![CDATA["Arial"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="fillColor">
+						<fm:propertyExpression><![CDATA[new java.awt.Color(-7170921)]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="showLabels">
+						<fm:propertyExpression><![CDATA[Boolean.FALSE]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="mapLeftMargin">
+						<fm:propertyExpression><![CDATA[0]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="mapRightMargin">
+						<fm:propertyExpression><![CDATA[0]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="useHoverColor">
+						<fm:propertyExpression><![CDATA[Boolean.FALSE]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="showShadow">
+						<fm:propertyExpression><![CDATA[Boolean.FALSE]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="borderWidth">
+						<fm:propertyExpression><![CDATA[0]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="mapTopMargin">
+						<fm:propertyExpression><![CDATA[0]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="mapBottomMargin">
+						<fm:propertyExpression><![CDATA[0]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="baseFontColor">
+						<fm:propertyExpression><![CDATA["#58595B"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="bgColor">
+						<fm:propertyExpression><![CDATA["#f1f1f2"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="legendBgColor">
+						<fm:propertyExpression><![CDATA["#f1f1f2"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="legendBgAlpha">
+						<fm:propertyExpression><![CDATA[0]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="legendBorderColor">
+						<fm:propertyExpression><![CDATA["#f1f1f2"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="borderAlpha">
+						<fm:propertyExpression><![CDATA[0]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="canvasBorderColor">
+						<fm:propertyExpression><![CDATA["#f1f1f2"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="baseFont">
+						<fm:propertyExpression><![CDATA["Calibri"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:colorRange color="#004667">
+						<fm:minValueExpression><![CDATA[100000]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[1000000]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA[$R{Legend.High}]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:colorRange color="#0980BA">
+						<fm:minValueExpression><![CDATA[45001]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[99999]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA[$R{Legend.Medium}]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:colorRange color="#7EA6D0">
+						<fm:minValueExpression><![CDATA[0]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[45000]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA[$R{Legend.Low}]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:mapDataset>
+						<fm:entity>
+							<fm:idExpression><![CDATA[$F{sales_country}=="USA" ? '23' : ( $F{sales_country}=="Mexico" ? '16' :  '05')]]></fm:idExpression>
+							<fm:valueExpression><![CDATA[$F{sales}]]></fm:valueExpression>
+							<fm:hyperlink hyperlinkType="ReportExecution" hyperlinkTarget="Blank">
+								<hyperlinkParameter name="Country">
+									<hyperlinkParameterExpression><![CDATA[$F{sales_country}]]></hyperlinkParameterExpression>
+								</hyperlinkParameter>
+								<hyperlinkParameter name="_report">
+									<hyperlinkParameterExpression><![CDATA["/public/Samples/Reports/Cascading_Report_2_Updated"]]></hyperlinkParameterExpression>
+								</hyperlinkParameter>
+								<hyperlinkParameter name="Product_Family">
+									<hyperlinkParameterExpression><![CDATA[$P{Product_Family}]]></hyperlinkParameterExpression>
+								</hyperlinkParameter>
+							</fm:hyperlink>
+						</fm:entity>
+					</fm:mapDataset>
+					<fm:shapeData/>
+					<c:markerData xmlns:c="http://jasperreports.sourceforge.net/jasperreports/components" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports/components http://jasperreports.sourceforge.net/xsd/components.xsd"/>
+				</fm:map>
+			</componentElement>
+		</band>
+	</summary>
+</jasperReport>
