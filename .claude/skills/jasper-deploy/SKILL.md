@@ -501,6 +501,13 @@ viewer.
 > one. The designer/import broker does extra work on save that a raw PUT skips.
 > The **import** path (above) reproduces that work, so it renders. Don't PUT.
 
+`compose_dashboard.ps1 -WorkDir` accepts an **absolute** path (defaults to the
+relative `out\dash_build`). Earlier it joined the work dir with `Get-Location`
+unconditionally, so an absolute `-WorkDir` produced an invalid `C:\cwd\C:\abs`
+path and `ExtractToDirectory` threw "the given path's format is not supported";
+that's fixed — pass an absolute `-WorkDir` when the caller's CWD isn't writable
+(e.g. the web wizard runs it from the Tomcat temp dir).
+
 **Gotcha — `resource.in.use` (403).** A report that is already a dashlet of an
 **existing** dashboard is modification-locked by JRS: re-deploying it (delete or
 `?overwrite=true` PUT alike) returns `403 resource.in.use` naming the owning
@@ -750,6 +757,39 @@ is DELETE-only — there is no list-all GET. **Verified:** `queryCache` → `204
 ```powershell
 & $skill\manage_cache.ps1 -CacheId queryCache
 ```
+
+## Web wizard (self-service UI over these scripts)
+`webapp/jasper-wizard/` (in the repo, **not** under this skill dir) is a Jakarta
+servlet WAR that gives business users a browser UI for the whole lifecycle —
+**reports** (SQL→chart/table with live query preview + interactive input
+controls), **dashboards**, **data sources**, **domains**, **themes**, **run &
+export** (multi-format + async), **scheduling**, **repository browse**, **ad hoc
+view** list/export, **permissions**, and a **Server Summary** overview. It runs
+inside the JasperReports Server's own Tomcat at
+`http://localhost:8081/jasper-wizard/`.
+
+**It consumes these scripts** — so if you change a script's parameters or stdout
+shape, the wizard's matching handler may need updating. The split:
+- **reads / preview / run** are proxied straight to JRS REST by `JrsClient`
+  (auth added server-side: no browser creds, no CORS);
+- **create / deploy** shell out to the verified scripts via `ScriptRunner`
+  (`scaffold_jrxml.py`, `deploy_report.ps1`, `create_datasource.ps1`,
+  `compose_dashboard.ps1`, `scaffold_domain_schema.py`+`create_domain.ps1`,
+  `scaffold_theme.py`+`deploy_theme.ps1`, `schedule_job.ps1`,
+  `manage_permissions.ps1`, `manage_adhoc.ps1`, `export_resource.ps1`,
+  `run_report_async.ps1`).
+
+**Build & deploy:** `cd webapp\jasper-wizard; .\build.ps1` (no Maven — compiles
+against Tomcat 10.1's bundled Jakarta `servlet-api.jar` with JDK 11, bundles the
+scripts into the WAR, hot-deploys to Tomcat). Key environment realities the build
+already accounts for (see `webapp/jasper-wizard/README.md`):
+- **Tomcat 10.1 = Jakarta Servlet** (`jakarta.servlet.*`, not `javax.*`).
+- **Tomcat runs as `NT AUTHORITY\LocalService`**, which can't read the user
+  profile/repo — so the scripts are **bundled inside the WAR** (`WEB-INF/scripts`)
+  and the child processes run from the **container temp dir** (writable). This is
+  why the wizard passes an absolute `-WorkDir` to `compose_dashboard.ps1`.
+- **No local compile** of jrxml (drops the `jasperreports-lib` dependency); JRS
+  compiles server-side on deploy and `deploy_report.ps1` lints the SQL first.
 
 ## Notes / gotchas
 - The live server is `jasperserver-pro` on **port 8081** (HTTP Basic). Port 8080
