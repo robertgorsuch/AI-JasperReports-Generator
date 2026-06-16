@@ -107,9 +107,14 @@ if ($AutoGrid) { $genArgs += "--auto-grid" }
 if ($LASTEXITCODE -ne 0) { throw "gen_dashboard.py failed" }
 
 # --- 3. inject dashboard into the envelope ------------------------------------
-[System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $baseZip), (Join-Path (Get-Location) $tree))
+# Resolve extraction targets so this works whether -WorkDir was given relative
+# (resolved against the PS location) or absolute (used as-is). A bare
+# Join-Path (Get-Location) on an already-rooted path yields an invalid
+# "C:\cwd\C:\abs" string -> ExtractToDirectory "path's format is not supported".
+function Resolve-OutPath($p) { if ([System.IO.Path]::IsPathRooted($p)) { $p } else { Join-Path (Get-Location).Path $p } }
+[System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $baseZip).Path, (Resolve-OutPath $tree))
 $genX = Join-Path $WorkDir "gen_x"
-[System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $genZip), (Join-Path (Get-Location) $genX))
+[System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $genZip).Path, (Resolve-OutPath $genX))
 
 $rel = "resources$folder"
 $dst = Join-Path $tree $rel

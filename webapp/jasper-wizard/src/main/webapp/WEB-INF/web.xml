@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0">
+
+  <display-name>Jaspersoft Artifact Wizard</display-name>
+
+  <!-- Environment-specific settings. Edit these (no recompile needed) to point
+       the wizard at a different JasperReports Server, repo checkout, or DB. -->
+  <context-param>
+    <param-name>jrsUrl</param-name>
+    <param-value>http://localhost:8081/jasperserver-pro</param-value>
+  </context-param>
+  <context-param>
+    <param-name>jrsUser</param-name>
+    <param-value>superuser</param-value>
+  </context-param>
+  <context-param>
+    <param-name>jrsPass</param-name>
+    <param-value>superuser</param-value>
+  </context-param>
+  <!-- Repo checkout that holds .claude/skills/jasper-deploy/scripts -->
+  <context-param>
+    <param-name>repoRoot</param-name>
+    <param-value>C:\Users\rgorsuch\tx-geocoder</param-value>
+  </context-param>
+  <!-- Local PostgreSQL password used by scaffold_jrxml.py for column introspection -->
+  <context-param>
+    <param-name>pgPassword</param-name>
+    <param-value>postgres</param-value>
+  </context-param>
+  <context-param>
+    <param-name>pythonExe</param-name>
+    <param-value>python</param-value>
+  </context-param>
+  <!-- Max seconds any one script step may run before being killed -->
+  <context-param>
+    <param-name>scriptTimeoutSec</param-name>
+    <param-value>180</param-value>
+  </context-param>
+
+  <servlet>
+    <servlet-name>wizard</servlet-name>
+    <servlet-class>com.jasperwizard.WizardServlet</servlet-class>
+    <load-on-startup>1</load-on-startup>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>wizard</servlet-name>
+    <url-pattern>/api/*</url-pattern>
+  </servlet-mapping>
+
+  <welcome-file-list>
+    <welcome-file>index.html</welcome-file>
+  </welcome-file-list>
+</web-app>
