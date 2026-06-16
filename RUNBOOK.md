@@ -156,6 +156,9 @@ and the reverse-engineered dashboard model.
 | `scaffold_theme.py` / `deploy_theme.ps1` | Emit an `overrides_custom.css` from a palette; deploy a CSS file or theme folder and `-Activate` it per organization. |
 | `create_mondrian.ps1` | OLAP: upload a Mondrian schema + create a `secureMondrianConnection` (and best-effort an MDX `olapUnit` view). |
 | `manage_permissions.ps1` / `manage_attributes.ps1` | Repository ACLs (get/set/clear) and server/org/user attributes (get/set/delete). |
+| `manage_users.ps1` / `manage_roles.ps1` / `manage_organizations.ps1` | Tenant/identity admin: user, role, and organization CRUD (server- or org-scoped). |
+| `run_report_async.ps1` | Run a report via the async `reportExecutions` service (submit→poll→download) — for large fills that time out synchronously. |
+| `manage_options.ps1` / `manage_cache.ps1` | Saved input-control value sets (create/list/run/delete) and clear a server cache (`DELETE /rest_v2/caches/{id}`). |
 | `build_dashlets.ps1` | Manifest-driven: scaffold→compile→deploy→verify each dashlet; `-Compose` then builds the dashboard. |
 | `gen_dashboard.py` / `compose_dashboard.ps1` | Synthesize a dashboard (report/text/image tiles, auto-grid, wiring) and import it so it renders. |
 | `export_resource.ps1` / `import_resource.ps1` | Export/import any resource (back up, version, restore). |
@@ -214,3 +217,47 @@ $skill = ".\.claude\skills\jasper-deploy\scripts"; $env:PGPASSWORD = "postgres"
 11. **JR7 line plot**: use `showLines`/`showShapes`, not `showTickMarks`/`showTickLabels` (the scaffolder
    handles this). The harmless SLF4J "no providers" line goes to stderr and can abort a
    `$ErrorActionPreference=Stop` wrapper — `Invoke-JrCompile` absorbs it.
+12. **`compose_dashboard.ps1 -WorkDir` accepts an absolute path now.** It previously joined the work dir
+   with `Get-Location` unconditionally, so an absolute `-WorkDir` produced an invalid `C:\cwd\C:\abs`
+   path and `ExtractToDirectory` threw "the given path's format is not supported". Pass an absolute
+   `-WorkDir` when the caller's CWD isn't writable (the web wizard runs it from the Tomcat temp dir).
+
+## 10. Self-service web wizard (`webapp\jasper-wizard\`)
+
+A **Jakarta servlet WAR** (Actian-branded) that puts the `jasper-deploy` skill behind a browser UI for
+business users — no JRXML or REST knowledge needed. It runs inside the JRS Tomcat at
+**`http://localhost:8081/jasper-wizard/`** and covers the full lifecycle: reports (SQL→chart/table with
+live query preview + interactive input controls), dashboards, data sources, domains, themes, run & export
+(PDF/XLSX/CSV/DOCX/PPTX + async), scheduling, repository browse, ad hoc list/export, permissions, and a
+**Server Summary** overview (repository inventory + runtime characteristics). `webapp/jasper-wizard/README.md`
+is the authoritative reference.
+
+**Architecture.** Reads / preview / run are proxied straight to JRS REST by a small `JrsClient` (auth added
+server-side: no browser creds, no CORS). Create / deploy actions shell out to the verified skill scripts via
+`ScriptRunner` (`scaffold_jrxml.py`, `deploy_report.ps1`, `create_datasource.ps1`, `compose_dashboard.ps1`,
+`scaffold_domain_schema.py`+`create_domain.ps1`, `scaffold_theme.py`+`deploy_theme.ps1`, `schedule_job.ps1`,
+`manage_permissions.ps1`, `manage_adhoc.ps1`, `export_resource.ps1`, `run_report_async.ps1`). **So a change to
+a script's parameters or stdout shape can require updating the matching wizard handler.**
+
+**Build & deploy** (no Maven):
+```powershell
+cd webapp\jasper-wizard
+.\build.ps1                 # compile + bundle scripts + WAR + hot-deploy to the JRS Tomcat
+# .\build.ps1 -NoDeploy     # just build target\jasper-wizard.war
+```
+
+**Environment realities the build accounts for**
+- **Tomcat is 10.1.x → Jakarta Servlet** (`jakarta.servlet.*`, not `javax.*`); compiles against Tomcat's
+  bundled `servlet-api.jar` with JDK 11.
+- **The Tomcat service runs as `NT AUTHORITY\LocalService`**, which can't read the user profile/repo — so the
+  skill scripts are **bundled inside the WAR** (`WEB-INF/scripts`) and child processes run from the **container
+  temp dir** (writable). This is why the wizard passes an absolute `-WorkDir` to `compose_dashboard.ps1`.
+- **No local jrxml compile** (drops the `jasperreports-lib` dependency); JRS compiles server-side on deploy
+  and `deploy_report.ps1` lints the SQL first.
+- **Config** is in `WEB-INF/web.xml` context-params (JRS URL/creds, PostgreSQL host/port/user/password,
+  python exe, script timeout) — edit and rebuild, or edit the exploded webapp and restart the app.
+
+**Security note.** The wizard runs user-supplied SQL against the configured DB and publishes with stored admin
+credentials — it's an **internal, trusted-user tool**; keep it behind the JRS login / a network boundary.
+Command args are passed as an argv array (no shell-injection surface), but the SQL runs with the data source's
+privileges.

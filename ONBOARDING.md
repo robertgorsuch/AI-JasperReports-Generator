@@ -22,7 +22,12 @@ against a local **JasperReports Server 10**.
   verifying renders, composing dashboards from a JSON manifest, and the rest of the JRS resource set:
   data sources (JDBC + non-JDBC incl. AWS), shared style templates (`.jrtx`), single-table Domains,
   ad hoc views (list/export/import), UI themes, query-based & cascading input controls, repository
-  permissions/attributes, and OLAP/Mondrian (schema + connection). Its `smoke_test.ps1` is an 18-step gate.
+  permissions/attributes, users/roles/organizations admin, async run / saved options / cache, and
+  OLAP/Mondrian (schema + connection). Its `smoke_test.ps1` is an 18-step gate.
+- **Web wizard:** `webapp\jasper-wizard\` is an Actian-branded browser UI over the skill (runs inside
+  the JRS Tomcat at `http://localhost:8081/jasper-wizard/`). Business users create/run/deliver/manage
+  artifacts with no JRXML, and a **Server Summary** page shows live repository inventory + runtime
+  characteristics. Build & deploy: `cd webapp\jasper-wizard; .\build.ps1` (no Maven). See its `README.md`.
 
 ## The things that will bite you (gotchas)
 
@@ -57,5 +62,7 @@ prebuilt at `C:\Users\rgorsuch\jasperreports-lib\`. Census TIGER data staging li
 - **Deploy reports / build a dashboard (jasper-deploy skill):** `$env:PGPASSWORD="postgres"` then
   `& .\.claude\skills\jasper-deploy\scripts\build_dashlets.ps1 -Manifest report\foodmart\dashboard.json -Compose`.
   After editing any skill script, run `…\scripts\smoke_test.ps1` as the end-to-end check. See RUNBOOK §9.
+- **Build/redeploy the web wizard:** `cd webapp\jasper-wizard; .\build.ps1` (compiles against Tomcat's
+  Jakarta servlet-api, bundles the skill scripts into the WAR, hot-deploys to the JRS Tomcat). See RUNBOOK §10.
 
 Full details, rebuild order, and exact commands: **`tx-geocoder\RUNBOOK.md`** (§9 for the jasper-deploy skill).
