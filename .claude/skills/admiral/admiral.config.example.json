@@ -1,5 +1,9 @@
 {
-  "baseUrl": "https://admiral.aop-stage.aws.actiandatacloud.com",
-  "username": "youruser@yourcompany.com.idp",
-  "password": "YourPassword"
+  "baseUrl":    "https://admiral.aop-stage.aws.actiandatacloud.com",
+  "username":   "youruser@yourcompany.com.idp",
+  "password":   "YourAdmiralPassword",
+  "dbUsername": "actian",
+  "dbPassword": "YourDatabasePassword",
+  "dbName":     "db",
+  "dbPort":     5432
 }

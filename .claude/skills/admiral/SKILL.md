@@ -7,6 +7,9 @@ description: >-
   credentials, or named databases; clone or refresh-clone a warehouse; manage scheduled tasks (cron stop/sleep/start);
   manage encryption keys (list, create, test, re-encrypt); query AU-hour consumption, storage usage, or
   time-series utilization; or inspect tenant entitlements and feature flags.
+  Also covers data loading: execute SQL against the warehouse, load CSV files via COPY FROM, set up S3 external
+  tables, browse schema, create named databases with full Avalanche options (page size, encryption, collation).
+  Connects directly via psql (port 5432) or isql (port 27833 — Actian Client is installed).
   Covers the full lifecycle of Actian Avalanche warehouses and databases against a live stage environment.
 ---
 
@@ -276,6 +279,156 @@ $r.resources | Where-Object { $_.status -eq "Running" } |
 
 ---
 
+## Data Loading
+
+Requires direct database credentials. Add to `admiral.config.json`:
+```json
+{
+  "dbUsername": "actian",
+  "dbPassword": "YOUR_DB_PASSWORD",
+  "dbName":     "db",
+  "dbPort":     5432
+}
+```
+
+Ports available on every warehouse DNS: **5432** (PostgreSQL), **5439** (PG-alt), **27833** (Ingres native).
+Client tools on PATH: `psql` (PG14) and `isql` (Actian Client).
+
+---
+
+### `data_load.ps1` — SQL execution and CSV loading
+
+**Connection info**
+```powershell
+.\data_load.ps1 -Action connection-info -ResourceId av-49jtc8yy9xi4
+# Prints DNS, ports, JDBC URLs, psql command-line
+```
+
+**Execute SQL**
+```powershell
+.\data_load.ps1 -Action run-sql   -Sql "SELECT COUNT(*) FROM my_table"
+.\data_load.ps1 -Action run-file  -SqlFile path\to\migration.sql
+```
+
+**Browse schema**
+```powershell
+.\data_load.ps1 -Action schema-tables               # all tables in default DB
+.\data_load.ps1 -Action schema-columns -Table sales  # columns of 'sales'
+.\data_load.ps1 -Action table-count    -Table sales  # row count
+```
+
+**Load a CSV (client-side transfer via psql \copy)**
+```powershell
+# Table must exist first
+.\data_load.ps1 -Action copy-from-csv -Table sales -CsvFile data\sales.csv -Header
+
+# Create the table and load in one step
+.\data_load.ps1 -Action create-table-from-csv -Table sales -CsvFile data\sales.csv -Load -Header
+```
+
+**Export query results to CSV**
+```powershell
+.\data_load.ps1 -Action copy-to-csv -Sql "SELECT * FROM sales WHERE year=2025" -OutFile out\sales_2025.csv
+```
+
+**S3 data loading** (requires S3 creds via `resource.ps1 -Action external-table-creds`)
+```powershell
+# COPY FROM S3 into an existing table
+.\data_load.ps1 -Action s3-copy-from -Table sales -S3Path "s3://my-bucket/sales/2025.csv" -Header
+
+# Create an S3 external table (virtual, no data copied)
+.\data_load.ps1 -Action s3-create-external -Table ext_sales `
+    -S3Path "s3://my-bucket/sales/" `
+    -Columns "id BIGINT, product TEXT, amount DECIMAL(12,2), sale_date DATE" `
+    -Header
+
+# List external tables
+.\data_load.ps1 -Action list-external-tables
+
+# Drop a table (or external table)
+.\data_load.ps1 -Action drop-table -Table old_staging -IfExists
+.\data_load.ps1 -Action drop-table -Table ext_sales -External -IfExists
+```
+
+**Connection override parameters**
+```powershell
+# Override any config field inline
+.\data_load.ps1 -Action schema-tables -DbHost mywarehouse.example.com -DbUser myuser -DbPass mypass -DbName mydb -DbPort 5439
+
+# Use isql (Actian native protocol, port 27833)
+.\data_load.ps1 -Action run-sql -Sql "SELECT * FROM t" -Client isql
+```
+
+---
+
+### `named_db.ps1` — Named database creation
+
+Avalanche supports multiple named databases within a single warehouse instance.
+Full options from the CreateNamedDbRequest schema:
+
+```powershell
+# List named databases
+.\named_db.ps1 -Action list -ResourceType warehouse -ResourceId av-49jtc8yy9xi4
+
+# Create a simple database
+.\named_db.ps1 -Action create -ResourceType warehouse -ResourceId av-49jtc8yy9xi4 -DbName analytics
+
+# Create with full options
+.\named_db.ps1 -Action create -ResourceType warehouse -ResourceId av-49jtc8yy9xi4 `
+    -DbName secure_analytics `
+    -PageSize 65536 `             # 64K pages for columnar (X100) workloads
+    -Location data `              # store files in 'data' area vs 'work'
+    -EncryptionKeyId "3a3b5ff1-7a74-467e-90b1-54c0a92adc45" `  # from encryption_key.ps1
+    -NfcCollation udefault `      # Unicode NFC collation
+    -PrivateDb                    # restrict access to creating user
+
+# Drop a named database
+.\named_db.ps1 -Action drop -ResourceType warehouse -ResourceId av-49jtc8yy9xi4 -DbName analytics
+```
+
+**Page size guide:**
+| `PageSize` | Best for |
+|---|---|
+| `2048` | OLTP, many small rows |
+| `8192` | General purpose (default) |
+| `16384` | Mixed workloads |
+| `65536` | Columnar analytics (X100), large scans |
+
+---
+
+### End-to-end data loading workflow
+
+```powershell
+$skill = ".\.claude\skills\admiral\scripts"
+$wh    = "av-49jtc8yy9xi4"
+
+# 1. Ensure warehouse is running
+& "$skill\resource.ps1" -Action start -ResourceType warehouse -ResourceId $wh
+
+# 2. Set S3 credentials for external table access
+& "$skill\resource.ps1" -Action external-table-creds -ResourceType warehouse -ResourceId $wh `
+    -AccessKeyId "AKIAIOSFODNN7EXAMPLE" -SecretKey "wJalrXUtnFEMI/K7MDENG/..."
+
+# 3. Verify connection
+& "$skill\data_load.ps1" -Action connection-info -ResourceId $wh
+
+# 4. Load a CSV file into the warehouse
+& "$skill\data_load.ps1" -Action create-table-from-csv `
+    -Table sales_2025 -CsvFile data\sales_2025.csv -Load -Header
+
+# 5. Or create an S3 external table
+& "$skill\data_load.ps1" -Action s3-create-external `
+    -Table ext_sales -S3Path "s3://my-bucket/sales/" `
+    -Columns "id BIGINT, region TEXT, amount DECIMAL(12,2), sale_date DATE" -Header
+
+# 6. Query the data
+& "$skill\data_load.ps1" -Action run-sql `
+    -Sql "SELECT region, SUM(amount) FROM ext_sales GROUP BY region ORDER BY 2 DESC"
+```
+
+---
+
 ## Reference
 Full endpoint table: `references/api-overview.md`
 API Swagger UI: `https://admiral.aop-stage.aws.actiandatacloud.com/api-docs/#/`
+Query Editor: `https://{warehouse-dns}/` (browser-based, separate cookie auth)

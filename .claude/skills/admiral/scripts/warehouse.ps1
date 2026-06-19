@@ -87,20 +87,20 @@ switch ($Action) {
 
     "dbs" {
         Write-Host "=== Databases in warehouse $ResourceId ===" -ForegroundColor Cyan
-        Write-AdmiralResult (Invoke-AdmiralApi -Path "/resource/`$warehouse/$ResourceId/dbs")
+        Write-AdmiralResult (Invoke-AdmiralApi -Path "/resource/warehouse/$ResourceId/dbs")
     }
 
     "create-db" {
         if (-not $DbName) { throw "-DbName required" }
         $body = @{ databaseName = $DbName }
         Write-Host "=== Creating database '$DbName' in warehouse $ResourceId ===" -ForegroundColor Cyan
-        Write-AdmiralResult (Invoke-AdmiralApi -Method POST -Path "/resource/`$warehouse/$ResourceId/dbs" -Body $body)
+        Write-AdmiralResult (Invoke-AdmiralApi -Method POST -Path "/resource/warehouse/$ResourceId/dbs" -Body $body)
     }
 
     "drop-db" {
         if (-not $DbName) { throw "-DbName required" }
         $body = @{ databaseName = $DbName }
         Write-Host "=== Dropping database '$DbName' from warehouse $ResourceId ===" -ForegroundColor Yellow
-        Write-AdmiralResult (Invoke-AdmiralApi -Method DELETE -Path "/resource/`$warehouse/$ResourceId/dbs" -Body $body)
+        Write-AdmiralResult (Invoke-AdmiralApi -Method DELETE -Path "/resource/warehouse/$ResourceId/dbs" -Body $body)
     }
 }

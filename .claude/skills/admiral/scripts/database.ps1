@@ -75,6 +75,6 @@ switch ($Action) {
 
     "dbs" {
         Write-Host "=== Databases in database resource $ResourceId ===" -ForegroundColor Cyan
-        Write-AdmiralResult (Invoke-AdmiralApi -Path "/resource/`$database/$ResourceId/dbs")
+        Write-AdmiralResult (Invoke-AdmiralApi -Path "/resource/database/$ResourceId/dbs")
     }
 }
