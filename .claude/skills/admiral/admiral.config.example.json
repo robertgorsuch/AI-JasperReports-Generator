@@ -1,0 +1,5 @@
+{
+  "baseUrl": "https://admiral.aop-stage.aws.actiandatacloud.com",
+  "username": "youruser@yourcompany.com.idp",
+  "password": "YourPassword"
+}
