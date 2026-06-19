@@ -352,23 +352,67 @@ Baqend type passes through unchanged.
 # Load into an existing table
 .\data_load.ps1 -Action load-csv -Table sales -CsvFile data\sales.csv
 ```
-Row-by-row loading is fine for small/medium files. **For large loads, stage to cloud storage
-and use `copy-from`** (a single native `COPY`), which is far faster.
+Row-by-row loading is fine for small/medium files. **For large loads, or loading from cloud
+storage (S3/GCS), use `query_editor.ps1 -Action vwload-gcs`** (see below) — the Baas Data API
+cannot run `COPY`.
 
 **Insert a single row**
 ```powershell
 .\data_load.ps1 -Action insert -Table sales -Json '{"product":"widget","amount":9.99}'
 ```
 
-**Bulk load from cloud storage** (requires S3/cloud creds via `resource.ps1 -Action external-table-creds`)
-```powershell
-.\data_load.ps1 -Action copy-from -Table sales -Source "s3://my-bucket/sales/2025.csv" -Header
-.\data_load.ps1 -Action copy-from -Table sales -Source "s3://my-bucket/sales/" -Format CSV -Header -Options "DELIMITER ','"
-```
-
 **Browse rows** (object view, max `-Limit`)
 ```powershell
 .\data_load.ps1 -Action rows -Table sales -Limit 50
+```
+
+> `copy-from` exists in the action list but intentionally errors: the Baas Data API allowlists
+> `COPY` yet silently no-ops it, so cloud bulk loading goes through `query_editor.ps1` instead.
+
+---
+
+### `query_editor.ps1` — full-SQL + cloud (GCS/S3) loading via the Query Editor API
+
+The Baas Data API can only run SELECT/WITH/INSERT-as-SELECT and **cannot** do `COPY`, DDL such
+as `CREATE EXTERNAL TABLE`, or `INSERT … VALUES`. For those — and for **loading from Google Cloud
+Storage / S3** — use `query_editor.ps1`, which drives the warehouse's browser **Query Editor API**
+(SQLPad at `https://{dns}/api`) and runs arbitrary SQL.
+
+**Auth: a browser session cookie** (no headless login — SQLPad sits behind the Actian platform SSO).
+Open the Query Editor (`https://{dns}/`) logged in → DevTools → Application → Cookies → copy the
+`sqlpad.sid` cookie, then save it (gitignored):
+```powershell
+# write the sqlpad.sid value to scripts\..\.qe_cookie  (or pass -Cookie / set $env:QE_COOKIE)
+Set-Content -NoNewline .claude\skills\admiral\.qe_cookie 'sqlpad.sid=s%3A...'
+```
+The cookie lasts a few hours; on `401` re-copy it. The script auto-picks the `(db)` data
+connection (override with `-Connection <id|name>`).
+
+**Run any SQL** (DDL, COPY, multi-statement)
+```powershell
+.\query_editor.ps1 -Action connections                         # list ODBC connections
+.\query_editor.ps1 -Action run-sql  -Sql "CREATE TABLE t (id INT)"
+.\query_editor.ps1 -Action run-file -SqlFile migration.sql
+```
+
+**Load from Google Cloud Storage** (`COPY … VWLOAD`, credentials inline from a service-account JSON)
+```powershell
+# 1. create the target table (DDL)
+.\query_editor.ps1 -Action run-sql -Sql "CREATE TABLE sales (id INTEGER, name VARCHAR(50), amt FLOAT)"
+# 2. bulk load from gs:// — GCS_EMAIL/PRIVATE_KEY_ID/PRIVATE_KEY are read from the JSON
+.\query_editor.ps1 -Action vwload-gcs -Table sales `
+    -Source "gs://rg_gcp_test/sales.csv" -GcsKeyFile path\to\service-account.json `
+    -Header -FieldDelim "," [-ExtraOptions "QUOTE='\"'"]
+```
+`-Source` accepts a comma-separated list and `gs://bucket/prefix/` directories/wildcards. The
+service-account JSON's `client_email` / `private_key_id` / `private_key` map to VWLOAD's
+`GCS_EMAIL` / `GCS_PRIVATE_KEY_ID` / `GCS_PRIVATE_KEY` (the private key is masked in console output).
+For S3, load the table the same way with a `COPY … VWLOAD` (`AWS_ACCESS_KEY`/`AWS_SECRET_KEY`/`AWS_REGION`) via `run-sql`.
+
+**External table over GCS** (query in place; credentials must be set in the Avalanche console first)
+```powershell
+.\query_editor.ps1 -Action create-external-gcs -Table ext_sales `
+    -Columns "id INT, amt DECIMAL(12,2)" -Source "gs://rg_gcp_test/sales/" -Format csv
 ```
 
 ---

@@ -1,1 +1,5 @@
 admiral.config.json
+
+.qe_cookie
+*.gcs.json
+*-sa.json

@@ -344,17 +344,17 @@ switch ($Action) {
     }
 
     "copy-from" {
-        if (-not $Table)  { throw "-Table required" }
-        if (-not $Source) { throw "-Source required (e.g. s3://bucket/file.csv)" }
-        $with = @($Format)
-        if ($Header)  { $with += "HEADER" }
-        if ($Options) { $with += $Options }
-        $sql = "COPY `"$Table`" FROM '$Source' WITH ($($with -join ', '))"
-        Write-Host "=== COPY FROM (cloud bulk load) ===" -ForegroundColor Cyan
-        Write-Host $sql
-        Write-Host "(Requires S3/cloud creds via resource.ps1 -Action external-table-creds)"
-        Write-Host ""
-        Format-NativeResult (Invoke-NativeQuery -Query $sql) | Out-Null
+        # The Baas Data API allowlists COPY but does NOT execute it (silent no-op),
+        # so cloud bulk loading must go through the Query Editor API instead.
+        throw @"
+COPY / cloud bulk load is NOT supported by the Baas Data API (it silently no-ops).
+Use the Query Editor API loader instead:
+
+  query_editor.ps1 -Action vwload-gcs -Table $Table ``
+      -Source '$Source' -GcsKeyFile <service-account.json> -Header
+
+(see query_editor.ps1 — it runs COPY...VWLOAD over the full-SQL /api path).
+"@
     }
 
     "list-tables" {
