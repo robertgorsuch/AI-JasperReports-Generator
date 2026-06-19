@@ -1,361 +1,464 @@
-# data_load.ps1 — Execute SQL, load CSV files, and browse schema on an Avalanche warehouse.
+# data_load.ps1 — Load data and run SQL on an Avalanche warehouse STRICTLY via the
+# Actian Data API (Baas / "Orestes" REST service at https://{dns}/baas/v1).
 #
-# Connects via psql (PostgreSQL protocol, port 5432/5439) or isql (Actian native, port 27833).
-# Credentials come from admiral.config.json (dbUsername / dbPassword / dbName fields) or parameters.
+# No local client runtime (psql / isql / ODBC) is used or required — every action
+# is an HTTPS call against the Data API. Requires the Data API ("dataAPI" feature)
+# to be enabled on the warehouse (see resource.ps1 -Action configure-data-api).
 #
-# Usage:
-#   .\data_load.ps1 -Action connection-info [-ResourceId av-xxxxx]
-#   .\data_load.ps1 -Action run-sql   -Sql "SELECT * FROM t LIMIT 5"
-#   .\data_load.ps1 -Action run-file  -SqlFile path\to\script.sql
-#   .\data_load.ps1 -Action copy-from-csv -Table my_table  -CsvFile data.csv  [-Delimiter ","] [-Header]
-#   .\data_load.ps1 -Action copy-to-csv   -Sql "SELECT * FROM t" -OutFile out.csv
-#   .\data_load.ps1 -Action schema-tables  [-Schema public]
-#   .\data_load.ps1 -Action schema-columns -Table my_table
-#   .\data_load.ps1 -Action table-count    -Table my_table
-#   .\data_load.ps1 -Action create-table-from-csv -Table my_table -CsvFile data.csv [-Load]
-#   .\data_load.ps1 -Action s3-copy-from  -Table t -S3Path "s3://bucket/file.csv" [-Format CSV] [-Header]
-#   .\data_load.ps1 -Action s3-create-external -Table ext_t -S3Path "s3://bucket/data/" -Columns "id INT, name TEXT"
-#   .\data_load.ps1 -Action list-external-tables
-#   .\data_load.ps1 -Action drop-table -Table my_table [-IfExists] [-External]
+# Auth bridge (handled automatically, token cached per session):
+#   Admiral /login  ->  IDP access_token
+#   GET /baas/v1/db/User/login?access_token=...  ->  Baqend token
+#   Authorization: BAT <baqend-token>   on every Data API call
 #
-# Add to admiral.config.json:
-#   "dbUsername": "actian",
-#   "dbPassword": "YOUR_DB_PASSWORD",
-#   "dbName":     "db",
-#   "dbPort":     5432
+# ── Action surface (redesigned around the Data API's natural shape) ─────────────
+#
+#   Meta:
+#     connection-info                         Data API base URL, version, health, table count
+#
+#   Native SQL  (passthrough — SELECT / WITH / COPY / INSERT-as-SELECT only):
+#     query       -Sql "SELECT ..."           run a native query and render the result
+#     query-file  -SqlFile script.sql         run ;-separated native queries from a file
+#     export-csv  -Sql "SELECT ..." -OutFile out.csv
+#     copy-from   -Table t -Source "s3://b/f.csv" [-Format CSV] [-Header] [-Options "..."]
+#
+#   Tables / schema  (Schema API):
+#     list-tables                             list bucket (table) names
+#     describe     -Table t                   show the table's fields and types
+#     create-table -Table t -Columns "id:int,name:string,amt:double"
+#     drop-table   -Table t                   delete the table (schema + data)
+#     truncate     -Table t                   delete all rows, keep the table
+#     count        -Table t                   row count
+#
+#   Rows / objects  (Object API):
+#     insert    -Table t -Json '{"name":"x","amt":1.5}'
+#     load-csv  -Table t -CsvFile data.csv [-CreateTable] [-Delimiter ","]
+#     rows      -Table t [-Limit 50]          list rows
+#
+# NOTE: the native passthrough does NOT accept DDL (CREATE/DROP) or INSERT...VALUES.
+#       Tables are created through the Schema API and rows through the Object API.
+#       Tables created via the API carry Baqend system columns
+#       (id, version, acl, createdAt, updatedAt) alongside your data columns.
 
 param(
     [Parameter(Mandatory)]
-    [ValidateSet("connection-info","run-sql","run-file","copy-from-csv","copy-to-csv",
-                 "schema-tables","schema-columns","table-count","create-table-from-csv",
-                 "s3-copy-from","s3-create-external","list-external-tables","drop-table")]
+    [ValidateSet("connection-info","query","query-file","export-csv","copy-from",
+                 "list-tables","describe","create-table","drop-table","truncate","count",
+                 "insert","load-csv","rows")]
     [string]$Action,
 
-    # Connection overrides (fall back to config)
+    # Connection (host comes from config 'dbHost', -DbHost, or resolved from -ResourceId)
     [string]$ResourceId,
     [string]$DbHost,
-    [int]$DbPort      = 0,
-    [string]$DbUser,
-    [string]$DbPass,
-    [string]$DbName,
-    [ValidateSet("psql","isql")]
-    [string]$Client   = "psql",
 
-    # SQL / file
+    # SQL / files
     [string]$Sql,
     [string]$SqlFile,
-
-    # Table operations
-    [string]$Table,
-    [string]$Schema    = "public",
-
-    # CSV operations
-    [string]$CsvFile,
     [string]$OutFile,
+
+    # Tables / schema
+    [string]$Table,
+    [string]$Columns,     # "id:int, name:string, amt:double"
+
+    # Rows
+    [string]$Json,        # raw JSON object for -Action insert
+    [string]$CsvFile,
     [string]$Delimiter = ",",
+    [switch]$CreateTable, # load-csv: create the table from inferred CSV types first
+    [int]$Limit = 50,
+
+    # COPY (cloud bulk load)
+    [string]$Source,      # s3://bucket/key.csv  (or gs:// / azure://)
+    [string]$Format = "CSV",
     [switch]$Header,
-
-    # S3 operations
-    [string]$S3Path,
-    [string]$Format    = "CSV",
-    [string]$Columns,   # e.g. "id INT, name TEXT, amount DECIMAL(10,2)"
-
-    # Table flags
-    [switch]$IfExists,
-    [switch]$External,
-    [switch]$Load       # in create-table-from-csv: also load data after creating
+    [string]$Options      # extra COPY options, appended verbatim inside WITH(...)
 )
 
 . "$PSScriptRoot\_admiral_common.ps1"
 
-# ── Resolve connection params ─────────────────────────────────────────────────
+# ── Connection / auth ──────────────────────────────────────────────────────────
 
-function Get-DbConnection {
+function Get-BaasContext {
     $cfg = Get-AdmiralConfig
-
-    # If ResourceId given, get DNS from Admiral API
     $dns = $DbHost
     if (-not $dns -and $ResourceId) {
-        $wh  = Invoke-AdmiralApi -Path "/resource/warehouse/$ResourceId"
+        $wh = Invoke-AdmiralApi -Path "/resource/warehouse/$ResourceId"
         $dns = $wh.dns
-        if (-not $dns) {
-            $wh  = Invoke-AdmiralApi -Path "/resource/database/$ResourceId"
-            $dns = $wh.dns
-        }
+        if (-not $dns) { $wh = Invoke-AdmiralApi -Path "/resource/database/$ResourceId"; $dns = $wh.dns }
     }
     if (-not $dns -and $cfg.PSObject.Properties["dbHost"]) { $dns = $cfg.dbHost }
-    if (-not $dns) { throw "Cannot resolve host. Provide -DbHost, -ResourceId, or add 'dbHost' to admiral.config.json" }
-
-    $user = if ($DbUser) { $DbUser } elseif ($cfg.PSObject.Properties["dbUsername"]) { $cfg.dbUsername } else { throw "Provide -DbUser or add 'dbUsername' to admiral.config.json" }
-    $pass = if ($DbPass) { $DbPass } elseif ($cfg.PSObject.Properties["dbPassword"]) { $cfg.dbPassword } else { throw "Provide -DbPass or add 'dbPassword' to admiral.config.json" }
-    $db   = if ($DbName) { $DbName } elseif ($cfg.PSObject.Properties["dbName"]) { $cfg.dbName } else { "db" }
-    $port = if ($DbPort -gt 0) { $DbPort } elseif ($cfg.PSObject.Properties["dbPort"]) { [int]$cfg.dbPort } else { 5432 }
-
-    return @{ Host = $dns; Port = $port; User = $user; Pass = $pass; Db = $db }
+    if (-not $dns) { throw "Cannot resolve warehouse host. Provide -DbHost, -ResourceId, or add 'dbHost' to admiral.config.json" }
+    return @{ Dns = $dns; BaseUrl = "https://$dns/baas/v1" }
 }
 
-function Invoke-Psql {
-    param([hashtable]$Conn, [string]$Command, [string]$InputFile, [string]$OutputFile, [switch]$Csv)
-
-    $env:PGPASSWORD = $Conn.Pass
-    $args_list = @("-h", $Conn.Host, "-p", $Conn.Port, "-U", $Conn.User, "-d", $Conn.Db, "--no-password")
-
-    if ($Csv)        { $args_list += @("-A", "-F", ",", "--pset=footer=off") }
-    if ($Command)    { $args_list += @("-c", $Command) }
-    if ($InputFile)  { $args_list += @("-f", $InputFile) }
-    if ($OutputFile) { $args_list += @("-o", $OutputFile) }
-
-    if ($Command -or $InputFile) {
-        $result = & psql @args_list 2>&1
-    } else {
-        $result = & psql @args_list 2>&1
+# Exchange the Admiral IDP token for a Baqend Data-API token (cached per session).
+function Get-BaasToken {
+    param([string]$BaseUrl)
+    if ($script:BaasToken -and $script:BaasTokenExpiry -and (Get-Date) -lt $script:BaasTokenExpiry) {
+        return $script:BaasToken
     }
-    $env:PGPASSWORD = $null
-    return $result
+    $cfg = Get-AdmiralConfig
+    $idp = Get-AdmiralToken -Config $cfg
+    $uri = "$BaseUrl/db/User/login?access_token=$([uri]::EscapeDataString($idp))"
+    $resp = Invoke-WebRequest -Uri $uri -Headers @{ Accept = "application/json" } -UseBasicParsing
+    # DCLogin returns an HTML shim:  var response = { "headers": { "Authorization-Token": "..." } };
+    $m = [regex]::Match($resp.Content, 'var response\s*=\s*(\{.*?\});', 'Singleline')
+    if (-not $m.Success) { throw "Data API login: could not parse token from DCLogin response." }
+    $obj = $m.Groups[1].Value | ConvertFrom-Json
+    $tok = $obj.headers.'Authorization-Token'
+    if (-not $tok) { throw "Data API login: no Authorization-Token returned (check warehouse is running and Data API is enabled)." }
+    $script:BaasToken       = $tok
+    $script:BaasTokenExpiry = (Get-Date).AddMinutes(30)
+    return $tok
 }
 
-function Invoke-Isql {
-    param([hashtable]$Conn, [string]$Command, [string]$InputFile)
-    # Actian isql uses vnode::database format or -h host
-    $db_spec = "$($Conn.Host)::$($Conn.Db)"
-    if ($Command) {
-        $result = & isql $db_spec -u "$($Conn.User)" "-P$($Conn.Pass)" -q @("-execute", $Command) 2>&1
-    } elseif ($InputFile) {
-        $result = & isql $db_spec -u "$($Conn.User)" "-P$($Conn.Pass)" -q @("-file", $InputFile) 2>&1
+function Invoke-Baas {
+    param(
+        [string]$Method = "GET",
+        [Parameter(Mandatory)][string]$Path,
+        [object]$Body,
+        [switch]$Raw
+    )
+    $ctx = Get-BaasContext
+    $tok = Get-BaasToken -BaseUrl $ctx.BaseUrl
+    $params = @{
+        Uri             = "$($ctx.BaseUrl)$Path"
+        Method          = $Method
+        Headers         = @{ Authorization = "BAT $tok"; Accept = "application/json" }
+        UseBasicParsing = $true
     }
-    return $result
-}
-
-function Invoke-DbCommand {
-    param([hashtable]$Conn, [string]$Command, [string]$InputFile, [string]$OutputFile, [switch]$Csv)
-    if ($Client -eq "isql") {
-        return Invoke-Isql -Conn $Conn -Command $Command -InputFile $InputFile
+    if ($PSBoundParameters.ContainsKey('Body') -and $null -ne $Body) {
+        $params.Body        = ($Body | ConvertTo-Json -Depth 20 -Compress)
+        $params.ContentType = "application/json"
     }
-    return Invoke-Psql -Conn $Conn -Command $Command -InputFile $InputFile -OutputFile $OutputFile -Csv:$Csv
+    try {
+        $resp = Invoke-WebRequest @params
+        if ($Raw) { return $resp.Content }
+        if ($resp.Content) { return $resp.Content | ConvertFrom-Json }
+        return $null
+    } catch {
+        $status = try { $_.Exception.Response.StatusCode.value__ } catch { "?" }
+        $detail = try { $_.ErrorDetails.Message } catch { $_.Exception.Message }
+        throw "Data API $Method $Path => HTTP ${status}: $detail"
+    }
 }
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+function Invoke-NativeQuery {
+    param([string]$Query)
+    return Invoke-Baas -Method GET -Path ("/db/query?native=true&q=" + [uri]::EscapeDataString($Query))
+}
 
-function Infer-ColumnTypes {
+# ── Result rendering ────────────────────────────────────────────────────────────
+
+# Native query results are: [ {header:{columnDefinitions:[...]}}, {row:{"tbl:col":v,...}}, ... ]
+# The Baas always returns the FULL bucket column set; columns not in the SELECT come
+# back null. We drop columns that are null/empty for every row (this includes the
+# system 'id'), so the output shows what the query actually projected. A genuinely
+# all-null projected column is therefore not displayed.
+function ConvertFrom-NativeResult {
+    param($Result)
+    $out = @{ Rows = @(); Messages = @(); Error = $null }
+    if ($null -eq $Result) { return $out }
+    if ($Result.PSObject.Properties['status'] -and $Result.PSObject.Properties['reason']) {
+        $out.Error = $Result; return $out
+    }
+    $cols = @(); $raw = @()
+    foreach ($el in @($Result)) {
+        if ($el.header -and $el.header.columnDefinitions) {
+            $cols = $el.header.columnDefinitions | ForEach-Object {
+                [PSCustomObject]@{ Key = "$($_.tableName):$($_.columnName)"; Name = $_.columnName }
+            }
+        } elseif ($el.row)     { $raw += ,$el.row }
+        elseif ($el.message)   { $out.Messages += $el.message }
+    }
+    $isEmpty = { param($v) ($null -eq $v) -or ("$v" -eq "") -or ("$v" -eq "null") }
+    $keep = foreach ($c in $cols) {
+        $hasVal = $false
+        foreach ($r in $raw) { $p = $r.PSObject.Properties[$c.Key]; if ($p -and -not (& $isEmpty $p.Value)) { $hasVal = $true; break } }
+        if ($hasVal) { $c }
+    }
+    if (-not @($keep).Count) { $keep = $cols }   # all-null result set: keep declared columns
+    $out.Rows = foreach ($r in $raw) {
+        $o = [ordered]@{}
+        foreach ($c in @($keep)) {
+            $p = $r.PSObject.Properties[$c.Key]
+            $v = if ($p) { $p.Value } else { $null }
+            if ("$v" -eq "null") { $v = $null }
+            $o[$c.Name] = $v
+        }
+        [PSCustomObject]$o
+    }
+    return $out
+}
+
+function Format-NativeResult {
+    param($Result)
+    $p = ConvertFrom-NativeResult $Result
+    if ($p.Error) { Write-Host "ERROR $($p.Error.status) $($p.Error.reason): $($p.Error.message)" -ForegroundColor Red; return }
+    $p.Messages | ForEach-Object { Write-Host $_ }
+    $rows = @($p.Rows)
+    if ($rows.Count) {
+        $rows | Format-Table -AutoSize | Out-String | Write-Host
+        Write-Host "($($rows.Count) row$(if($rows.Count -ne 1){'s'}))"
+    } elseif (-not $p.Messages.Count) {
+        Write-Host "(0 rows)"
+    }
+}
+
+# ── Type mapping ────────────────────────────────────────────────────────────────
+
+# Baqend objects inherit these system fields from /db/Object — a data column of the
+# same name collides, so it is renamed with a trailing underscore.
+$script:ReservedFields = @('id','version','acl','createdat','updatedat')
+function Get-SafeFieldName {
+    param([string]$n)
+    # A trailing '_' is itself reserved by Baqend, so use a full-word suffix.
+    if ($script:ReservedFields -contains $n.ToLower()) { return "${n}_col" }
+    return $n
+}
+
+function ConvertTo-BaasType {
+    param([string]$t)
+    $tl = $t.Trim().ToLower()
+    if ($tl -like "/db/*") { return $t.Trim() }
+    switch -regex ($tl) {
+        '^(int|integer|smallint|tinyint)$'                 { return "/db/Integer" }
+        '^(long|bigint)$'                                  { return "/db/Integer" }
+        '^(double|float|real|decimal|numeric|number|money)$' { return "/db/Double" }
+        '^(bool|boolean|bit)$'                             { return "/db/Boolean" }
+        '^(datetime|timestamp)$'                           { return "/db/DateTime" }
+        '^date$'                                           { return "/db/Date" }
+        '^time$'                                           { return "/db/Time" }
+        default                                            { return "/db/String" }
+    }
+}
+
+# Returns ordered list of @{ Name; Baas; Kind } inferred from a CSV.
+function Get-CsvColumnTypes {
     param([string]$CsvPath, [string]$Delim = ",")
     $rows = Import-Csv -Path $CsvPath -Delimiter $Delim[0]
-    if (-not $rows) { throw "CSV file is empty or unreadable: $CsvPath" }
-    $first = $rows | Select-Object -First 200
-    $cols  = $first[0].PSObject.Properties.Name
-
-    $typeDefs = $cols | ForEach-Object {
-        $col    = $_
-        $values = $first | ForEach-Object { $_.$col } | Where-Object { $_ -and $_ -ne "" }
-        $type   = "TEXT"  # default
-        if ($values) {
-            $allInt    = @($values | Where-Object { $_ -match '^\-?\d+$' }).Count -eq $values.Count
-            $allFloat  = @($values | Where-Object { $_ -match '^\-?\d+(\.\d+)?$' }).Count -eq $values.Count
-            $allDate   = @($values | Where-Object { $_ -match '^\d{4}-\d{2}-\d{2}' }).Count -eq $values.Count
-            $maxLen    = ($values | Measure-Object -Property Length -Maximum).Maximum
-            if ($allInt)   { $type = "BIGINT" }
-            elseif ($allFloat) { $type = "DOUBLE PRECISION" }
-            elseif ($allDate)  { $type = "DATE" }
-            elseif ($maxLen -le 255) { $type = "VARCHAR(255)" }
+    if (-not $rows) { throw "CSV is empty or unreadable: $CsvPath" }
+    $sample = $rows | Select-Object -First 200
+    $names  = $sample[0].PSObject.Properties.Name
+    $order  = 0
+    foreach ($name in $names) {
+        $vals = $sample | ForEach-Object { $_.$name } | Where-Object { $_ -ne $null -and $_ -ne "" }
+        $kind = "String"
+        if ($vals) {
+            $cnt = @($vals).Count
+            if (@($vals | Where-Object { $_ -match '^-?\d+$' }).Count -eq $cnt)                { $kind = "Integer" }
+            elseif (@($vals | Where-Object { $_ -match '^-?\d+(\.\d+)?$' }).Count -eq $cnt)     { $kind = "Double" }
+            elseif (@($vals | Where-Object { $_ -match '^(true|false)$' }).Count -eq $cnt)      { $kind = "Boolean" }
+            elseif (@($vals | Where-Object { $_ -match '^\d{4}-\d{2}-\d{2}' }).Count -eq $cnt)  { $kind = "DateTime" }
         }
-        "`"$col`" $type"
+        $field = Get-SafeFieldName $name
+        if ($field -ne $name) { Write-Warning "Column '$name' is a reserved system field; storing it as '$field'." }
+        [PSCustomObject]@{ Name = $field; Source = $name; Baas = "/db/$kind"; Kind = $kind; Order = $order }
+        $order++
     }
-    return $typeDefs -join ",`n    "
 }
 
-# ── Actions ───────────────────────────────────────────────────────────────────
+function ConvertTo-Typed {
+    param($Value, [string]$Kind)
+    if ($null -eq $Value -or $Value -eq "") { return $null }
+    switch ($Kind) {
+        "Integer" { return [int64]$Value }
+        "Double"  { return [double]$Value }
+        "Boolean" { return [bool]($Value -match '^(true|1)$') }
+        default   { return [string]$Value }
+    }
+}
+
+function New-TableSchema {
+    param([string]$Name, $ColumnTypes)  # ColumnTypes: list of @{Name;Baas;Order}
+    $fields = @{}
+    foreach ($c in $ColumnTypes) {
+        $fields[$c.Name] = @{ name = $c.Name; type = $c.Baas; order = [int]$c.Order }
+    }
+    $schema = @(@{
+        class      = "/db/$Name"
+        superClass = "/db/Object"
+        metadata   = @{ backendType = "jdbc" }
+        fields     = $fields
+    })
+    Invoke-Baas -Method POST -Path "/schema" -Body $schema | Out-Null
+    Invoke-Baas -Method GET  -Path "/schema/refresh" | Out-Null
+}
+
+# ── Actions ─────────────────────────────────────────────────────────────────────
 
 switch ($Action) {
 
     "connection-info" {
-        $conn = Get-DbConnection
-        Write-Host "=== Warehouse Connection Details ===" -ForegroundColor Cyan
-        Write-Host "  Host:    $($conn.Host)"
-        Write-Host "  Port:    $($conn.Port)"
-        Write-Host "  User:    $($conn.User)"
-        Write-Host "  Database:$($conn.Db)"
+        $ctx = Get-BaasContext
+        Write-Host "=== Actian Data API (Baas) ===" -ForegroundColor Cyan
+        Write-Host "  Warehouse DNS : $($ctx.Dns)"
+        Write-Host "  Data API base : $($ctx.BaseUrl)"
+        Write-Host "  Transport     : HTTPS only (no psql/isql/ODBC)"
         Write-Host ""
-        Write-Host "psql connection string:"
-        Write-Host "  postgresql://$($conn.User)@$($conn.Host):$($conn.Port)/$($conn.Db)"
-        Write-Host ""
-        Write-Host "JDBC URL (PostgreSQL driver):"
-        Write-Host "  jdbc:postgresql://$($conn.Host):$($conn.Port)/$($conn.Db)?user=$($conn.User)"
-        Write-Host ""
-        Write-Host "JDBC URL (Actian Avalanche driver):"
-        Write-Host "  jdbc:actian-avalanche://$($conn.Host):5449/$($conn.Db);UID=$($conn.User)"
-        Write-Host ""
-        Write-Host "psql command:"
-        Write-Host "  psql -h $($conn.Host) -p $($conn.Port) -U $($conn.User) -d $($conn.Db)"
-        Write-Host ""
-        Write-Host "Ports open on this host: 5432 (pg), 5439 (pg-alt), 27833 (Ingres native)"
-
-        if ($ResourceId) {
-            $wh = Invoke-AdmiralApi -Path "/resource/warehouse/$ResourceId" -ErrorAction SilentlyContinue
-            if ($wh) {
-                Write-Host ""
-                Write-Host "Warehouse status: $($wh.status)"
-                Write-Host "AU size:          $($wh.avalancheUnits)"
-                Write-Host "Region:           $($wh.regionName)"
-                $feat = $wh.features | Where-Object { $_.name -eq "dataAPI" }
-                if ($feat) { Write-Host "Data API:         $($feat.status)" }
-                Write-Host "Query Editor URL: https://$($wh.dns)/"
+        try {
+            $ver = Invoke-Baas -Method GET -Path "/version"
+            Write-Host "  API version   : $ver"
+            Get-BaasToken -BaseUrl $ctx.BaseUrl | Out-Null
+            Write-Host "  Auth          : OK (Baqend token acquired)" -ForegroundColor Green
+            $status = Invoke-Baas -Method GET -Path "/status"
+            foreach ($s in $status.serviceStatus) {
+                $mark = if ($s.isAvailable) { "up" } else { "DOWN" }
+                Write-Host "    - $($s.name): $mark"
             }
+            $bk = Invoke-Baas -Method GET -Path "/db"; $buckets = @($bk)
+            Write-Host "  Tables (buckets): $($buckets.Count)"
+        } catch {
+            Write-Host "  Auth/health   : FAILED - $($_.Exception.Message)" -ForegroundColor Red
         }
     }
 
-    "run-sql" {
+    "query" {
         if (-not $Sql) { throw "-Sql required" }
-        $conn = Get-DbConnection
-        Write-Host "=== Executing SQL ===" -ForegroundColor Cyan
-        Write-Host $Sql
-        Write-Host ""
-        $result = Invoke-DbCommand -Conn $conn -Command $Sql
-        $result | ForEach-Object { Write-Host $_ }
+        Write-Host "=== Native query ===" -ForegroundColor Cyan
+        Write-Host $Sql; Write-Host ""
+        Format-NativeResult (Invoke-NativeQuery -Query $Sql) | Out-Null
     }
 
-    "run-file" {
+    "query-file" {
         if (-not $SqlFile) { throw "-SqlFile required" }
         if (-not (Test-Path $SqlFile)) { throw "File not found: $SqlFile" }
-        $conn = Get-DbConnection
-        Write-Host "=== Executing SQL file: $SqlFile ===" -ForegroundColor Cyan
-        $result = Invoke-DbCommand -Conn $conn -InputFile $SqlFile
-        $result | ForEach-Object { Write-Host $_ }
+        $text = Get-Content $SqlFile -Raw
+        $stmts = $text -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        Write-Host "=== Running $($stmts.Count) native quer$(if($stmts.Count -ne 1){'ies'}else{'y'}) from $SqlFile ===" -ForegroundColor Cyan
+        foreach ($s in $stmts) {
+            Write-Host "`n--- $s" -ForegroundColor DarkGray
+            Format-NativeResult (Invoke-NativeQuery -Query $s) | Out-Null
+        }
     }
 
-    "copy-from-csv" {
-        if (-not $Table)   { throw "-Table required" }
-        if (-not $CsvFile) { throw "-CsvFile required" }
-        if (-not (Test-Path $CsvFile)) { throw "File not found: $CsvFile" }
-        $conn    = Get-DbConnection
-        $absPath = (Resolve-Path $CsvFile).Path.Replace("\","/")
-
-        # Use psql \copy which transfers the file client-side
-        $headerOpt = if ($Header) { ", HEADER true" } else { "" }
-        $copyCmd   = "\copy `"$Table`" FROM '$absPath' WITH (FORMAT CSV, DELIMITER '$Delimiter'$headerOpt)"
-        Write-Host "=== Loading CSV into $Table ===" -ForegroundColor Cyan
-        Write-Host "  File:  $CsvFile"
-        Write-Host "  Table: $Table"
-        Write-Host ""
-        $result = Invoke-Psql -Conn $conn -Command $copyCmd
-        $result | ForEach-Object { Write-Host $_ }
-    }
-
-    "copy-to-csv" {
+    "export-csv" {
         if (-not $Sql)     { throw "-Sql required" }
         if (-not $OutFile) { throw "-OutFile required" }
-        $conn    = Get-DbConnection
-        $absPath = (Join-Path (Get-Location) $OutFile)
-        $copyCmd = "\copy ($Sql) TO '$($absPath.Replace('\','/'))' WITH (FORMAT CSV, HEADER true)"
         Write-Host "=== Exporting query results to $OutFile ===" -ForegroundColor Cyan
-        $result  = Invoke-Psql -Conn $conn -Command $copyCmd
-        $result  | ForEach-Object { Write-Host $_ }
-        if (Test-Path $absPath) { Write-Host "Wrote: $absPath ($((Get-Item $absPath).Length) bytes)" }
+        $parsed = ConvertFrom-NativeResult (Invoke-NativeQuery -Query $Sql)
+        if ($parsed.Error) { Write-Host "ERROR $($parsed.Error.status) $($parsed.Error.reason): $($parsed.Error.message)" -ForegroundColor Red; break }
+        $rows = @($parsed.Rows)
+        $abs = if ([System.IO.Path]::IsPathRooted($OutFile)) { $OutFile } else { Join-Path (Get-Location) $OutFile }
+        $rows | Export-Csv -Path $abs -NoTypeInformation -Encoding UTF8
+        Write-Host "Wrote $($rows.Count) rows -> $abs"
     }
 
-    "schema-tables" {
-        $conn = Get-DbConnection
-        $sql  = "SELECT table_schema, table_name, table_type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema, table_name;"
-        if ($Schema -ne "public") {
-            $sql = "SELECT table_schema, table_name, table_type FROM information_schema.tables WHERE table_schema = '$Schema' ORDER BY table_name;"
-        }
-        Write-Host "=== Tables in database $($conn.Db) ===" -ForegroundColor Cyan
-        Invoke-Psql -Conn $conn -Command $sql | ForEach-Object { Write-Host $_ }
-    }
-
-    "schema-columns" {
-        if (-not $Table) { throw "-Table required" }
-        $conn = Get-DbConnection
-        $sql  = "SELECT column_name, data_type, character_maximum_length, is_nullable, column_default FROM information_schema.columns WHERE table_name = '$Table' AND table_schema = '$Schema' ORDER BY ordinal_position;"
-        Write-Host "=== Columns: $Schema.$Table ===" -ForegroundColor Cyan
-        Invoke-Psql -Conn $conn -Command $sql | ForEach-Object { Write-Host $_ }
-    }
-
-    "table-count" {
-        if (-not $Table) { throw "-Table required" }
-        $conn = Get-DbConnection
-        Write-Host "=== Row count: $Table ===" -ForegroundColor Cyan
-        Invoke-Psql -Conn $conn -Command "SELECT COUNT(*) AS row_count FROM `"$Table`";" | ForEach-Object { Write-Host $_ }
-    }
-
-    "create-table-from-csv" {
-        if (-not $Table)   { throw "-Table required" }
-        if (-not $CsvFile) { throw "-CsvFile required" }
-        if (-not (Test-Path $CsvFile)) { throw "File not found: $CsvFile" }
-
-        $conn    = Get-DbConnection
-        $colDefs = Infer-ColumnTypes -CsvPath $CsvFile -Delim $Delimiter
-
-        $createSql = @"
-CREATE TABLE IF NOT EXISTS "$Table" (
-    $colDefs
-);
-"@
-        Write-Host "=== Creating table: $Table ===" -ForegroundColor Cyan
-        Write-Host $createSql
-        Invoke-Psql -Conn $conn -Command $createSql | ForEach-Object { Write-Host $_ }
-
-        if ($Load) {
-            Write-Host "`n=== Loading data from $CsvFile ===" -ForegroundColor Cyan
-            $absPath  = (Resolve-Path $CsvFile).Path.Replace("\","/")
-            $copyCmd  = "\copy `"$Table`" FROM '$absPath' WITH (FORMAT CSV, HEADER true, DELIMITER '$Delimiter')"
-            Invoke-Psql -Conn $conn -Command $copyCmd | ForEach-Object { Write-Host $_ }
-        }
-    }
-
-    "s3-copy-from" {
+    "copy-from" {
         if (-not $Table)  { throw "-Table required" }
-        if (-not $S3Path) { throw "-S3Path required (e.g. s3://bucket/file.csv)" }
-        $headerOpt = if ($Header) { ", HEADER" } else { "" }
-        $sql = "COPY `"$Table`" FROM '$S3Path' WITH ($Format$headerOpt);"
-        Write-Host "=== S3 COPY FROM ===" -ForegroundColor Cyan
-        Write-Host "SQL: $sql"
-        Write-Host "(Requires S3 credentials configured via resource.ps1 -Action external-table-creds)"
-        Write-Host ""
-        $conn = Get-DbConnection
-        Invoke-Psql -Conn $conn -Command $sql | ForEach-Object { Write-Host $_ }
-    }
-
-    "s3-create-external" {
-        if (-not $Table)   { throw "-Table required" }
-        if (-not $S3Path)  { throw "-S3Path required (e.g. s3://bucket/data/)" }
-        if (-not $Columns) { throw "-Columns required (e.g. 'id INT, name TEXT, amount DECIMAL(10,2)')" }
-        $sql = @"
-CREATE EXTERNAL TABLE IF NOT EXISTS "$Table" (
-    $Columns
-)
-LOCATION '$S3Path'
-FORMAT '$Format'
-$(if($Header){"OPTIONS (HEADER 'true')"});
-"@
-        Write-Host "=== Creating S3 External Table: $Table ===" -ForegroundColor Cyan
+        if (-not $Source) { throw "-Source required (e.g. s3://bucket/file.csv)" }
+        $with = @($Format)
+        if ($Header)  { $with += "HEADER" }
+        if ($Options) { $with += $Options }
+        $sql = "COPY `"$Table`" FROM '$Source' WITH ($($with -join ', '))"
+        Write-Host "=== COPY FROM (cloud bulk load) ===" -ForegroundColor Cyan
         Write-Host $sql
-        Write-Host "(Requires S3 credentials configured via resource.ps1 -Action external-table-creds)"
+        Write-Host "(Requires S3/cloud creds via resource.ps1 -Action external-table-creds)"
         Write-Host ""
-        $conn = Get-DbConnection
-        Invoke-Psql -Conn $conn -Command $sql | ForEach-Object { Write-Host $_ }
+        Format-NativeResult (Invoke-NativeQuery -Query $sql) | Out-Null
     }
 
-    "list-external-tables" {
-        $conn = Get-DbConnection
-        $sql  = @"
-SELECT table_name, table_type
-FROM information_schema.tables
-WHERE table_type = 'FOREIGN'
-   OR table_name IN (
-       SELECT foreign_table_name FROM information_schema.foreign_tables
-   )
-ORDER BY table_name;
-"@
-        Write-Host "=== External Tables ===" -ForegroundColor Cyan
-        Invoke-Psql -Conn $conn -Command $sql | ForEach-Object { Write-Host $_ }
+    "list-tables" {
+        $bk = Invoke-Baas -Method GET -Path "/db"; $buckets = @($bk)
+        Write-Host "=== Tables ($($buckets.Count)) ===" -ForegroundColor Cyan
+        $buckets | ForEach-Object { ($_ -replace '^/db/','') } | Sort-Object | ForEach-Object { Write-Host "  $_" }
+    }
+
+    "describe" {
+        if (-not $Table) { throw "-Table required" }
+        $schema = Invoke-Baas -Method GET -Path "/schema/$Table"
+        Write-Host "=== $Table ===" -ForegroundColor Cyan
+        Write-Host "  superClass: $($schema.superClass)  backend: $($schema.metadata.backendType)"
+        $schema.fields.PSObject.Properties |
+            Sort-Object { $_.Value.order } |
+            ForEach-Object { "{0,-3} {1,-24} {2}" -f $_.Value.order, $_.Value.name, $_.Value.type } |
+            ForEach-Object { Write-Host "  $_" }
+    }
+
+    "create-table" {
+        if (-not $Table)   { throw "-Table required" }
+        if (-not $Columns) { throw "-Columns required (e.g. 'id:int, name:string, amt:double')" }
+        $i = 0
+        $colTypes = $Columns -split ',' | ForEach-Object {
+            $parts = $_ -split ':', 2
+            $name = $parts[0].Trim()
+            if (-not $name) { return }
+            $type  = if ($parts.Count -gt 1) { ConvertTo-BaasType $parts[1] } else { "/db/String" }
+            $field = Get-SafeFieldName $name
+            if ($field -ne $name) { Write-Warning "Column '$name' is a reserved system field; creating it as '$field'." }
+            $r = [PSCustomObject]@{ Name = $field; Baas = $type; Order = $i }; $i++; $r
+        } | Where-Object { $_ }
+        Write-Host "=== Creating table $Table ===" -ForegroundColor Cyan
+        $colTypes | ForEach-Object { Write-Host "  $($_.Name) -> $($_.Baas)" }
+        New-TableSchema -Name $Table -ColumnTypes $colTypes
+        Write-Host "Created (plus system columns id, version, acl, createdAt, updatedAt)." -ForegroundColor Green
     }
 
     "drop-table" {
         if (-not $Table) { throw "-Table required" }
-        $conn     = Get-DbConnection
-        $ifEx     = if ($IfExists) { "IF EXISTS " } else { "" }
-        $extKw    = if ($External)  { "EXTERNAL " } else { "" }
-        $sql      = "DROP ${extKw}TABLE ${ifEx}`"$Table`";"
-        Write-Host "=== Dropping ${extKw}table: $Table ===" -ForegroundColor Yellow
-        Invoke-Psql -Conn $conn -Command $sql | ForEach-Object { Write-Host $_ }
+        Write-Host "=== Dropping table $Table ===" -ForegroundColor Yellow
+        Invoke-Baas -Method DELETE -Path "/schema/$Table" -Raw | Out-Null
+        Write-Host "Dropped."
+    }
+
+    "truncate" {
+        if (-not $Table) { throw "-Table required" }
+        Write-Host "=== Truncating $Table ===" -ForegroundColor Yellow
+        Invoke-Baas -Method DELETE -Path "/db/$Table" -Raw | Out-Null
+        Write-Host "All rows deleted."
+    }
+
+    "count" {
+        if (-not $Table) { throw "-Table required" }
+        Write-Host "=== Row count: $Table ===" -ForegroundColor Cyan
+        Format-NativeResult (Invoke-NativeQuery -Query "SELECT COUNT(*) AS count FROM `"$Table`"") | Out-Null
+    }
+
+    "insert" {
+        if (-not $Table) { throw "-Table required" }
+        if (-not $Json)  { throw "-Json required (e.g. {'name':'x','amt':1.5})" }
+        $obj = $Json | ConvertFrom-Json
+        $created = Invoke-Baas -Method POST -Path "/db/$Table" -Body $obj
+        Write-Host "Inserted: $($created.id)" -ForegroundColor Green
+    }
+
+    "load-csv" {
+        if (-not $Table)   { throw "-Table required" }
+        if (-not $CsvFile) { throw "-CsvFile required" }
+        if (-not (Test-Path $CsvFile)) { throw "File not found: $CsvFile" }
+
+        $colTypes = Get-CsvColumnTypes -CsvPath $CsvFile -Delim $Delimiter
+        if ($CreateTable) {
+            Write-Host "=== Creating table $Table from CSV ===" -ForegroundColor Cyan
+            $colTypes | ForEach-Object { Write-Host "  $($_.Name) -> $($_.Baas)" }
+            New-TableSchema -Name $Table -ColumnTypes $colTypes
+        }
+
+        $rows = Import-Csv -Path $CsvFile -Delimiter $Delimiter[0]
+        Write-Host "=== Loading $($rows.Count) rows into $Table (Object API) ===" -ForegroundColor Cyan
+        $ok = 0; $fail = 0; $n = 0
+        foreach ($row in $rows) {
+            $obj = @{}
+            foreach ($c in $colTypes) { $obj[$c.Name] = ConvertTo-Typed $row.($c.Source) $c.Kind }
+            try { Invoke-Baas -Method POST -Path "/db/$Table" -Body $obj | Out-Null; $ok++ }
+            catch { $fail++; if ($fail -le 5) { Write-Warning "row $($n+1): $($_.Exception.Message)" } }
+            $n++
+            if ($n % 100 -eq 0) { Write-Host "  ... $n / $($rows.Count)" }
+        }
+        Write-Host "Loaded $ok row(s), $fail failed." -ForegroundColor $(if ($fail) { "Yellow" } else { "Green" })
+        if ($fail -gt 0) { Write-Host "(For large or repeated failures, stage to cloud storage and use -Action copy-from.)" }
+    }
+
+    "rows" {
+        if (-not $Table) { throw "-Table required" }
+        Write-Host "=== Rows in $Table (max $Limit) ===" -ForegroundColor Cyan
+        $emptyQ = [uri]::EscapeDataString('{}')
+        $amp = [char]38
+        $rowsPath = "/db/$Table/query?q=$emptyQ${amp}eager=true${amp}count=$Limit"
+        $resp = Invoke-Baas -Method GET -Path $rowsPath
+        $objs = @($resp)
+        if (-not $objs.Count) { Write-Host "(0 rows)"; break }
+        $objs | Select-Object -Property * -ExcludeProperty acl, version |
+            Format-Table -AutoSize | Out-String | Write-Host
+        Write-Host "($($objs.Count) row$(if($objs.Count -ne 1){'s'}))"
     }
 }

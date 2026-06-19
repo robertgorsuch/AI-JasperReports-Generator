@@ -7,9 +7,10 @@ description: >-
   credentials, or named databases; clone or refresh-clone a warehouse; manage scheduled tasks (cron stop/sleep/start);
   manage encryption keys (list, create, test, re-encrypt); query AU-hour consumption, storage usage, or
   time-series utilization; or inspect tenant entitlements and feature flags.
-  Also covers data loading: execute SQL against the warehouse, load CSV files via COPY FROM, set up S3 external
-  tables, browse schema, create named databases with full Avalanche options (page size, encryption, collation).
-  Connects directly via psql (port 5432) or isql (port 27833 — Actian Client is installed).
+  Also covers data loading strictly via the Actian Data API (Baas REST service): run native SQL
+  (SELECT/WITH/COPY/INSERT-as-SELECT), load CSV files row-by-row, bulk-load from cloud storage via COPY,
+  create/drop/describe tables, browse schema, and create named databases with full Avalanche options
+  (page size, encryption, collation). No local database client (psql/isql/ODBC) is used — every call is HTTPS.
   Covers the full lifecycle of Actian Avalanche warehouses and databases against a live stage environment.
 ---
 
@@ -279,84 +280,95 @@ $r.resources | Where-Object { $_.status -eq "Running" } |
 
 ---
 
-## Data Loading
+## Data Loading (Data API only)
 
-Requires direct database credentials. Add to `admiral.config.json`:
+Data loading goes **strictly through the Actian Data API** (the Baas / "Orestes" REST service
+at `https://{warehouse-dns}/baas/v1`). No local DB client (`psql`/`isql`/ODBC) is used — every call
+is HTTPS. The Data API must be enabled on the warehouse (`resource.ps1 -Action configure-data-api`).
+
+**No DB credentials needed** — auth reuses the Admiral login. Config just needs the host:
 ```json
 {
-  "dbUsername": "actian",
-  "dbPassword": "YOUR_DB_PASSWORD",
-  "dbName":     "db",
-  "dbPort":     5432
+  "dbHost": "av-49jtc8yy9xi4.avstage.actiandatacloud.com"
 }
 ```
+(or pass `-ResourceId av-xxxxx` / `-DbHost ...` per call). Under the hood:
+Admiral `/login` → IDP token → `GET /baas/v1/db/User/login?access_token=…` → Baqend token →
+`Authorization: BAT <token>` on every request (cached per session).
 
-Ports available on every warehouse DNS: **5432** (PostgreSQL), **5439** (PG-alt), **27833** (Ingres native).
-Client tools on PATH: `psql` (PG14) and `isql` (Actian Client).
+### How the Data API splits the work (important)
+
+The native SQL passthrough (`GET /db/query`) accepts **only `SELECT`, `WITH`, `COPY`, and
+`INSERT … as SELECT`** — *not* `CREATE`/`DROP`/`INSERT … VALUES`. So:
+
+| Need | Mechanism | Action |
+|---|---|---|
+| Read / aggregate | native SQL passthrough | `query`, `count`, `export-csv` |
+| Bulk load from cloud | native `COPY` | `copy-from` |
+| Create / drop table | Schema API | `create-table`, `drop-table` |
+| Insert local rows | Object API (one POST per row) | `insert`, `load-csv` |
+| Empty a table | Object API | `truncate` |
+| Inspect | Schema / bucket API | `list-tables`, `describe`, `rows` |
+
+> Tables created via the API are Baqend "buckets" and carry system columns
+> (`id`, `version`, `acl`, `createdAt`, `updatedAt`) alongside your data columns. A data column
+> named after one of these (e.g. `id`) is auto-renamed with a `_col` suffix (e.g. `id_col`).
 
 ---
 
-### `data_load.ps1` — SQL execution and CSV loading
+### `data_load.ps1` — Data API client
 
-**Connection info**
+**Connection / health**
 ```powershell
 .\data_load.ps1 -Action connection-info -ResourceId av-49jtc8yy9xi4
-# Prints DNS, ports, JDBC URLs, psql command-line
+# Prints Data API base URL, version, service health, auth check, table count
 ```
 
-**Execute SQL**
+**Native SQL** (SELECT / WITH / COPY / INSERT-as-SELECT only)
 ```powershell
-.\data_load.ps1 -Action run-sql   -Sql "SELECT COUNT(*) FROM my_table"
-.\data_load.ps1 -Action run-file  -SqlFile path\to\migration.sql
+.\data_load.ps1 -Action query      -Sql "SELECT COUNT(*) FROM my_table"
+.\data_load.ps1 -Action query-file -SqlFile path\to\reads.sql      # ;-separated
+.\data_load.ps1 -Action export-csv -Sql "SELECT * FROM sales WHERE year=2025" -OutFile out\sales.csv
 ```
 
-**Browse schema**
+**Tables / schema**
 ```powershell
-.\data_load.ps1 -Action schema-tables               # all tables in default DB
-.\data_load.ps1 -Action schema-columns -Table sales  # columns of 'sales'
-.\data_load.ps1 -Action table-count    -Table sales  # row count
+.\data_load.ps1 -Action list-tables
+.\data_load.ps1 -Action describe     -Table sales
+.\data_load.ps1 -Action create-table -Table sales -Columns "id:int, product:string, amount:double, sale_date:date"
+.\data_load.ps1 -Action count        -Table sales
+.\data_load.ps1 -Action truncate     -Table sales
+.\data_load.ps1 -Action drop-table   -Table sales
+```
+Column type names accepted: `int`/`integer`/`bigint`, `double`/`float`/`decimal`/`numeric`,
+`bool`/`boolean`, `datetime`/`timestamp`, `date`, `time`, `string` (default). A literal `/db/...`
+Baqend type passes through unchanged.
+
+**Load a local CSV** (Object API, one row per POST)
+```powershell
+# Create the table from inferred CSV types, then load
+.\data_load.ps1 -Action load-csv -Table sales -CsvFile data\sales.csv -CreateTable
+
+# Load into an existing table
+.\data_load.ps1 -Action load-csv -Table sales -CsvFile data\sales.csv
+```
+Row-by-row loading is fine for small/medium files. **For large loads, stage to cloud storage
+and use `copy-from`** (a single native `COPY`), which is far faster.
+
+**Insert a single row**
+```powershell
+.\data_load.ps1 -Action insert -Table sales -Json '{"product":"widget","amount":9.99}'
 ```
 
-**Load a CSV (client-side transfer via psql \copy)**
+**Bulk load from cloud storage** (requires S3/cloud creds via `resource.ps1 -Action external-table-creds`)
 ```powershell
-# Table must exist first
-.\data_load.ps1 -Action copy-from-csv -Table sales -CsvFile data\sales.csv -Header
-
-# Create the table and load in one step
-.\data_load.ps1 -Action create-table-from-csv -Table sales -CsvFile data\sales.csv -Load -Header
+.\data_load.ps1 -Action copy-from -Table sales -Source "s3://my-bucket/sales/2025.csv" -Header
+.\data_load.ps1 -Action copy-from -Table sales -Source "s3://my-bucket/sales/" -Format CSV -Header -Options "DELIMITER ','"
 ```
 
-**Export query results to CSV**
+**Browse rows** (object view, max `-Limit`)
 ```powershell
-.\data_load.ps1 -Action copy-to-csv -Sql "SELECT * FROM sales WHERE year=2025" -OutFile out\sales_2025.csv
-```
-
-**S3 data loading** (requires S3 creds via `resource.ps1 -Action external-table-creds`)
-```powershell
-# COPY FROM S3 into an existing table
-.\data_load.ps1 -Action s3-copy-from -Table sales -S3Path "s3://my-bucket/sales/2025.csv" -Header
-
-# Create an S3 external table (virtual, no data copied)
-.\data_load.ps1 -Action s3-create-external -Table ext_sales `
-    -S3Path "s3://my-bucket/sales/" `
-    -Columns "id BIGINT, product TEXT, amount DECIMAL(12,2), sale_date DATE" `
-    -Header
-
-# List external tables
-.\data_load.ps1 -Action list-external-tables
-
-# Drop a table (or external table)
-.\data_load.ps1 -Action drop-table -Table old_staging -IfExists
-.\data_load.ps1 -Action drop-table -Table ext_sales -External -IfExists
-```
-
-**Connection override parameters**
-```powershell
-# Override any config field inline
-.\data_load.ps1 -Action schema-tables -DbHost mywarehouse.example.com -DbUser myuser -DbPass mypass -DbName mydb -DbPort 5439
-
-# Use isql (Actian native protocol, port 27833)
-.\data_load.ps1 -Action run-sql -Sql "SELECT * FROM t" -Client isql
+.\data_load.ps1 -Action rows -Table sales -Limit 50
 ```
 
 ---
@@ -396,34 +408,32 @@ Full options from the CreateNamedDbRequest schema:
 
 ---
 
-### End-to-end data loading workflow
+### End-to-end data loading workflow (Data API)
 
 ```powershell
 $skill = ".\.claude\skills\admiral\scripts"
 $wh    = "av-49jtc8yy9xi4"
 
-# 1. Ensure warehouse is running
-& "$skill\resource.ps1" -Action start -ResourceType warehouse -ResourceId $wh
+# 1. Ensure the warehouse is running and the Data API is enabled
+& "$skill\resource.ps1" -Action start             -ResourceType warehouse -ResourceId $wh
+& "$skill\resource.ps1" -Action configure-data-api -ResourceType warehouse -ResourceId $wh -Enable $true
 
-# 2. Set S3 credentials for external table access
-& "$skill\resource.ps1" -Action external-table-creds -ResourceType warehouse -ResourceId $wh `
-    -AccessKeyId "AKIAIOSFODNN7EXAMPLE" -SecretKey "wJalrXUtnFEMI/K7MDENG/..."
-
-# 3. Verify connection
+# 2. Verify the Data API connection
 & "$skill\data_load.ps1" -Action connection-info -ResourceId $wh
 
-# 4. Load a CSV file into the warehouse
-& "$skill\data_load.ps1" -Action create-table-from-csv `
-    -Table sales_2025 -CsvFile data\sales_2025.csv -Load -Header
+# --- Option A: load a local CSV (small/medium files) ---
+& "$skill\data_load.ps1" -Action load-csv -Table sales_2025 -CsvFile data\sales_2025.csv -CreateTable
 
-# 5. Or create an S3 external table
-& "$skill\data_load.ps1" -Action s3-create-external `
-    -Table ext_sales -S3Path "s3://my-bucket/sales/" `
-    -Columns "id BIGINT, region TEXT, amount DECIMAL(12,2), sale_date DATE" -Header
+# --- Option B: bulk load from cloud storage (large files, fastest) ---
+& "$skill\resource.ps1"  -Action external-table-creds -ResourceType warehouse -ResourceId $wh `
+    -AccessKeyId "AKIAIOSFODNN7EXAMPLE" -SecretKey "wJalrXUtnFEMI/K7MDENG/..."
+& "$skill\data_load.ps1" -Action create-table -Table sales_2025 `
+    -Columns "region:string, amount:double, sale_date:date"
+& "$skill\data_load.ps1" -Action copy-from -Table sales_2025 -Source "s3://my-bucket/sales/" -Header
 
-# 6. Query the data
-& "$skill\data_load.ps1" -Action run-sql `
-    -Sql "SELECT region, SUM(amount) FROM ext_sales GROUP BY region ORDER BY 2 DESC"
+# 3. Query the data (native SQL passthrough)
+& "$skill\data_load.ps1" -Action query `
+    -Sql "SELECT region, SUM(amount) AS total FROM sales_2025 GROUP BY region ORDER BY total DESC"
 ```
 
 ---
