@@ -78,6 +78,9 @@ param(
 # ── Connection / auth ──────────────────────────────────────────────────────────
 
 function Get-BaasContext {
+    # Cached per session: resolving DNS from -ResourceId costs an Admiral HTTP call,
+    # so a bulk load (one Invoke-Baas per row) must not re-resolve it every time.
+    if ($script:BaasContext) { return $script:BaasContext }
     $cfg = Get-AdmiralConfig
     $dns = $DbHost
     if (-not $dns -and $ResourceId) {
@@ -87,7 +90,8 @@ function Get-BaasContext {
     }
     if (-not $dns -and $cfg.PSObject.Properties["dbHost"]) { $dns = $cfg.dbHost }
     if (-not $dns) { throw "Cannot resolve warehouse host. Provide -DbHost, -ResourceId, or add 'dbHost' to admiral.config.json" }
-    return @{ Dns = $dns; BaseUrl = "https://$dns/baas/v1" }
+    $script:BaasContext = @{ Dns = $dns; BaseUrl = "https://$dns/baas/v1" }
+    return $script:BaasContext
 }
 
 # Exchange the Admiral IDP token for a Baqend Data-API token (cached per session).
@@ -232,12 +236,11 @@ function ConvertTo-BaasType {
     }
 }
 
-# Returns ordered list of @{ Name; Baas; Kind } inferred from a CSV.
+# Returns ordered list of @{ Name; Baas; Kind } inferred from already-parsed CSV rows.
 function Get-CsvColumnTypes {
-    param([string]$CsvPath, [string]$Delim = ",")
-    $rows = Import-Csv -Path $CsvPath -Delimiter $Delim[0]
-    if (-not $rows) { throw "CSV is empty or unreadable: $CsvPath" }
-    $sample = $rows | Select-Object -First 200
+    param([object[]]$Rows)
+    if (-not $Rows) { throw "CSV is empty or unreadable." }
+    $sample = $Rows | Select-Object -First 200
     $names  = $sample[0].PSObject.Properties.Name
     $order  = 0
     foreach ($name in $names) {
@@ -426,14 +429,15 @@ Use the Query Editor API loader instead:
         if (-not $CsvFile) { throw "-CsvFile required" }
         if (-not (Test-Path $CsvFile)) { throw "File not found: $CsvFile" }
 
-        $colTypes = Get-CsvColumnTypes -CsvPath $CsvFile -Delim $Delimiter
+        $rows = @(Import-Csv -Path $CsvFile -Delimiter $Delimiter[0])
+        if (-not $rows.Count) { throw "CSV is empty or unreadable: $CsvFile" }
+        $colTypes = Get-CsvColumnTypes -Rows $rows
         if ($CreateTable) {
             Write-Host "=== Creating table $Table from CSV ===" -ForegroundColor Cyan
             $colTypes | ForEach-Object { Write-Host "  $($_.Name) -> $($_.Baas)" }
             New-TableSchema -Name $Table -ColumnTypes $colTypes
         }
 
-        $rows = Import-Csv -Path $CsvFile -Delimiter $Delimiter[0]
         Write-Host "=== Loading $($rows.Count) rows into $Table (Object API) ===" -ForegroundColor Cyan
         $ok = 0; $fail = 0; $n = 0
         foreach ($row in $rows) {

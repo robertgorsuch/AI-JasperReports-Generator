@@ -48,7 +48,7 @@ switch ($Action) {
         if (-not $LocationType) { throw "-LocationType required" }
         if (-not $LocationPath) { throw "-LocationPath required" }
         $body = @{ locationType = $LocationType; locationPath = $LocationPath }
-        Write-Host "=== Adding Location ($LocationType: $LocationPath) to database $ResourceId ===" -ForegroundColor Cyan
+        Write-Host "=== Adding Location (${LocationType}: $LocationPath) to database $ResourceId ===" -ForegroundColor Cyan
         Write-AdmiralResult (Invoke-AdmiralApi -Method PUT -Path "/resource/database/$ResourceId/location" -Body $body)
     }
 

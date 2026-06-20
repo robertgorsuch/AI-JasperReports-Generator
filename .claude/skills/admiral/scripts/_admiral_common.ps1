@@ -7,6 +7,8 @@ $ErrorActionPreference = "Stop"
 # ── Config ──────────────────────────────────────────────────────────────────
 
 function Get-AdmiralConfig {
+    # Cached per session: the file is read+parsed once, not on every API call.
+    if ($script:AdmiralConfig) { return $script:AdmiralConfig }
     $cfgPath = Join-Path $PSScriptRoot "..\admiral.config.json"
     if (-not (Test-Path $cfgPath)) {
         throw "Config not found: $cfgPath. Copy admiral.config.example.json to admiral.config.json and fill in your credentials."
@@ -15,6 +17,7 @@ function Get-AdmiralConfig {
     if ($cfg.password -eq "REPLACE_WITH_PASSWORD") {
         throw "admiral.config.json still has placeholder password. Edit the file and set the real password."
     }
+    $script:AdmiralConfig = $cfg
     return $cfg
 }
 
