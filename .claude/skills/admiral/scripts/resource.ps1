@@ -72,10 +72,42 @@ param(
     [string]$SecretKey,
 
     # Version
-    [string]$Version
+    [string]$Version,
+
+    # Lifecycle wait
+    [switch]$Wait,
+    [int]$TimeoutSec = 600
 )
 
 . "$PSScriptRoot\_admiral_common.ps1"
+
+# Poll until the resource reaches $Target status; used by -Wait on lifecycle actions.
+function Wait-ForStatus {
+    param([string]$Id, [string]$Type, [string]$Target, [int]$Timeout)
+    $deadline = (Get-Date).AddSeconds($Timeout)
+    $last = ""
+    Write-Host "  Waiting for '$Target'..." -ForegroundColor DarkCyan -NoNewline
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 10
+        try {
+            $r      = Invoke-AdmiralApi -Path "/resource/$Type/$Id"
+            $status = "$($r.status)"
+        } catch {
+            if ("$($_.Exception.Message)" -match '404|not.?found') {
+                Write-Host " Deleted." -ForegroundColor Green; return
+            }
+            $status = "?"
+        }
+        if ($status -ne $last) {
+            if ($last) { Write-Host "" }
+            Write-Host "  -> $status" -ForegroundColor DarkCyan -NoNewline
+            $last = $status
+        } else { Write-Host "." -NoNewline }
+        if ($status -eq $Target) { Write-Host " Done." -ForegroundColor Green; return }
+    }
+    Write-Host ""
+    Write-Host "  Timed out after ${Timeout}s (last status: $last)" -ForegroundColor Yellow
+}
 
 function Require-ResourceId {
     if (-not $ResourceId) { throw "-ResourceId is required for action '$Action'" }
@@ -133,6 +165,7 @@ switch ($Action) {
         Require-ResourceId
         Write-Host "=== Deleting $ResourceType $ResourceId ===" -ForegroundColor Yellow
         Write-AdmiralResult (Invoke-AdmiralApi -Method DELETE -Path "/resource/$ResourceType/$ResourceId")
+        if ($Wait) { Wait-ForStatus -Id $ResourceId -Type $ResourceType -Target "Deleted"  -Timeout $TimeoutSec }
     }
 
     "start" {
@@ -141,18 +174,21 @@ switch ($Action) {
         if ($AdminPassword) { $body.password = $AdminPassword }
         Write-Host "=== Starting $ResourceType $ResourceId ===" -ForegroundColor Green
         Write-AdmiralResult (Invoke-AdmiralApi -Method PUT -Path "/resource/$ResourceType/$ResourceId/start" -Body $body)
+        if ($Wait) { Wait-ForStatus -Id $ResourceId -Type $ResourceType -Target "Running"  -Timeout $TimeoutSec }
     }
 
     "stop" {
         Require-ResourceId
         Write-Host "=== Stopping $ResourceType $ResourceId ===" -ForegroundColor Yellow
         Write-AdmiralResult (Invoke-AdmiralApi -Method PUT -Path "/resource/$ResourceType/$ResourceId/stop")
+        if ($Wait) { Wait-ForStatus -Id $ResourceId -Type $ResourceType -Target "Stopped"  -Timeout $TimeoutSec }
     }
 
     "sleep" {
         Require-ResourceId
         Write-Host "=== Sleeping $ResourceType $ResourceId ===" -ForegroundColor Yellow
         Write-AdmiralResult (Invoke-AdmiralApi -Method PUT -Path "/resource/$ResourceType/$ResourceId/sleep")
+        if ($Wait) { Wait-ForStatus -Id $ResourceId -Type $ResourceType -Target "Sleeping" -Timeout $TimeoutSec }
     }
 
     "scale" {
@@ -161,6 +197,7 @@ switch ($Action) {
         $body = @{ avalancheUnits = $units }
         Write-Host "=== Scaling $ResourceType $ResourceId to $units AUs ===" -ForegroundColor Cyan
         Write-AdmiralResult (Invoke-AdmiralApi -Method PUT -Path "/resource/$ResourceType/$ResourceId/scale" -Body $body)
+        if ($Wait) { Wait-ForStatus -Id $ResourceId -Type $ResourceType -Target "Running"  -Timeout $TimeoutSec }
     }
 
     "allowlist-ip" {

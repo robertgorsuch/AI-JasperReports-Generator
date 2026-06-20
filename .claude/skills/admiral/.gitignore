@@ -6,3 +6,4 @@ admiral.config.json
 # compiled JDBC helpers (rebuilt on demand from *.java sources)
 SqlRunner.class
 GcsLister.class
+S3Lister.class

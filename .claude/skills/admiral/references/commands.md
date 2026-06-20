@@ -52,6 +52,15 @@ Works for both `-ResourceType warehouse` (default) and `-ResourceType database`.
 .\resource.ps1 -Action delete -ResourceType warehouse -ResourceId av-xxxxx
 ```
 
+Add `-Wait` to any lifecycle or scale action to block until the target state is reached (polls every 10s):
+```powershell
+.\resource.ps1 -Action start -ResourceType warehouse -ResourceId av-xxxxx -Wait
+.\resource.ps1 -Action stop  -ResourceType warehouse -ResourceId av-xxxxx -Wait [-TimeoutSec 300]
+.\resource.ps1 -Action scale -ResourceType warehouse -ResourceId av-xxxxx -AUs 4 -Wait
+```
+Target states: `start` → `Running`, `stop` → `Stopped`, `sleep` → `Sleeping`, `scale` → `Running`, `delete` → `Deleted`.
+Default timeout is 600s; override with `-TimeoutSec`.
+
 **Scale**
 ```powershell
 .\resource.ps1 -Action scale -ResourceType warehouse -ResourceId av-xxxxx -AUs 4
@@ -231,9 +240,11 @@ Choose the engine with `-Engine jdbc` (default) or `-Engine odbc`; everything be
 ```powershell
 .\sql.ps1 -Action query    -Sql "SELECT COUNT(*) FROM pos_transactions"
 .\sql.ps1 -Action exec     -Sql "INSERT INTO sales VALUES (1,'widget',9.99)"   # DDL/DML
-.\sql.ps1 -Action run-file -SqlFile pipeline.sql                               # ;-separated batch
+.\sql.ps1 -Action run-file -SqlFile pipeline.sql   # per-statement labeled output + OK/FAIL summary
 .\sql.ps1 -Action export-csv -Sql "SELECT * FROM sales WHERE year=2025" -OutFile out\sales.csv
 ```
+`run-file` splits the file on `;`, runs each statement individually, and prints a `-- [N/M] preview...`
+header before each result so you can see exactly where a multi-step script stands.
 
 **Tables / schema** (real SQL tables — no Baqend system columns)
 ```powershell
@@ -260,11 +271,19 @@ Fine for small/medium files. **For large or cloud-resident data, use `vwload`** 
 .\sql.ps1 -Action list-gcs -Source "gs://rg_gcp_test/poc_sales_" -GcsKeyFile path\to\sa.json  # prefix filter
 ```
 Uses the service-account JSON to authenticate via RS256 JWT → Google OAuth2, then calls the GCS
-JSON API. Outputs name + size (MB) for every matching object. Use this when VWLOAD returns
-"File name pattern matches nothing" to confirm the exact file names and extensions.
+JSON API. Outputs name + size (MB) per object, with a count and total GB summary at the bottom.
+
+**List S3 bucket objects** (no AWS CLI needed)
+```powershell
+.\sql.ps1 -Action list-s3 -Source "s3://my-bucket" `
+    -AwsKey AKIAIOSFODNN7EXAMPLE -AwsSecret wJalrXUtnFEMI/K7MDENG/... -AwsRegion us-east-1
+.\sql.ps1 -Action list-s3 -Source "s3://my-bucket/sales/" `
+    -AwsKey AKIAIOSFODNN7EXAMPLE -AwsSecret wJalrXUtnFEMI/K7MDENG/... -AwsRegion us-east-1
+```
+Signs requests with AWS SigV4 (`S3Lister.java`, compiled on demand). Same output format as `list-gcs`.
 
 > **Pattern matching is extension-sensitive.** `*.csv` will NOT match `*.csv.gz` files.
-> Always confirm the exact extension with `list-gcs` before writing your `-Source` pattern.
+> Always confirm the exact extension with `list-gcs` or `list-s3` before writing your `-Source` pattern.
 
 **Bulk load from cloud storage** (`COPY … VWLOAD`)
 ```powershell
@@ -280,6 +299,8 @@ JSON API. Outputs name + size (MB) for every matching object. Use this when VWLO
 .\sql.ps1 -Action vwload -Table sales `
     -Source "s3://my-bucket/sales.csv.gz" -AwsKey AKIA... -AwsSecret ... -AwsRegion us-east-1 -Header
 ```
+
+After the load completes, `vwload` prints elapsed time and an estimated rows/sec throughput figure.
 
 **vwload defaults** — automatically added to every call; override via `-ExtraOptions` (duplicates are
 skipped with a warning):
@@ -376,8 +397,8 @@ $r.resources | Where-Object { $_.status -eq "Running" } |
 $skill = ".\.claude\skills\admiral\scripts"
 $wh    = "av-49jtc8yy9xi4"
 
-# 1. Ensure the warehouse is running
-& "$skill\resource.ps1" -Action start -ResourceType warehouse -ResourceId $wh
+# 1. Ensure the warehouse is running (add -Wait to block until status = Running)
+& "$skill\resource.ps1" -Action start -ResourceType warehouse -ResourceId $wh -Wait
 
 # 2. Verify the SQL connection (JDBC by default; add -Engine odbc to use ODBC)
 & "$skill\sql.ps1" -Action connection-info -ResourceId $wh

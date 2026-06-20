@@ -60,7 +60,7 @@ and the end-to-end loading workflow are in [`references/commands.md`](references
 | `scheduled_task.ps1` | Cron/interval stop·sleep·start tasks | `list`, `create`, `update`, `delete` |
 | `usage.ps1` | Consumption + billing | `current`, `storage`, `high-watermark`, `compute-summary`, `timeseries`, `consumer` |
 | `named_db.ps1` | Named databases (full Avalanche options) | `list`, `create`, `drop` |
-| `sql.ps1` | **Data plane** — full SQL + loading over JDBC/ODBC (`-Engine jdbc`\|`odbc`) | `connection-info`, `query`, `exec`, `run-file`, `export-csv`, `list-tables`, `describe`, `count`, `create-table`, `drop-table`, `truncate`, `load-csv`, `vwload`, `create-external` |
+| `sql.ps1` | **Data plane** — full SQL + loading over JDBC/ODBC (`-Engine jdbc`\|`odbc`) | `connection-info`, `query`, `exec`, `run-file`, `export-csv`, `list-tables`, `describe`, `count`, `create-table`, `drop-table`, `truncate`, `load-csv`, `vwload`, `create-external`, `list-gcs`, `list-s3` |
 
 `sql.ps1` uses the helper `SqlRunner.java` (compiled on demand to `SqlRunner.class`) for the JDBC
 engine; the ODBC engine is pure PowerShell (`System.Data.Odbc`).
@@ -82,10 +82,12 @@ All data operations go through `sql.ps1`, which connects with a real database dr
 |---|---|
 | Read / aggregate | `query -Sql "SELECT …"` |
 | DDL / `INSERT … VALUES` / any non-query | `exec -Sql "…"` |
-| Run a multi-statement batch (orchestration) | `run-file -SqlFile pipeline.sql` |
+| Run a multi-statement batch with per-statement output | `run-file -SqlFile pipeline.sql` |
 | Create / drop / describe / count / truncate a table | `create-table` / `drop-table` / `describe` / `count` / `truncate` |
 | Load a local CSV (batched `INSERT`) | `load-csv -Table t -CsvFile data.csv [-CreateTable]` |
-| **Bulk load from cloud (S3/GCS)** | `vwload -Table t -Source "gs://…" -GcsKeyFile sa.json -Header` |
+| **Bulk load from cloud (S3/GCS)** | `vwload -Table t -Source "gs://…" -GcsKeyFile sa.json -Header` (shows elapsed + rows/sec) |
+| List GCS objects (verify names/extensions before load) | `list-gcs -Source "gs://bucket" -GcsKeyFile sa.json` |
+| List S3 objects (verify names/extensions before load) | `list-s3 -Source "s3://bucket" -AwsKey K -AwsSecret S -AwsRegion r` |
 | Reference cloud data as an external table | `create-external -Table t -Columns "…" -Source "gs://…/"` |
 | Export query results to CSV | `export-csv -Sql "SELECT …" -OutFile out.csv` |
 

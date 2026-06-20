@@ -37,14 +37,17 @@
 #                  AUTO_DETECT_COMPRESSION when source matches *.gz. ExtraOptions deduplicates.
 #     create-external -Table t -Columns "id INT, amt FLOAT" -Source "gs://b/dir/" [-Format csv]
 #     list-gcs     -Source "gs://bucket[/prefix]" -GcsKeyFile sa.json
-#                  Authenticates via JWT and lists GCS objects (name + size) - useful for
-#                  verifying file names / extensions before a vwload.
+#                  Authenticates via RS256 JWT and lists GCS objects (name + size).
+#     list-s3      -Source "s3://bucket[/prefix]" -AwsKey K -AwsSecret S -AwsRegion r
+#                  Lists S3 objects using AWS SigV4 signing (no AWS CLI needed).
+#                  Both list-* show file count and total GB; useful before vwload to
+#                  confirm exact file names/extensions.
 
 param(
     [Parameter(Mandatory)]
     [ValidateSet("connection-info","query","exec","run-file","export-csv",
                  "list-tables","describe","count","create-table","drop-table","truncate",
-                 "load-csv","vwload","create-external","list-gcs")]
+                 "load-csv","vwload","create-external","list-gcs","list-s3")]
     [string]$Action,
 
     [ValidateSet("jdbc","odbc")]
@@ -160,6 +163,37 @@ function Ensure-GcsLister {
     if (-not $javac) { throw "javac not found on PATH (need a JDK for list-gcs)." }
     & javac -d $PSScriptRoot $src 2>&1 | ForEach-Object { Write-Verbose $_ }
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $class)) { throw "Failed to compile GcsLister.java" }
+}
+
+function Ensure-S3Lister {
+    $src   = Join-Path $PSScriptRoot "S3Lister.java"
+    $class = Join-Path $PSScriptRoot "S3Lister.class"
+    if (-not (Test-Path $src)) { throw "Missing $src - required for list-s3" }
+    if ((Test-Path $class) -and (Get-Item $class).LastWriteTime -ge (Get-Item $src).LastWriteTime) { return }
+    $javac = (Get-Command javac -ErrorAction SilentlyContinue)
+    if (-not $javac) { throw "javac not found on PATH (need a JDK for list-s3)." }
+    & javac -d $PSScriptRoot $src 2>&1 | ForEach-Object { Write-Verbose $_ }
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $class)) { throw "Failed to compile S3Lister.java" }
+}
+
+# Shared helper: display name+size lines from a lister, return [count, totalBytes].
+function Show-ListingLines {
+    param([string[]]$Lines, [string]$Label)
+    if (-not $Lines.Count) { Write-Host "(no objects found)" -ForegroundColor Yellow; return 0, 0 }
+    Write-Host ("{0,-55} {1,12}" -f "Name","Size (MB)")
+    Write-Host ("{0,-55} {1,12}" -f "----","--------")
+    $totalBytes = [long]0
+    foreach ($line in $Lines) {
+        $p      = "$line".Split("`t")
+        $name   = $p[0]
+        $sizeMB = if ($p.Count -gt 1) {
+            try { $totalBytes += [long]$p[1]; "{0:N2}" -f ([double]$p[1] / 1MB) } catch { "?" }
+        } else { "?" }
+        Write-Host ("{0,-55} {1,12}" -f $name, $sizeMB)
+    }
+    Write-Host ""
+    Write-Host "$($Lines.Count) object(s), $("{0:N2}" -f ($totalBytes / 1GB)) GB total"
+    return $Lines.Count, $totalBytes
 }
 
 function Invoke-SqlJdbc {
@@ -322,7 +356,7 @@ function Get-GcsCredClause {
 function Get-CsvSqlColumns {
     param([object[]]$Rows)
     if (-not $Rows) { throw "CSV is empty or unreadable." }
-    $sample = $Rows | Select-Object -First 200
+    $sample = $Rows | Select-Object -First 1000
     $names  = $sample[0].PSObject.Properties.Name
     foreach ($name in $names) {
         $vals = $sample | ForEach-Object { $_.$name } | Where-Object { $_ -ne $null -and $_ -ne "" }
@@ -391,10 +425,21 @@ switch ($Action) {
     "run-file" {
         if (-not $SqlFile) { throw "-SqlFile required" }
         if (-not (Test-Path $SqlFile)) { throw "File not found: $SqlFile" }
-        $text = Get-Content $SqlFile -Raw
-        Write-Host "=== run-file ($Engine): $SqlFile ===" -ForegroundColor Cyan
-        $errs = Show-SqlResults (Invoke-Sql -Batch $text)
-        if ($errs) { Write-Host "$errs statement(s) failed." -ForegroundColor Yellow }
+        $text  = Get-Content $SqlFile -Raw
+        $stmts = @(Split-SqlStatements $text | Where-Object { $_.Trim() })
+        Write-Host "=== run-file ($Engine): $SqlFile ($($stmts.Count) statement(s)) ===" -ForegroundColor Cyan
+        $totalErrors = 0; $n = 0
+        foreach ($stmt in $stmts) {
+            $n++
+            $preview = ($stmt.Trim() -replace '\s+',' ')
+            if ($preview.Length -gt 70) { $preview = $preview.Substring(0,70) + "..." }
+            Write-Host ""
+            Write-Host "-- [$n/$($stmts.Count)] $preview" -ForegroundColor DarkCyan
+            $totalErrors += Show-SqlResults (Invoke-Sql -Batch $stmt)
+        }
+        Write-Host ""
+        if ($totalErrors) { Write-Host "$totalErrors statement(s) failed." -ForegroundColor Yellow }
+        else { Write-Host "All $n statement(s) OK." -ForegroundColor Green }
     }
 
     "export-csv" {
@@ -526,41 +571,56 @@ switch ($Action) {
         Write-Host "=== vwload -> $Table ($Engine) ===" -ForegroundColor Cyan
         Write-Host ($copySql -replace "gcs_private_key='[^']*'","gcs_private_key='***'" -replace "aws_secret_key='[^']*'","aws_secret_key='***'")
         Write-Host ""
-        Show-SqlResults (Invoke-Sql -Batch $batch) | Out-Null
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $vwRes = Invoke-Sql -Batch $batch
+        $sw.Stop()
+        Show-SqlResults $vwRes | Out-Null
+        $loadedRows = ($vwRes | Where-Object { $_.type -eq "update" } |
+                       Measure-Object -Property updateCount -Maximum).Maximum
+        $secs = $sw.Elapsed.TotalSeconds
+        $elapsedStr = if ($secs -ge 60) { "{0:N0}m {1:N0}s" -f [Math]::Floor($secs/60), ($sw.Elapsed.Seconds) } else { "{0:N1}s" -f $secs }
+        Write-Host "Elapsed: $elapsedStr" -ForegroundColor Gray
+        if ($loadedRows -and $secs -gt 0) {
+            Write-Host "Throughput: ~$("{0:N0}" -f ($loadedRows / $secs)) rows/sec" -ForegroundColor Gray
+        }
     }
 
     "list-gcs" {
         if (-not $Source -or $Source -notmatch '^gs://') { throw "-Source gs://bucket[/prefix] required" }
         if (-not $GcsKeyFile) { throw "-GcsKeyFile <service-account.json> required" }
         $uri    = $Source -replace '^gs://',''
-        $parts  = $uri -split '/',2
-        $bucket = $parts[0]
-        $pfx    = if ($parts.Count -gt 1) { $parts[1] } else { '' }
+        $uparts = $uri -split '/',2
+        $bucket = $uparts[0]
+        $pfx    = if ($uparts.Count -gt 1) { $uparts[1] } else { '' }
         Ensure-GcsLister
         Write-Host "=== GCS: gs://$bucket$(if($pfx){'/' + $pfx}) ===" -ForegroundColor Cyan
         $javaArgs = @("-cp", $PSScriptRoot, "GcsLister", $GcsKeyFile, $bucket)
         if ($pfx) { $javaArgs += $pfx }
-        # GcsLister outputs "name\tsize" lines; 2>&1 gives mixed strings+ErrorRecords - filter to strings
         $rawOut = & java @javaArgs 2>&1
         $lines  = @($rawOut | Where-Object { $_ -is [string] -and "$_".Trim() })
         $errOut = ($rawOut | Where-Object { $_ -isnot [string] } | Out-String).Trim()
         if ($errOut) { Write-Host "GcsLister warning: $errOut" -ForegroundColor Yellow }
-        if (-not $lines.Count) {
-            Write-Host "(no objects found)" -ForegroundColor Yellow
-        } else {
-            Write-Host ("{0,-55} {1,12}" -f "Name","Size (MB)")
-            Write-Host ("{0,-55} {1,12}" -f "----","--------")
-            foreach ($line in $lines) {
-                $parts  = "$line".Split("`t")
-                $name   = $parts[0]
-                $sizeMB = if ($parts.Count -gt 1) {
-                    try { "{0:N2}" -f ([double]$parts[1] / 1MB) } catch { "?" }
-                } else { "?" }
-                Write-Host ("{0,-55} {1,12}" -f $name, $sizeMB)
-            }
-            Write-Host ""
-            Write-Host "$($lines.Count) object(s)"
-        }
+        Show-ListingLines -Lines $lines | Out-Null
+    }
+
+    "list-s3" {
+        if (-not $Source -or $Source -notmatch '^s3://') { throw "-Source s3://bucket[/prefix] required" }
+        if (-not $AwsKey)    { throw "-AwsKey required" }
+        if (-not $AwsSecret) { throw "-AwsSecret required" }
+        if (-not $AwsRegion) { throw "-AwsRegion required" }
+        $uri    = $Source -replace '^s3://',''
+        $uparts = $uri -split '/',2
+        $bucket = $uparts[0]
+        $pfx    = if ($uparts.Count -gt 1) { $uparts[1] } else { '' }
+        Ensure-S3Lister
+        Write-Host "=== S3: s3://$bucket$(if($pfx){'/' + $pfx}) ===" -ForegroundColor Cyan
+        $javaArgs = @("-cp", $PSScriptRoot, "S3Lister", $AwsKey, $AwsSecret, $AwsRegion, $bucket)
+        if ($pfx) { $javaArgs += $pfx }
+        $rawOut = & java @javaArgs 2>&1
+        $lines  = @($rawOut | Where-Object { $_ -is [string] -and "$_".Trim() })
+        $errOut = ($rawOut | Where-Object { $_ -isnot [string] } | Out-String).Trim()
+        if ($errOut) { Write-Host "S3Lister warning: $errOut" -ForegroundColor Yellow }
+        Show-ListingLines -Lines $lines | Out-Null
     }
 
     "create-external" {
