@@ -213,104 +213,97 @@ Key manager IDs (from stage environment):
 
 ---
 
-## `data_load.ps1` — Data API client (Baas)
+## `sql.ps1` — full SQL + loading over JDBC / ODBC
+
+The single data-plane engine. Connects with the Actian Ingres database driver and runs **arbitrary
+SQL** — `SELECT`, DDL, `INSERT … VALUES`, `COPY … VWLOAD`. No browser, no Query Editor, no cookie.
+Choose the engine with `-Engine jdbc` (default) or `-Engine odbc`; everything below works with either.
 
 **Connection / health**
 ```powershell
-.\data_load.ps1 -Action connection-info -ResourceId av-49jtc8yy9xi4
-# Prints Data API base URL, version, service health, auth check, table count
+.\sql.ps1 -Action connection-info                         # JDBC (default)
+.\sql.ps1 -Action connection-info -Engine odbc            # ODBC
+# Connection from the admiral.config.json "db" block; override with
+#   -DbHost / -Port / -Database / -DbUser / -DbPassword, or resolve host from -ResourceId
 ```
 
-**Native SQL** (SELECT / WITH / COPY / INSERT-as-SELECT only)
+**Run SQL**
 ```powershell
-.\data_load.ps1 -Action query      -Sql "SELECT COUNT(*) FROM my_table"
-.\data_load.ps1 -Action query-file -SqlFile path\to\reads.sql      # ;-separated
-.\data_load.ps1 -Action export-csv -Sql "SELECT * FROM sales WHERE year=2025" -OutFile out\sales.csv
+.\sql.ps1 -Action query    -Sql "SELECT COUNT(*) FROM pos_transactions"
+.\sql.ps1 -Action exec     -Sql "INSERT INTO sales VALUES (1,'widget',9.99)"   # DDL/DML
+.\sql.ps1 -Action run-file -SqlFile pipeline.sql                               # ;-separated batch
+.\sql.ps1 -Action export-csv -Sql "SELECT * FROM sales WHERE year=2025" -OutFile out\sales.csv
 ```
 
-**Tables / schema**
+**Tables / schema** (real SQL tables — no Baqend system columns)
 ```powershell
-.\data_load.ps1 -Action list-tables
-.\data_load.ps1 -Action describe     -Table sales
-.\data_load.ps1 -Action create-table -Table sales -Columns "id:int, product:string, amount:double, sale_date:date"
-.\data_load.ps1 -Action count        -Table sales
-.\data_load.ps1 -Action truncate     -Table sales
-.\data_load.ps1 -Action drop-table   -Table sales
+.\sql.ps1 -Action list-tables
+.\sql.ps1 -Action describe     -Table sales
+.\sql.ps1 -Action create-table -Table sales -Columns "id INT, product VARCHAR(50), amount FLOAT, sale_date DATE"
+.\sql.ps1 -Action count        -Table sales
+.\sql.ps1 -Action truncate     -Table sales      # MODIFY … TO TRUNCATED
+.\sql.ps1 -Action drop-table   -Table sales
 ```
-Column type names accepted: `int`/`integer`/`bigint`, `double`/`float`/`decimal`/`numeric`,
-`bool`/`boolean`, `datetime`/`timestamp`, `date`, `time`, `string` (default). A literal `/db/...`
-Baqend type passes through unchanged.
+`-Columns` is a raw SQL column list, passed through verbatim (Ingres/Vector types: `INTEGER`,
+`BIGINT`, `FLOAT`, `DECIMAL(p,s)`, `VARCHAR(n)`, `DATE`, `TIMESTAMP`, …).
 
-**Load a local CSV** (Object API, one row per POST)
+**Load a local CSV** (types inferred, batched `INSERT`)
 ```powershell
-# Create the table from inferred CSV types, then load
-.\data_load.ps1 -Action load-csv -Table sales -CsvFile data\sales.csv -CreateTable
-
-# Load into an existing table
-.\data_load.ps1 -Action load-csv -Table sales -CsvFile data\sales.csv
+.\sql.ps1 -Action load-csv -Table sales -CsvFile data\sales.csv -CreateTable   # create then load
+.\sql.ps1 -Action load-csv -Table sales -CsvFile data\sales.csv -BatchSize 1000 # into existing table
 ```
-Row-by-row loading is fine for small/medium files. **For large loads, or loading from cloud
-storage (S3/GCS), use `query_editor.ps1 -Action vwload-gcs`** (see below) — the Baas Data API
-cannot run `COPY`.
+Fine for small/medium files. **For large or cloud-resident data, use `vwload`** (server-side bulk load).
 
-**Insert a single row**
+**List GCS bucket objects** (verify file names/extensions before loading)
 ```powershell
-.\data_load.ps1 -Action insert -Table sales -Json '{"product":"widget","amount":9.99}'
+.\sql.ps1 -Action list-gcs -Source "gs://rg_gcp_test" -GcsKeyFile path\to\sa.json
+.\sql.ps1 -Action list-gcs -Source "gs://rg_gcp_test/poc_sales_" -GcsKeyFile path\to\sa.json  # prefix filter
 ```
+Uses the service-account JSON to authenticate via RS256 JWT → Google OAuth2, then calls the GCS
+JSON API. Outputs name + size (MB) for every matching object. Use this when VWLOAD returns
+"File name pattern matches nothing" to confirm the exact file names and extensions.
 
-**Browse rows** (object view, max `-Limit`)
+> **Pattern matching is extension-sensitive.** `*.csv` will NOT match `*.csv.gz` files.
+> Always confirm the exact extension with `list-gcs` before writing your `-Source` pattern.
+
+**Bulk load from cloud storage** (`COPY … VWLOAD`)
 ```powershell
-.\data_load.ps1 -Action rows -Table sales -Limit 50
+# Google Cloud Storage — plain CSV
+.\sql.ps1 -Action vwload -Table sales `
+    -Source "gs://rg_gcp_test/sales*.csv" -GcsKeyFile path\to\sa.json -Header
+
+# Google Cloud Storage — gzip-compressed CSV (AUTO_DETECT_COMPRESSION added automatically)
+.\sql.ps1 -Action vwload -Table sales `
+    -Source "gs://rg_gcp_test/sales*.csv.gz" -GcsKeyFile path\to\sa.json -Header
+
+# Amazon S3
+.\sql.ps1 -Action vwload -Table sales `
+    -Source "s3://my-bucket/sales.csv.gz" -AwsKey AKIA... -AwsSecret ... -AwsRegion us-east-1 -Header
 ```
 
-> `copy-from` exists in the action list but intentionally errors: the Baas Data API allowlists
-> `COPY` yet silently no-ops it, so cloud bulk loading goes through `query_editor.ps1` instead.
+**vwload defaults** — automatically added to every call; override via `-ExtraOptions` (duplicates are
+skipped with a warning):
+| Default | Value | Override |
+|---|---|---|
+| `FDELIM` | `','` | `-FieldDelim "\t"` |
+| `RDELIM` | `'\n'` | `-ExtraOptions "RDELIM='\r\n'"` |
+| `QUOTE` | `'"'` | `-QuoteChar ''` (omits the option) |
+| `AUTO_DETECT_COMPRESSION` | added when `-Source` matches `*.gz` | n/a |
+| `SET string_truncation IGNORE` | always prepended | n/a |
 
----
-
-## `query_editor.ps1` — full-SQL + cloud (GCS/S3) loading via the Query Editor API
-
-The Baas Data API can only run SELECT/WITH/INSERT-as-SELECT and **cannot** do `COPY`, DDL such
-as `CREATE EXTERNAL TABLE`, or `INSERT … VALUES`. For those — and for **loading from Google Cloud
-Storage / S3** — use `query_editor.ps1`, which drives the warehouse's browser **Query Editor API**
-(SQLPad at `https://{dns}/api`) and runs arbitrary SQL.
-
-**Auth: a browser session cookie** (no headless login — SQLPad sits behind the Actian platform SSO).
-Open the Query Editor (`https://{dns}/`) logged in → DevTools → Application → Cookies → copy the
-`sqlpad.sid` cookie, then save it (gitignored):
-```powershell
-# write the sqlpad.sid value to scripts\..\.qe_cookie  (or pass -Cookie / set $env:QE_COOKIE)
-Set-Content -NoNewline .claude\skills\admiral\.qe_cookie 'sqlpad.sid=s%3A...'
-```
-The cookie lasts a few hours; on `401` re-copy it. The script auto-picks the `(db)` data
-connection (override with `-Connection <id|name>`).
-
-**Run any SQL** (DDL, COPY, multi-statement)
-```powershell
-.\query_editor.ps1 -Action connections                         # list ODBC connections
-.\query_editor.ps1 -Action run-sql  -Sql "CREATE TABLE t (id INT)"
-.\query_editor.ps1 -Action run-file -SqlFile migration.sql
-```
-
-**Load from Google Cloud Storage** (`COPY … VWLOAD`, credentials inline from a service-account JSON)
-```powershell
-# 1. create the target table (DDL)
-.\query_editor.ps1 -Action run-sql -Sql "CREATE TABLE sales (id INTEGER, name VARCHAR(50), amt FLOAT)"
-# 2. bulk load from gs:// — GCS_EMAIL/PRIVATE_KEY_ID/PRIVATE_KEY are read from the JSON
-.\query_editor.ps1 -Action vwload-gcs -Table sales `
-    -Source "gs://rg_gcp_test/sales.csv" -GcsKeyFile path\to\service-account.json `
-    -Header -FieldDelim "," [-ExtraOptions "QUOTE='\"'"]
-```
 `-Source` accepts a comma-separated list and `gs://bucket/prefix/` directories/wildcards. The
 service-account JSON's `client_email` / `private_key_id` / `private_key` map to VWLOAD's
-`GCS_EMAIL` / `GCS_PRIVATE_KEY_ID` / `GCS_PRIVATE_KEY` (the private key is masked in console output).
-For S3, load the table the same way with a `COPY … VWLOAD` (`AWS_ACCESS_KEY`/`AWS_SECRET_KEY`/`AWS_REGION`) via `run-sql`.
+`gcs_email` / `gcs_private_key_id` / `gcs_private_key` (the private key is masked in console output).
 
-**External table over GCS** (query in place; credentials must be set in the Avalanche console first)
+**External table over cloud storage** (query in place; cloud credentials set on the warehouse)
 ```powershell
-.\query_editor.ps1 -Action create-external-gcs -Table ext_sales `
+.\sql.ps1 -Action create-external -Table ext_sales `
     -Columns "id INT, amt DECIMAL(12,2)" -Source "gs://rg_gcp_test/sales/" -Format csv
 ```
+
+> JDBC engine needs a JDK + `iijdbc.jar` (auto-located under `II_SYSTEM`, or set `jdbcJar` in config);
+> the helper `SqlRunner.java` is compiled once to `SqlRunner.class`. ODBC engine needs an installed
+> Actian/Ingres ODBC driver (override the name with `odbcDriver` in config).
 
 ---
 
@@ -383,25 +376,59 @@ $r.resources | Where-Object { $_.status -eq "Running" } |
 $skill = ".\.claude\skills\admiral\scripts"
 $wh    = "av-49jtc8yy9xi4"
 
-# 1. Ensure the warehouse is running and the Data API is enabled
-& "$skill\resource.ps1" -Action start              -ResourceType warehouse -ResourceId $wh
-& "$skill\resource.ps1" -Action configure-data-api -ResourceType warehouse -ResourceId $wh -Enable $true
+# 1. Ensure the warehouse is running
+& "$skill\resource.ps1" -Action start -ResourceType warehouse -ResourceId $wh
 
-# 2. Verify the Data API connection
-& "$skill\data_load.ps1" -Action connection-info -ResourceId $wh
+# 2. Verify the SQL connection (JDBC by default; add -Engine odbc to use ODBC)
+& "$skill\sql.ps1" -Action connection-info -ResourceId $wh
 
-# --- Option A: load a local CSV (small/medium files), via the Baas Object API ---
-& "$skill\data_load.ps1" -Action load-csv -Table sales_2025 -CsvFile data\sales_2025.csv -CreateTable
+# 3. Create the target table (real SQL DDL)
+& "$skill\sql.ps1" -Action create-table -Table sales_2025 `
+    -Columns "region VARCHAR(50), amount FLOAT, sale_date DATE"
 
-# --- Option B: bulk load from cloud storage (large files, fastest), via the Query Editor API ---
-#     The Baas Data API cannot run COPY, so cloud loads go through query_editor.ps1 (VWLOAD).
-& "$skill\query_editor.ps1" -Action run-sql `
-    -Sql "CREATE TABLE sales_2025 (region VARCHAR(50), amount FLOAT, sale_date DATE)"
-& "$skill\query_editor.ps1" -Action vwload-gcs -Table sales_2025 `
-    -Source "gs://my-bucket/sales/" -GcsKeyFile path\to\service-account.json -Header
-# (for S3, run a COPY … VWLOAD with AWS_ACCESS_KEY/AWS_SECRET_KEY/AWS_REGION via -Action run-sql)
+# --- Option A: load a local CSV (small/medium files), batched INSERT ---
+& "$skill\sql.ps1" -Action load-csv -Table sales_2025 -CsvFile data\sales_2025.csv
 
-# 3. Query the data (native SQL passthrough)
-& "$skill\data_load.ps1" -Action query `
+# --- Option B: bulk load from cloud storage (large files, fastest), COPY … VWLOAD ---
+# Step B1 (optional): confirm exact file names and extensions before loading
+& "$skill\sql.ps1" -Action list-gcs -Source "gs://my-bucket/sales" -GcsKeyFile path\to\sa.json
+
+# Step B2: load — RDELIM, QUOTE, string_truncation IGNORE auto-applied;
+#          AUTO_DETECT_COMPRESSION added automatically for .gz sources
+& "$skill\sql.ps1" -Action vwload -Table sales_2025 `
+    -Source "gs://my-bucket/sales/*.csv.gz" -GcsKeyFile path\to\sa.json -Header
+# (for S3: -Source "s3://my-bucket/sales.csv.gz" -AwsKey ... -AwsSecret ... -AwsRegion us-east-1)
+
+# 4. Query the data
+& "$skill\sql.ps1" -Action query `
     -Sql "SELECT region, SUM(amount) AS total FROM sales_2025 GROUP BY region ORDER BY total DESC"
+```
+
+---
+
+## Post-load data quality checklist
+
+Run these after any `vwload` to catch common issues before downstream queries see bad data.
+
+```powershell
+$skill = ".\.claude\skills\admiral\scripts"
+$t     = "my_table"
+
+# 1. Row count — confirm it matches expectation
+& "$skill\sql.ps1" -Action count -Table $t
+
+# 2. Categorical columns — spot case inconsistencies and unexpected values
+& "$skill\sql.ps1" -Action query -Sql "SELECT province, COUNT(*) AS n FROM $t GROUP BY province ORDER BY n DESC"
+
+# 3. Date range — confirm min/max are within expected bounds
+& "$skill\sql.ps1" -Action query -Sql "SELECT MIN(sale_date) AS earliest, MAX(sale_date) AS latest FROM $t"
+
+# 4. NULL audit — catch columns that loaded as all-NULL (common when column order mismatches)
+& "$skill\sql.ps1" -Action query -Sql @"
+SELECT 'amount'   AS col, COUNT(*) AS nulls FROM $t WHERE amount IS NULL
+UNION SELECT 'region', COUNT(*) FROM $t WHERE region IS NULL
+"@
+
+# 5. Fix case inconsistencies once found
+& "$skill\sql.ps1" -Action exec -Sql "UPDATE $t SET province = UPPER(province) WHERE province != UPPER(province)"
 ```

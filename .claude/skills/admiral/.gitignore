@@ -1,5 +1,8 @@
 admiral.config.json
 
-.qe_cookie
 *.gcs.json
 *-sa.json
+
+# compiled JDBC helpers (rebuilt on demand from *.java sources)
+SqlRunner.class
+GcsLister.class
