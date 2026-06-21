@@ -50,21 +50,21 @@ switch ($Action) {
     "list" {
         $r = Invoke-JrsRest -Jrs $jrs -Method GET -Path $rolesBase
         if ($r.Code -eq "204") { Write-Host "No roles found."; return }
-        if ($r.Code -notmatch '^2\d\d$') { throw "list failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "list failed" | Out-Null
         Write-Output $r.Body
         return
     }
     "get" {
         if (-not $Name) { throw "-Name is required for get" }
         $r = Invoke-JrsRest -Jrs $jrs -Method GET -Path "$rolesBase/$Name"
-        if ($r.Code -notmatch '^2\d\d$') { throw "get failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "get failed" | Out-Null
         Write-Output $r.Body
         return
     }
     "delete" {
         if (-not $Name) { throw "-Name is required for delete" }
         $r = Invoke-JrsRest -Jrs $jrs -Method DELETE -Path "$rolesBase/$Name"
-        if ($r.Code -notmatch '^(2\d\d|404)$') { throw "delete failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "delete failed" -Ok '^(2\d\d|404)$' | Out-Null
         Write-Host "OK ($($r.Code)): deleted role $Name"
         return
     }
@@ -77,7 +77,7 @@ switch ($Action) {
             $r = Invoke-JrsRest -Jrs $jrs -Method PUT -Path "$rolesBase/$Name" `
                 -ContentType "application/json" -Accept "application/json" -JsonFile $f
         } finally { Remove-Item $f -ErrorAction SilentlyContinue }
-        if ($r.Code -notmatch '^2\d\d$') { Write-Host $r.Body; throw "create failed HTTP $($r.Code)" }
+        Assert-JrsOk -Response $r -Operation "create failed" | Out-Null
         Write-Host "OK ($($r.Code)): created/updated role $Name"
         return
     }

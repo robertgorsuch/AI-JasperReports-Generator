@@ -63,7 +63,7 @@ switch ($Action) {
             $r = Invoke-JrsRest -Jrs $jrs -Method PUT -Path "/rest_v2/permissions$Uri" `
                 -ContentType "application/collection+json" -JsonFile $f
         } finally { Remove-Item $f -ErrorAction SilentlyContinue }
-        if ($r.Code -notmatch '^2\d\d$') { Write-Host $r.Body; throw "set permissions failed HTTP $($r.Code)" }
+        Assert-JrsOk -Response $r -Operation "set permissions failed" | Out-Null
         Write-Host "OK ($($r.Code)): set $($perms.Count) permission(s) on $Uri"
     }
     "clear" {
@@ -73,7 +73,7 @@ switch ($Action) {
             $r = Invoke-JrsRest -Jrs $jrs -Method PUT -Path "/rest_v2/permissions$Uri" `
                 -ContentType "application/collection+json" -JsonFile $f
         } finally { Remove-Item $f -ErrorAction SilentlyContinue }
-        if ($r.Code -notmatch '^2\d\d$') { Write-Host $r.Body; throw "clear permissions failed HTTP $($r.Code)" }
+        Assert-JrsOk -Response $r -Operation "clear permissions failed" | Out-Null
         Write-Host "OK ($($r.Code)): cleared explicit permissions on $Uri (back to inherited)"
     }
 }

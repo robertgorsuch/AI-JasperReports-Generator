@@ -77,21 +77,21 @@ switch ($Action) {
     "list" {
         $r = Invoke-JrsRest -Jrs $jrs -Method GET -Path $optBase
         if ($r.Code -eq "204") { Write-Host "No options found."; return }
-        if ($r.Code -notmatch '^2\d\d$') { throw "list failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "list failed" | Out-Null
         Write-Output $r.Body
         return
     }
     "get" {
         if (-not $Id) { throw "-Id is required for get" }
         $r = Invoke-JrsRest -Jrs $jrs -Method GET -Path "$optBase/$Id"
-        if ($r.Code -notmatch '^2\d\d$') { throw "get failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "get failed" | Out-Null
         Write-Output $r.Body
         return
     }
     "delete" {
         if (-not $Id) { throw "-Id is required for delete" }
         $r = Invoke-JrsRest -Jrs $jrs -Method DELETE -Path "$optBase/$Id"
-        if ($r.Code -notmatch '^(2\d\d|404)$') { throw "delete failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "delete failed" -Ok '^(2\d\d|404)$' | Out-Null
         Write-Host "OK ($($r.Code)): deleted option $Id"
         return
     }
@@ -99,11 +99,8 @@ switch ($Action) {
         # run the option's OWN sibling URI as a report (the verified pattern)
         if (-not $Id) { throw "-Id is required for run" }
         if (-not $OutFile) { $OutFile = "$Id.$Format" }
-        $dir = Split-Path -Parent $OutFile
-        if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
         $url = "$($jrs.ServerUrl)/rest_v2/reports$folder/$Id.$Format"
-        $code = & curl.exe -s -o $OutFile -w "%{http_code}" -u "$($jrs.User):$($jrs.Password)" $url
-        if ("$code".Trim() -notmatch '^2\d\d$') { throw "run failed HTTP $code" }
+        Invoke-JrsDownload -Jrs $jrs -Url $url -OutFile $OutFile | Out-Null
         Write-Host "OK: ran option $Id -> $OutFile ($((Get-Item $OutFile).Length) bytes)"
         return
     }
@@ -120,7 +117,7 @@ switch ($Action) {
             $r = Invoke-JrsRest -Jrs $jrs -Method POST -Path "${optBase}?label=$Label" `
                 -ContentType "application/json" -Accept "application/json" -JsonFile $f
         } finally { Remove-Item $f -ErrorAction SilentlyContinue }
-        if ($r.Code -notmatch '^2\d\d$') { Write-Host $r.Body; throw "create failed HTTP $($r.Code)" }
+        Assert-JrsOk -Response $r -Operation "create failed" | Out-Null
         Write-Host "OK ($($r.Code)): created option '$Label' on $ReportUri"
         if ($r.Body) { Write-Host $r.Body }
         return

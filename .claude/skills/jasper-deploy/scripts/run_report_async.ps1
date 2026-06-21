@@ -87,7 +87,7 @@ try {
         -ContentType "application/json" -Accept "application/json" -JsonFile $reqFile
 } finally { Remove-Item $reqFile -ErrorAction SilentlyContinue }
 
-if ($r.Code -notmatch '^2\d\d$') { Write-Host $r.Body; throw "submit failed HTTP $($r.Code)" }
+Assert-JrsOk -Response $r -Operation "submit failed" | Out-Null
 $exec = $r.Body | ConvertFrom-Json
 $rid = $exec.requestId
 $exportId = $exec.exports[0].id

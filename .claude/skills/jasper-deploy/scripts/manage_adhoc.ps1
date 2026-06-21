@@ -55,9 +55,10 @@ $adhocMedia = "application/repository.adhocDataView+json"
 
 switch ($Action) {
     "list" {
-        $u = "$($jrs.ServerUrl)/rest_v2/resources?folderUri=$Folder&recursive=true&type=adhocDataView"
-        $resp = & curl.exe -s -u "$($jrs.User):$($jrs.Password)" -H "Accept: application/json" $u
-        $items = try { ($resp | ConvertFrom-Json).resourceLookup } catch { @() }
+        $r = Invoke-JrsGet -Jrs $jrs -Uri "?folderUri=$Folder&recursive=true&type=adhocDataView"
+        # 200 = results, 204 = empty folder; anything else is a real error, not "no views".
+        Assert-JrsOk -Response $r -Operation "list ad hoc views under $Folder" -Ok '^2\d\d$' | Out-Null
+        $items = try { ($r.Body | ConvertFrom-Json).resourceLookup } catch { @() }
         if (-not $items) { Write-Host "no adhocDataView resources under $Folder"; return }
         $items | ForEach-Object { "{0,-65} {1}" -f $_.uri, $_.label } | Write-Host
         Write-Host "($($items.Count) ad hoc view(s))"
@@ -66,7 +67,7 @@ switch ($Action) {
         if (-not $Uri) { throw "-Action get requires -Uri" }
         if (-not $OutFile) { $OutFile = (($Uri -split "/")[-1]) + ".adhoc.json" }
         $r = Invoke-JrsGet -Jrs $jrs -Uri $Uri -Accept $adhocMedia
-        if ($r.Code -notmatch '^2\d\d$') { throw "get $Uri failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "get $Uri failed" | Out-Null
         $parent = Split-Path -Parent $OutFile
         if ($parent -and -not (Test-Path $parent)) { New-Item -ItemType Directory -Force $parent | Out-Null }
         $r.Body | Set-Content $OutFile -Encoding utf8

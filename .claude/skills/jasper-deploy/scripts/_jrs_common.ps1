@@ -10,6 +10,12 @@
                        the HTTP code + body.
   Invoke-JrsDelete   - DELETE a resource and return the HTTP code.
   Invoke-JrsGet      - GET a resource (Accept json) -> { Code; Body }.
+  Invoke-JrsDownload - GET any URL straight to a file (binary-safe), checking the
+                       HTTP status. Use for PDF/XLSX/zip output where the string
+                       body of Invoke-JrsGet/Rest would corrupt binary bytes.
+  Assert-JrsOk       - throw a uniform error unless a { Code; Body } response
+                       carries a 2xx (override -Ok to allow e.g. 404 on delete).
+                       Replaces the inline `if (-notmatch '^2\d\d$') { throw }`.
   Invoke-JrsRest     - generic call to ANY rest_v2 path (not just /resources):
                        arbitrary method, Content-Type, Accept, optional JSON body
                        from a file. Used by the jobs/alerts wrappers, whose
@@ -93,6 +99,48 @@ function Invoke-JrsGet {
     $code = $lines[-1].Trim()
     $body = if ($lines.Length -ge 2) { ($lines[0..($lines.Length - 2)] -join "`n").Trim() } else { "" }
     return [pscustomobject]@{ Code = $code; Body = $body }
+}
+
+function Assert-JrsOk {
+    # Throw a uniform error unless $Response.Code matches $Ok (default any 2xx).
+    # $Operation is the human label; the response body is appended for diagnostics.
+    # Returns $Response so it can be used inline: $r = Assert-JrsOk (Invoke-JrsGet ...) "get X".
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Response,           # { Code; Body } from an Invoke-Jrs* call
+        [Parameter(Mandatory)][string]$Operation,
+        [string]$Ok = '^2\d\d$'                     # success-code regex
+    )
+    if ("$($Response.Code)" -notmatch $Ok) {
+        throw "$Operation (HTTP $($Response.Code)): $($Response.Body)"
+    }
+    return $Response
+}
+
+function Invoke-JrsDownload {
+    # GET $Url straight to $OutFile (binary-safe via curl -o) and check the status.
+    # $Url is the full URL -- binary endpoints live under /rest_v2/reports and
+    # /rest_v2/reportExecutions, not just /resources, so the caller builds it.
+    # Returns the HTTP code. Throws on non-2xx unless -AllowError (then the caller
+    # inspects the returned code, e.g. to report size/magic on its own).
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Jrs,
+        [Parameter(Mandatory)][string]$Url,
+        [Parameter(Mandatory)][string]$OutFile,
+        [string]$Accept,
+        [switch]$AllowError
+    )
+    $parent = Split-Path -Parent $OutFile
+    if ($parent -and -not (Test-Path $parent)) { New-Item -ItemType Directory -Force $parent | Out-Null }
+    $cArgs = @("-s", "-S", "-o", $OutFile, "-w", "%{http_code}", "-u", "$($Jrs.User):$($Jrs.Password)")
+    if ($Accept) { $cArgs += @("-H", "Accept: $Accept") }
+    $cArgs += $Url
+    $code = "$(& curl.exe @cArgs)".Trim()
+    if (-not $AllowError -and $code -notmatch '^2\d\d$') {
+        throw "download failed (HTTP $code) for $Url"
+    }
+    return $code
 }
 
 function Invoke-JrsRest {

@@ -116,21 +116,21 @@ switch ($Action) {
         $q = if ($ReportUri) { "?reportUnitURI=$ReportUri" } else { "" }
         $r = Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/jobs$q"
         if ($r.Code -eq "204") { Write-Host "No jobs found."; return }
-        if ($r.Code -notmatch '^2\d\d$') { throw "list failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "list failed" | Out-Null
         Write-Output $r.Body          # to the output stream so callers can capture/pipe
         return
     }
     "get" {
         if (-not $Id) { throw "-Id is required for get" }
         $r = Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/jobs/$Id" -Accept $JOB_MEDIA
-        if ($r.Code -notmatch '^2\d\d$') { throw "get failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "get failed" | Out-Null
         Write-Output $r.Body
         return
     }
     "delete" {
         if (-not $Id) { throw "-Id is required for delete" }
         $r = Invoke-JrsRest -Jrs $jrs -Method DELETE -Path "/rest_v2/jobs/$Id"
-        if ($r.Code -notmatch '^2\d\d$') { throw "delete failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "delete failed" | Out-Null
         Write-Host "OK ($($r.Code)): deleted job $Id"
         return
     }
