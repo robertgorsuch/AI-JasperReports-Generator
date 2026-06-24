@@ -525,10 +525,10 @@ def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
     title_h = 44 if subtitle else 28
     out.append(f'\t<title height="{title_h}">')
     out.append(el_static(0, 0, col_w, 24, escape(title), fontsize=t["title_size"],
-                         bold=True, forecolor=t["title_fg"], valign=None))
+                         bold=True, forecolor=t["title_fg"], halign="Center", valign=None))
     if subtitle:
         out.append(el_static(0, 26, col_w, 14, escape(subtitle), fontsize=9.0,
-                             forecolor=t["subtitle_fg"], valign=None))
+                             forecolor=t["subtitle_fg"], halign="Center", valign=None))
     out.append('\t</title>')
     out.append('')
 
