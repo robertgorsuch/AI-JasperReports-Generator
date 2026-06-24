@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TCO Comparison: Jaspersoft vs SAP Crystal Reports</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1a1a1a; }
+  h1 { color: #16224b; font-size: 22pt; margin-bottom: 2pt; }
+  h2 { color: #16224b; font-size: 15pt; border-bottom: 2px solid #2452c4; padding-bottom: 3pt; margin-top: 22pt; }
+  h3 { color: #2452c4; font-size: 12.5pt; margin-top: 14pt; }
+  .subtitle { color: #555; font-size: 12pt; margin-top: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0 14pt 0; font-size: 10pt; }
+  th { background: #16224b; color: #ffffff; text-align: left; padding: 6px 8px; border: 1px solid #2452c4; }
+  td { padding: 5px 8px; border: 1px solid #c9d2e8; vertical-align: top; }
+  tr:nth-child(even) td { background: #eef2fb; }
+  .num { text-align: right; white-space: nowrap; }
+  .tot td { background: #16224b !important; color: #fff; font-weight: bold; }
+  .win { color: #1a7a32; font-weight: bold; }
+  .cau { color: #b0143c; font-weight: bold; }
+  .note { background: #eef2fb; border-left: 4px solid #2452c4; padding: 8px 12px; margin: 10pt 0; font-size: 10.5pt; }
+  .cav { background: #fff6e6; border-left: 4px solid #b06a00; padding: 8px 12px; margin: 10pt 0; font-size: 10pt; }
+  ul { margin-top: 4pt; }
+  .small { font-size: 9pt; color: #555; }
+</style>
+</head>
+<body>
+
+<h1>Total Cost of Ownership: Jaspersoft vs. SAP Crystal Reports</h1>
+<p class="subtitle">3-year TCO across authoring, departmental-server, and OEM/embedded scenarios</p>
+
+<div class="note"><b>Bottom line:</b> The two tools use fundamentally different cost models. <b>Crystal Reports = perpetual licenses</b> (one-time purchase per user/server + paid support + per-seat scaling). <b>Jaspersoft = open-source core ($0) with an optional annual subscription</b> for the commercial platform. For pure report authoring and self-hosted delivery, <b>Jaspersoft's license TCO is $0</b>; you trade software cost for in-house effort. For embedded SaaS / multi-tenant analytics, Jaspersoft is architecturally suited (and cost-predictable as a subscription) where Crystal requires per-server web-distribution licensing that scales poorly.</p>
+
+<h2>1. Source pricing</h2>
+
+<h3>1a. SAP Crystal Reports — from "Crystal Reports Pricing.docx" (as of 2026)</h3>
+<table>
+<tr><th>Item</th><th>Cost</th><th>Model</th></tr>
+<tr><td>Crystal Reports 2020/2025 (full designer, per user)</td><td class="num">$495</td><td>One-time (perpetual)</td></tr>
+<tr><td>Crystal Reports upgrade (per user)</td><td class="num">$295</td><td>One-time</td></tr>
+<tr><td>Crystal Server 2020 (1 Named User, incl. yr-1 maintenance)</td><td class="num">~$869</td><td>Perpetual + maint.</td></tr>
+<tr><td>Crystal Server (5 Concurrent Users, CAL)</td><td class="num">~$8,744</td><td>Perpetual</td></tr>
+<tr><td>Crystal Reports Viewer (static viewing only)</td><td class="num">Free</td><td>—</td></tr>
+<tr><td>Desktop runtime engine</td><td class="num">Free</td><td>Web distribution needs special licensing</td></tr>
+<tr><td>Implementation (typical &rarr; complex)</td><td class="num">$1,000–$5,000+</td><td>One-time (can exceed $10k)</td></tr>
+<tr><td>Training (per user)</td><td class="num">$200–$1,000</td><td>One-time</td></tr>
+<tr><td>Maintenance / support</td><td class="num">recurring</td><td>Annual on top of license</td></tr>
+</table>
+<p class="small">Reference points from the document: smaller teams ~$1,060 initial; medium businesses ~$11,728. Third-party web option (ReCrystallize Server) ~$995–$1,495.</p>
+
+<h3>1b. Jaspersoft — editions</h3>
+<table>
+<tr><th>Item</th><th>Cost</th><th>Model</th></tr>
+<tr><td>JasperReports Library (engine)</td><td class="num">Free</td><td>Open source (LGPL)</td></tr>
+<tr><td>Jaspersoft Studio (designer)</td><td class="num">Free</td><td>Open source</td></tr>
+<tr><td>JasperReports Server — Community</td><td class="num">Free</td><td>Open source, self-hosted</td></tr>
+<tr><td>JasperReports Server — Professional</td><td class="num">Annual subscription (quoted)</td><td>Subscription</td></tr>
+<tr><td>JasperReports Server — Enterprise / OEM</td><td class="num">Annual subscription (quoted)</td><td>Subscription</td></tr>
+<tr><td>Embedded viewing (Visualize.js / Library)</td><td class="num">Included</td><td>No per-viewer fee</td></tr>
+</table>
+
+<div class="cav"><b>Pricing caveat:</b> Jaspersoft (Cloud Software Group) does <b>not publish</b> commercial list prices &mdash; Professional/Enterprise/OEM are sales-quoted. The figures used for Jaspersoft commercial in the scenarios below are <b>illustrative planning estimates</b>, clearly flagged, not quotes. The <b>$0 Community</b> column is exact. Confirm commercial numbers with a vendor quote before budgeting.</p></div>
+
+<h2>2. Cost-model contrast</h2>
+<table>
+<tr><th>Dimension</th><th>Crystal Reports</th><th>Jaspersoft</th></tr>
+<tr><td>License model</td><td>Perpetual (one-time)</td><td>Open-source $0, or subscription</td></tr>
+<tr><td>Up-front cost</td><td>Higher (buy seats + server)</td><td>$0 (Community) to moderate</td></tr>
+<tr><td>Recurring cost</td><td>Optional maintenance/support</td><td>Subscription (commercial) or $0 (Community)</td></tr>
+<tr><td>Per-end-user viewing</td><td>Server CAL/NUL scales with users</td><td>No per-viewer license</td></tr>
+<tr><td>Web/embedded distribution</td><td class="cau">Special licensing required</td><td class="win">Built in (Visualize.js / OEM)</td></tr>
+<tr><td>Multi-tenancy</td><td class="cau">Not native</td><td class="win">Native (organizations)</td></tr>
+<tr><td>Cost predictability at scale</td><td>Step-function (buy more CALs/servers)</td><td>Flat subscription or $0 + infra</td></tr>
+</table>
+
+<h2>3. Scenario A — Individual / small authoring (no server)</h2>
+<p>2 report authors building documents distributed as PDF/static files. 3-year horizon.</p>
+<table>
+<tr><th>Cost component</th><th class="num">Crystal Reports</th><th class="num">Jaspersoft (Community)</th></tr>
+<tr><td>Designer licenses (2 authors)</td><td class="num">$990 (2 &times; $495)</td><td class="num">$0 (Studio free)</td></tr>
+<tr><td>Engine / runtime (desktop)</td><td class="num">$0</td><td class="num">$0 (Library free)</td></tr>
+<tr><td>Viewer for recipients</td><td class="num">$0 (free viewer)</td><td class="num">$0 (PDF)</td></tr>
+<tr><td>Training (2 &times; ~$400)</td><td class="num">$800</td><td class="num">$0–$800 (self/internal)</td></tr>
+<tr><td>Support (optional)</td><td class="num">incl. yr 1</td><td class="num">$0 (community)</td></tr>
+<tr class="tot"><td>3-year TCO (software)</td><td class="num">~$1,790</td><td class="num">~$0–$800</td></tr>
+</table>
+<p><b>Verdict:</b> <span class="win">Jaspersoft Community wins on hard cost</span> ($0 software). Crystal's edge is a polished WYSIWYG designer and a no-effort free viewer; you pay ~$1,800 for that convenience over three years.</p>
+
+<h2>4. Scenario B — Departmental server, 5 users</h2>
+<p>Shared server delivering interactive reports to ~5 concurrent business users, plus 2 authors. 3-year horizon.</p>
+<table>
+<tr><th>Cost component</th><th class="num">Crystal (Server CAL)</th><th class="num">Jaspersoft Community</th><th class="num">Jaspersoft Professional*</th></tr>
+<tr><td>Server license</td><td class="num">$8,744 (5 CAL)</td><td class="num">$0</td><td class="num">~$6,000–$12,000 / yr*</td></tr>
+<tr><td>Designer licenses (2)</td><td class="num">$990</td><td class="num">$0</td><td class="num">$0</td></tr>
+<tr><td>Implementation (one-time)</td><td class="num">$3,000</td><td class="num">$2,000–$4,000 (internal)</td><td class="num">$3,000–$6,000</td></tr>
+<tr><td>Training (5 &times; ~$500)</td><td class="num">$2,500</td><td class="num">$0–$2,500</td><td class="num">$2,500</td></tr>
+<tr><td>Infrastructure (3 yr)</td><td class="num">~$6,000</td><td class="num">~$6,000</td><td class="num">~$6,000</td></tr>
+<tr><td>Maintenance/support (yr 2–3)</td><td class="num">~$3,500</td><td class="num">$0</td><td class="num">incl. in subscription</td></tr>
+<tr class="tot"><td>3-year TCO</td><td class="num">~$24,700</td><td class="num">~$8,000–$18,500</td><td class="num">~$29,500–$54,500*</td></tr>
+</table>
+<p class="small">*Jaspersoft Professional subscription figures are <b>illustrative</b> (no public list price). Infrastructure assumed identical (~$2k/yr cloud/on-prem) across all options; it is not a differentiator. Internal implementation/training for Community is in-house labor, not vendor fees.</p>
+<p><b>Verdict:</b> <span class="win">Jaspersoft Community has the lowest 3-year TCO</span> (no license, no per-CAL scaling, no support fees) &mdash; the cost shifts to internal staffing. <b>Crystal sits in the middle</b> with predictable perpetual cost but per-user CAL scaling. <b>Jaspersoft Professional</b> only pays off when you need the commercial platform features (Ad Hoc self-service, dashboards, multi-tenancy, vendor SLA) &mdash; then you're buying capability Crystal can't match at any price.</p>
+
+<h2>5. Scenario C — OEM / embedded SaaS (multi-tenant, white-label)</h2>
+<p>Embed analytics in a SaaS product serving many customer tenants under your own brand. 3-year horizon.</p>
+<table>
+<tr><th>Cost component</th><th class="num">Crystal Reports</th><th class="num">Jaspersoft (Enterprise/OEM)*</th></tr>
+<tr><td>Web/embedded distribution license</td><td class="cau">Special web licensing; per-server/core</td><td class="num">Subscription incl. embedding rights</td></tr>
+<tr><td>Multi-tenant isolation</td><td class="cau">Not native — build it yourself</td><td class="win">Native (organizations + attributes)</td></tr>
+<tr><td>White-label / custom UI</td><td class="cau">Limited (viewer/SDK chrome)</td><td class="win">Visualize.js + per-org themes</td></tr>
+<tr><td>Per-tenant scaling cost</td><td class="cau">Add servers/CALs as tenants grow</td><td class="num">Flat subscription (cost-predictable)</td></tr>
+<tr><td>Self-service for end customers</td><td class="cau">None</td><td class="win">Ad Hoc / Domains</td></tr>
+<tr><td>Engineering effort to embed</td><td class="cau">High (SDK + DIY tenancy/auth)</td><td class="num">Moderate (SSO token + Visualize.js)</td></tr>
+<tr class="tot"><td>Fit for OEM SaaS</td><td class="num">Poor / costly to scale</td><td class="num">Purpose-built</td></tr>
+</table>
+<p class="small">*Jaspersoft OEM subscription is custom-quoted (often revenue/tenant-based).</p>
+<p><b>Verdict:</b> <span class="win">Jaspersoft is the clear TCO winner for OEM/embedded SaaS.</span> Crystal's perpetual model and special web-distribution licensing turn into a per-server/per-core cost that grows with tenants, plus you build multi-tenancy and white-labeling yourself. Jaspersoft's subscription is flat and predictable, and the platform <i>is</i> the multi-tenant white-label engine &mdash; lower total cost <b>and</b> far lower engineering risk at scale.</p>
+
+<h2>6. Break-even &amp; sensitivity</h2>
+<ul>
+<li><b>Few authors, static output:</b> Jaspersoft Community is effectively free; Crystal costs ~$495/seat. Crystal only justifies its price by designer ergonomics.</li>
+<li><b>Growing viewer count:</b> Crystal Server CALs/NULs scale with users; Jaspersoft has <b>no per-viewer license</b>, so its curve flattens as users grow &mdash; the more end users, the more Jaspersoft wins.</li>
+<li><b>Need self-service / dashboards / multi-tenancy:</b> Crystal can't do these natively at any price; Jaspersoft Professional/Enterprise is the only path &mdash; compare against build-it-yourself, not against Crystal.</li>
+<li><b>Perpetual vs subscription:</b> Crystal's one-time fee looks cheaper in isolation, but add support, web-distribution licensing, and per-seat growth and the gap narrows; Jaspersoft Community removes license cost entirely in exchange for in-house effort.</li>
+</ul>
+
+<h2>7. Capability differences that drive TCO</h2>
+<table>
+<tr><th>Capability</th><th>Crystal Reports</th><th>Jaspersoft</th></tr>
+<tr><td>Pixel-perfect report authoring</td><td class="win">Excellent (mature WYSIWYG)</td><td>Strong (Studio + JR engine)</td></tr>
+<tr><td>Export formats (PDF/XLSX/etc.)</td><td>Yes</td><td>Yes (all major)</td></tr>
+<tr><td>Self-service Ad Hoc analytics</td><td class="cau">No</td><td class="win">Yes (Pro)</td></tr>
+<tr><td>Interactive dashboards</td><td>Limited</td><td class="win">Yes (Pro)</td></tr>
+<tr><td>Web/embedded (Visualize.js)</td><td class="cau">SDK + special licensing</td><td class="win">Native, no per-viewer fee</td></tr>
+<tr><td>Multi-tenancy</td><td class="cau">No</td><td class="win">Native organizations</td></tr>
+<tr><td>Open-source / $0 entry</td><td class="cau">No</td><td class="win">Yes (Community)</td></tr>
+<tr><td>Ecosystem lock-in</td><td>SAP/.NET-centric</td><td>Open, Java/REST/JS</td></tr>
+</table>
+
+<h2>8. Recommendation</h2>
+<ul>
+<li><b>Pure report authoring / static distribution, cost-sensitive:</b> <b>Jaspersoft Community</b> ($0 software). Choose Crystal only if its designer ergonomics justify ~$495/seat.</li>
+<li><b>Departmental BI with self-service, dashboards, or vendor support:</b> <b>Jaspersoft Professional</b> &mdash; you buy capability Crystal lacks; compare against build-your-own, not Crystal.</li>
+<li><b>Embedded / OEM / multi-tenant SaaS:</b> <b>Jaspersoft Enterprise/OEM</b> &mdash; lowest TCO and lowest risk; Crystal is the wrong architecture and its web licensing scales badly.</li>
+<li><b>Crystal remains preferable</b> only for teams already standardized on SAP/.NET who need its specific designer and want a one-time perpetual purchase with no platform ambitions.</li>
+</ul>
+
+<div class="cav"><b>Note on figures:</b> Crystal numbers are taken from the supplied "Crystal Reports Pricing.docx" (2026). Jaspersoft commercial subscription amounts are <b>illustrative planning estimates only</b> &mdash; Jaspersoft does not publish list prices; obtain a vendor quote before final budgeting. Implementation, training, and infrastructure figures are typical-range planning assumptions and will vary by project.</div>
+
+</body>
+</html>

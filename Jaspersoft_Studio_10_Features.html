@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jaspersoft Studio 10 — Feature &amp; Functionality Summary</title>
+<style>
+  body { font-family: 'Calibri', 'Segoe UI', sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.4; }
+  h1 { font-family: 'Calibri Light', 'Segoe UI Light', sans-serif; color: #1a3a5c; font-size: 24pt; margin-bottom: 2pt; }
+  .subtitle { color: #5a6b7b; font-size: 12pt; margin-top: 0; margin-bottom: 16pt; }
+  h2 { color: #1a3a5c; font-size: 15pt; border-bottom: 1.5pt solid #2e6da4; padding-bottom: 3pt; margin-top: 18pt; }
+  h3 { color: #2e6da4; font-size: 12pt; margin-bottom: 2pt; }
+  ul { margin-top: 4pt; }
+  li { margin-bottom: 3pt; }
+  table { border-collapse: collapse; width: 100%; margin: 10pt 0; }
+  th { background-color: #1a3a5c; color: #ffffff; text-align: left; padding: 6pt 8pt; font-size: 10.5pt; }
+  td { border: 0.75pt solid #c8d2dc; padding: 5pt 8pt; font-size: 10.5pt; vertical-align: top; }
+  tr:nth-child(even) td { background-color: #eef3f8; }
+  code { font-family: 'Consolas', monospace; background-color: #eef1f4; padding: 1pt 3pt; font-size: 10pt; }
+  .note { background-color: #f4f8fb; border-left: 3pt solid #2e6da4; padding: 8pt 12pt; margin-top: 14pt; }
+</style>
+</head>
+<body>
+
+<h1>Jaspersoft Studio 10</h1>
+<p class="subtitle">Feature &amp; Functionality Summary</p>
+
+<p>Jaspersoft Studio is the official <strong>Eclipse-based desktop report designer</strong> for the
+JasperReports ecosystem. Version 10 is the design-time counterpart to <strong>JasperReports Library 7.x</strong>
+and <strong>JasperReports Server 10.0</strong>, and it produces JR7-native <code>.jrxml</code> reports. It
+replaced the legacy iReport Designer and is distributed both as a standalone RCP application and as an Eclipse
+plug-in.</p>
+
+<h2>Core Design Environment</h2>
+<ul>
+  <li><strong>WYSIWYG visual designer</strong> with drag-and-drop bands (Title, Page/Column Header &amp; Footer, Group Header/Footer, Detail, Summary, Background, No-Data).</li>
+  <li><strong>Multiple synchronized editors</strong> per report: visual <em>Design</em> canvas, raw <em>Source</em> (jrxml XML), and <em>Preview</em> (live render against real data).</li>
+  <li><strong>Outline view</strong> (full report tree), <strong>Properties view</strong> (context-sensitive element attributes), <strong>Palette</strong> (all element/component types), and <strong>Report Inspector</strong>.</li>
+  <li><strong>Project/workspace model</strong> — reports organized into JasperReports projects with classpath, resources, and build settings.</li>
+  <li>Snapping, alignment guides, rulers, z-order, element grouping, and styles management.</li>
+</ul>
+
+<h2>Data Connectivity</h2>
+<p><strong>Data Adapters</strong> are reusable, portable connection definitions stored as <code>.jrdax</code> files:</p>
+<ul>
+  <li><strong>JDBC</strong> (any driver — PostgreSQL, Oracle, SQL Server, MySQL, etc.)</li>
+  <li><strong>JNDI</strong>, <strong>Spring/Bean</strong>, <strong>Hibernate / JPA</strong></li>
+  <li><strong>CSV, XML, XPath/XPath2, JSON / JSONQL, Excel (XLS/XLSX)</strong></li>
+  <li><strong>Empty / "one-record"</strong> adapters for static or component-only reports</li>
+  <li><strong>Domain / Topic</strong> and <strong>JRS-backed</strong> adapters</li>
+  <li>Custom data-source providers via the extension API</li>
+</ul>
+<ul>
+  <li><strong>Query Designer</strong> with SQL builder and support for SQL, HQL, JSON, XPath, MDX, and Domain/EJBQL query languages, plus a visual outline of result fields.</li>
+  <li><strong>Dataset &amp; field discovery</strong> — auto-introspects columns and maps them to Java field classes.</li>
+</ul>
+
+<h2>Report Building Blocks</h2>
+<ul>
+  <li><strong>Fields, Variables, Parameters</strong> with default-value expressions and calculation types (Sum, Average, Count, Highest/Lowest, etc.).</li>
+  <li><strong>Expression Editor</strong> with autocomplete, a function library, and built-in functions (text, math, date/time, logical); expressions in Java, <strong>Groovy</strong>, or JavaScript.</li>
+  <li><strong>Groups</strong> with headers/footers, subtotals, and group-based page/column breaks.</li>
+  <li><strong>Styles</strong> — named styles, <strong>conditional styles</strong>, and <strong>external shared style templates (<code>.jrtx</code>)</strong> referenced across many reports.</li>
+  <li><strong>Subreports</strong> and <strong>subdatasets</strong> for nested/embedded data.</li>
+</ul>
+
+<h2>Visualization &amp; Components</h2>
+<ul>
+  <li><strong>Tables</strong> (with their own dataset), <strong>Lists</strong>, and <strong>Crosstabs</strong> (pivot tables with row/column groups, measures, totals).</li>
+  <li><strong>JFreeChart-based charts</strong> (pie, bar, line, area, stacked, scatter, time series, etc.).</li>
+  <li><strong>HTML5 / Highcharts charts</strong> and <strong>Fusion charts/maps/widgets</strong> (Pro / server-rendered).</li>
+  <li><strong>Spider/radar charts</strong>, <strong>gauges</strong>, <strong>maps</strong> (Google/Fusion), <strong>barcodes &amp; QR codes</strong> (barcode4j / ZXing).</li>
+  <li><strong>Generic and custom components</strong> via the component extension framework.</li>
+  <li>Images, text fields, static text, frames, rectangles, lines, ellipses, hyperlinks, anchors, and bookmarks.</li>
+</ul>
+
+<h2>Server Integration (JasperReports Server)</h2>
+<ul>
+  <li><strong>Repository Explorer</strong> — connect to one or more JRS instances, browse the repository, and <strong>drag resources</strong> in/out.</li>
+  <li><strong>Publish/deploy</strong> reports, images, fonts, resource bundles, and data adapters directly to the server.</li>
+  <li>Create and manage <strong>Input Controls</strong> (including query-backed and cascading) and run reports server-side from the IDE.</li>
+  <li>Edit server-side resources in place; supports <strong>JRS 10.0</strong> REST connectivity and Pro/Enterprise features.</li>
+</ul>
+
+<h2>Output / Export Formats</h2>
+<p>PDF, HTML, XLS/XLSX, CSV, DOCX, PPTX, RTF, ODT/ODS, XML, plain text, and image formats — each with per-format
+export configuration (page setup, fonts, pagination, metadata).</p>
+
+<h2>Advanced / Developer Features</h2>
+<ul>
+  <li><strong>Internationalization</strong> — resource bundles, locale-aware formatting, and right-to-left support.</li>
+  <li><strong>Custom fonts</strong> — font extensions (<code>.jar</code>) for embedded/PDF font handling.</li>
+  <li><strong>Scriptlets</strong> and the full JasperReports <strong>extension API</strong> (custom components, query executers, data sources, functions).</li>
+  <li><strong>Book reports</strong> — multi-part documents combining several report parts.</li>
+  <li><strong>Virtualization</strong> and large-report handling; pagination control.</li>
+  <li><strong>Maven/Gradle-friendly</strong> output; integrates into CI build pipelines.</li>
+  <li><strong>Git/SCM friendly</strong> since the jrxml is plain XML.</li>
+</ul>
+
+<h2>Platform Notes for v10</h2>
+<ul>
+  <li>Built on a current <strong>Eclipse 4.x / RCP</strong> platform; runs on Windows, macOS, and Linux.</li>
+  <li>Requires <strong>Java 11+</strong> (aligned with JR7's runtime baseline).</li>
+  <li>Available in <strong>Community</strong> (open-source JR features) and <strong>Professional</strong> editions (adds Pro components — Highcharts/Fusion, HTML5 dashlets, advanced server features).</li>
+  <li>Produces <strong>JR7-native jrxml</strong> — the schema is <em>not</em> backward-compatible with the 6.x format; opening older reports triggers an upgrade.</li>
+</ul>
+
+<h2>Studio vs. Scripted Deployment</h2>
+<table>
+  <tr><th>Capability</th><th>Jaspersoft Studio 10 (GUI)</th><th>Scripted (jasper-deploy)</th></tr>
+  <tr><td>Design jrxml from SQL</td><td>Visual drag-and-drop designer</td><td><code>scaffold_jrxml.py</code></td></tr>
+  <tr><td>Compile / validate</td><td>Built-in compiler &amp; preview</td><td><code>compile_jrxml.ps1</code></td></tr>
+  <tr><td>Deploy to JRS 10.0</td><td>Repository Explorer publish</td><td><code>deploy_report.ps1</code></td></tr>
+  <tr><td>Datasources / Domains / Themes</td><td>Wizards &amp; designers</td><td><code>create_datasource.ps1</code> / <code>create_domain.ps1</code> / <code>deploy_theme.ps1</code></td></tr>
+  <tr><td>Dashboards (report tiles)</td><td>Dashboard designer</td><td><code>build_dashlets.ps1 -Compose</code></td></tr>
+  <tr><td>Promote / back up</td><td>Export/import dialogs</td><td><code>export_resource.ps1</code> / <code>import_resource.ps1</code></td></tr>
+  <tr><td>Reproducible / CI pipeline</td><td>Manual, interactive</td><td>Fully scripted</td></tr>
+</table>
+
+<div class="note">
+<strong>Relation to this toolkit:</strong> the <code>/jasper-deploy</code> skill scripts the same lifecycle that
+Jaspersoft Studio performs interactively — scaffolding jrxml, compiling against the JR7 runtime, creating
+datasources/domains/style templates, and deploying to JRS 10.0 over REST. Studio is the GUI path; the scripts are
+the reproducible/CI path. The few artifacts that still benefit from Studio are single-CSV query-executer reports,
+multi-table Domains, and filter-group / input-control dashboards.
+</div>
+
+</body>
+</html>

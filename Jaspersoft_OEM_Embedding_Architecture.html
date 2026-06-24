@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Jaspersoft ISV/OEM Embedding — Architecture Overview</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1a1a1a; }
+  h1 { font-family: Calibri, Arial, sans-serif; color: #16224b; font-size: 23pt; margin-bottom: 2pt; }
+  h2 { font-family: Calibri, Arial, sans-serif; color: #16224b; font-size: 15pt; border-bottom: 2px solid #2452c4; padding-bottom: 3pt; margin-top: 22pt; }
+  h3 { font-family: Calibri, Arial, sans-serif; color: #2452c4; font-size: 12.5pt; margin-top: 14pt; }
+  .subtitle { color: #555; font-size: 12pt; margin-top: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0 14pt 0; font-size: 10pt; }
+  th { background: #16224b; color: #ffffff; text-align: left; padding: 6px 8px; border: 1px solid #2452c4; }
+  td { padding: 5px 8px; border: 1px solid #c9d2e8; vertical-align: top; }
+  tr:nth-child(even) td { background: #eef2fb; }
+  .note { background: #eef2fb; border-left: 4px solid #2452c4; padding: 8px 12px; margin: 10pt 0; font-size: 10.5pt; }
+  .rule { color: #16224b; }
+  code, pre { font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; }
+  pre { background: #f4f6fb; border: 1px solid #c9d2e8; padding: 8px 10px; white-space: pre-wrap; }
+  ul { margin-top: 4pt; }
+  ol { margin-top: 4pt; }
+</style>
+</head>
+<body>
+
+<h1>Jaspersoft ISV/OEM Embedding &mdash; Architecture Overview</h1>
+<p class="subtitle">API structure &middot; white-labeling &middot; multi-tenancy model</p>
+
+<p>This is the reference architecture for embedding Jaspersoft (JasperReports Server Professional/Enterprise) inside a SaaS or commercial application &mdash; the model an ISV/OEM uses to deliver analytics to <i>their</i> end customers under <i>their own</i> brand, with each customer's data isolated.</p>
+
+<h2>1. The big picture &mdash; three planes</h2>
+<table>
+<tr><th>Plane</th><th>What lives here</th><th>OEM concern</th></tr>
+<tr><td><b>Presentation</b></td><td>Your app's UI; embedded reports/dashboards/Ad Hoc</td><td>White-labeling, seamless UX</td></tr>
+<tr><td><b>Integration/API</b></td><td>Visualize.js, REST v2, SSO/token auth</td><td>How your app talks to JRS</td></tr>
+<tr><td><b>Platform / data</b></td><td>JRS server, repository, datasources, <b>organizations</b></td><td>Multi-tenancy, isolation, scale</td></tr>
+</table>
+<p>The defining principle: <b>your application is the system of record for identity and tenancy; JasperReports Server is a headless analytics service</b> that your app authenticates into and renders inside its own pages. End users should never see the native JRS login or know the server exists.</p>
+
+<h2>2. API structure &mdash; the integration surface</h2>
+<p>Jaspersoft exposes <b>four integration layers</b>, from richest/most-seamless to most-raw:</p>
+
+<h3>2a. Visualize.js &mdash; the primary OEM embedding API</h3>
+<p>A JavaScript framework (<code>&lt;server&gt;/client/visualize.js</code>) that renders reports, dashboards, Ad Hoc views, and input controls <b>directly into a DOM element</b> in your page &mdash; no iframe required.</p>
+<ul>
+<li>Programmatic control: run, refresh, pass params, export, hook events, drill, pagination</li>
+<li>Renders the <i>content only</i> &mdash; your app supplies all surrounding chrome</li>
+<li><b>Cross-origin</b>: serve your app from a different origin than JRS; CORS is governed server-side by the <code>domainWhitelist</code> setting</li>
+<li>This is the <b>recommended</b> path for a polished, fully-branded embed</li>
+</ul>
+<pre>&lt;script src="http://JRS_HOST/jasperserver-pro/client/visualize.js"&gt;&lt;/script&gt;
+&lt;div id="report"&gt;&lt;/div&gt;
+&lt;script&gt;
+visualize({ auth: { /* token or login */ } }, function (v) {
+  v.report({ resource: "/reports/tenantA/sales", container: "#report",
+             params: {...}, events: { reportCompleted: ... } });
+});
+&lt;/script&gt;</pre>
+
+<h3>2b. REST v2 API &mdash; server-to-server control plane</h3>
+<p>The HTTP service backing everything in the toolkit (<code>/rest_v2/...</code>). Used by <b>your backend</b>, not the browser, for:</p>
+<ul>
+<li><b>Provisioning</b>: <code>organizations</code>, <code>users</code>, <code>roles</code>, <code>attributes</code>, <code>permissions</code>, <code>resources</code> (deploy reports/datasources/Domains)</li>
+<li><b>Execution</b>: <code>reports/{uri}.{fmt}</code> (sync) and <code>reportExecutions</code> (async, for large fills)</li>
+<li><b>Lifecycle</b>: <code>export</code>/<code>import</code> (promote tenant content dev&rarr;prod), <code>jobs</code> (schedule), <code>alerts</code></li>
+<li>Auth: HTTP Basic or session cookie; ideal for <b>automated tenant onboarding</b></li>
+</ul>
+
+<h3>2c. Embedded iframe / HTTP endpoints</h3>
+<p>The classic, lowest-effort embed: an <code>&lt;iframe&gt;</code> to a report URL, or a direct <code>/rest_v2/reports/{uri}.pdf</code> link. Simple but exposes more native chrome and is harder to brand &mdash; a fallback, not the OEM-preferred route.</p>
+
+<h3>2d. JasperReports Library (in-process embedding)</h3>
+<p>Embed the <b>open-source engine</b> directly in your Java app (no server) &mdash; fill a <code>.jasper</code> against a <code>Connection</code> and export. Suits report <i>generation</i> (PDF/XLSX) inside an app, but gives you none of the server platform (no multi-tenancy, scheduling, self-service). Use when you only need document generation.</p>
+
+<div class="note"><b>Decision rule:</b> Visualize.js for interactive embedded analytics &rarr; REST v2 for backend provisioning/automation &rarr; Library only for pure in-app document rendering.</div>
+
+<h2>3. Authentication &amp; SSO for embedding</h2>
+<p>The OEM challenge: users authenticate against <i>your</i> app, then need to reach JRS <b>without a second login</b>. Options, in order of OEM-fitness:</p>
+<table>
+<tr><th>Mechanism</th><th>How it works</th><th>When</th></tr>
+<tr><td><b>Token-based SSO (pre-auth)</b></td><td>Your app sends a signed/encrypted token (shared secret); a JRS auth filter validates it, maps to a user/org/roles, and <b>auto-provisions</b> on first sight</td><td><b>The OEM standard</b> &mdash; single sign-on, JIT user creation</td></tr>
+<tr><td><b>Encrypted login params</b></td><td>Visualize.js <code>auth</code> with credentials encrypted via the server's public key</td><td>Quick embed where you hold per-tenant creds</td></tr>
+<tr><td><b>External auth (LDAP/AD, SAML, OAuth, CAS)</b></td><td>JRS delegates auth to your IdP</td><td>Enterprise SSO with a shared directory</td></tr>
+<tr><td><b>HTTP Basic / session</b></td><td>Direct credentials</td><td>Server-to-server REST only &mdash; never in the browser</td></tr>
+</table>
+<p><b>Key OEM pattern &mdash; JIT provisioning + attribute injection:</b> the pre-auth token carries the user's <b>organization</b>, <b>roles</b>, and <b>profile attributes</b> (e.g. <code>customerId</code>, <code>region</code>). JRS creates the user in the right tenant on first login and stamps the attributes, which then drive <b>data-level security</b> (see &sect;5).</p>
+
+<h2>4. White-labeling &mdash; making JRS invisible</h2>
+<p>Branding works at two levels depending on integration choice:</p>
+
+<h3>4a. Full white-label (Visualize.js)</h3>
+<p>Because Visualize.js renders <i>content only</i>, <b>your app owns 100% of the chrome</b> &mdash; header, nav, fonts, buttons, loading states. There is no JRS UI to hide. This is the cleanest white-label and the reason Visualize.js is preferred for OEM.</p>
+
+<h3>4b. Themeing the native JRS UI (when users do reach it)</h3>
+<p>If users touch any native pages (Ad Hoc designer, dashboard designer, repository), restyle them with <b>CSS themes</b>:</p>
+<ul>
+<li>A <code>Themes/&lt;name&gt;</code> folder with <code>overrides_custom.css</code> (+ logos, fonts) deployed per server or <b>per organization</b></li>
+<li>Activated at the <b>organization</b> level (<code>PUT /rest_v2/organizations/{id}</code> <code>{"theme":"..."}</code>) &rarr; <b>each tenant can carry its own brand</b></li>
+<li>Customizable: banner/logo, login page, colors, table styling, fonts</li>
+<li>Takes effect immediately, no restart</li>
+</ul>
+
+<h3>4c. Chrome suppression</h3>
+<p>For iframe/URL embeds, request parameters and decorator settings strip the JRS header/toolbar/footer so only the report body shows. Visualize.js makes this moot.</p>
+<p><b>OEM branding stack:</b> Visualize.js for embedded content (your brand) <b>+</b> per-org CSS themes for any native touchpoints <b>+</b> custom logos/favicons <b>+</b> OEM license that grants white-label/redistribution rights (a contractual, not just technical, requirement).</p>
+
+<h2>5. Multi-tenancy model &mdash; the core of OEM isolation</h2>
+<p>This is where Jaspersoft's commercial value concentrates. The model is <b>Organizations</b> (tenants).</p>
+
+<h3>5a. Organization hierarchy</h3>
+<ul>
+<li>A tree of <b>organizations</b> (tenants) under a root; sub-orgs allowed (resellers &rarr; customers)</li>
+<li>Each org gets an <b>isolated repository sub-tree</b>, its own <b>users</b>, <b>roles</b>, <b>datasources</b>, <b>themes</b>, and resources</li>
+<li>An <b>organization admin</b> (<code>ROLE_ADMINISTRATOR</code> scoped to the org) manages only their tenant; the <b>superuser/system admin</b> manages the whole server</li>
+<li>Created via REST: <code>POST /rest_v2/organizations?createDefaultUsers=true</code></li>
+</ul>
+
+<h3>5b. Two isolation strategies</h3>
+<table>
+<tr><th>Strategy</th><th>Description</th><th>Trade-off</th></tr>
+<tr><td><b>Separate organizations</b> (repository isolation)</td><td>Each customer = one org with its own folders, users, content</td><td>Strong logical isolation; content duplicated per tenant</td></tr>
+<tr><td><b>Shared content + attribute/row-level security</b></td><td>One set of reports/Domains; <b>profile attributes</b> filter data per user/org</td><td>Single artifact to maintain; relies on correct attribute injection</td></tr>
+</table>
+<p>Most OEMs combine them: <b>shared report definitions</b> parameterized by <b>per-tenant attributes</b>, organized under <b>per-tenant orgs</b> for admin/branding isolation.</p>
+
+<h3>5c. Profile attributes &mdash; the data-isolation engine</h3>
+<p>Attributes set at <b>server / organization / user</b> scope are referenced in expressions and queries:</p>
+<ul>
+<li>In a <b>datasource URL/connection</b>: <code>{attribute('dbHost')}</code>, <code>{attribute('schema')}</code> &rarr; each tenant hits its <b>own database/schema</b></li>
+<li>In a <b>Domain security file / report query</b>: <code>WHERE customer_id = {attribute('customerId')}</code> &rarr; <b>row-level security</b>, same report, tenant-scoped rows</li>
+<li>Injected at SSO time from the pre-auth token, so the user <i>cannot</i> see another tenant's data even on a shared artifact</li>
+</ul>
+<p>This is the mechanism that lets one report definition safely serve thousands of tenants.</p>
+
+<h3>5d. Per-tenant datasource patterns</h3>
+<ul>
+<li><b>Database-per-tenant</b>: attribute-driven connection string selects the tenant DB</li>
+<li><b>Schema-per-tenant</b>: attribute selects schema</li>
+<li><b>Shared DB, discriminator column</b>: row-level filter via attribute (cheapest, most common at scale)</li>
+</ul>
+
+<h2>6. Deployment topology &amp; scale</h2>
+<pre>   End users (Tenant A, B, C...)
+        |  (your branded UI)
+   +----v-----------------+
+   |  Your Application    |  &lt;- identity, tenancy, billing; issues SSO tokens
+   |  (web/app servers)   |
+   +----+-----------+-----+
+        |Visualize.js|REST v2 (provisioning, async exec)
+   +----v-----------v-----+
+   | JasperReports Server |  &lt;- Enterprise: clustered, HA, load-balanced
+   |  (org-isolated repo) |
+   +----+-----------------+
+        | attribute-driven connections
+   +----v-----------------+
+   | Tenant databases /   |
+   | schemas / shared DB  |
+   +----------------------+</pre>
+<ul>
+<li><b>Enterprise edition</b> adds <b>clustering / horizontal scale / HA</b> behind a load balancer, plus a shared <b>repository DB</b> and shared/centralized <b>caches</b> (query result cache, Ad Hoc cache).</li>
+<li>Stateless front, shared metadata DB &rarr; scale out the JRS tier as tenant/load grows.</li>
+<li><b>Async report execution</b> (<code>reportExecutions</code>) offloads large fills so the embed stays responsive.</li>
+</ul>
+
+<h2>7. OEM lifecycle &amp; best practices</h2>
+<table>
+<tr><th>Concern</th><th>Practice</th></tr>
+<tr><td><b>Tenant onboarding</b></td><td>Automate via REST: create org &rarr; roles &rarr; admin user &rarr; import a content template &rarr; set attributes/datasource</td></tr>
+<tr><td><b>Content promotion</b></td><td>Author once, <b>export/import</b> to promote dev&rarr;prod or seed each new tenant &mdash; the same envelope carries reports, Domains, Ad Hoc views, dashboards</td></tr>
+<tr><td><b>Versioning</b></td><td>Keep report/Domain definitions in source control; deploy via the scripted pipeline, not hand-clicks</td></tr>
+<tr><td><b>Security</b></td><td>Least-privilege org-scoped roles; object ACLs; <b>never</b> embed superuser creds in the browser; tokens short-lived and signed</td></tr>
+<tr><td><b>Licensing</b></td><td>OEM/embedding rights are a <b>contractual</b> add-on &mdash; white-label + redistribution must be in the agreement, not just technically enabled</td></tr>
+<tr><td><b>Upgrades</b></td><td>Test theme/Visualize.js compatibility per release; pin the Visualize.js version to the server version</td></tr>
+</table>
+
+<h2>8. Summary &mdash; the canonical OEM pattern</h2>
+<ol>
+<li><b>Your app</b> owns identity, tenancy, and billing.</li>
+<li>Users SSO into JRS via a <b>signed pre-auth token</b> that carries org + roles + <b>profile attributes</b>; users are <b>JIT-provisioned</b> into their <b>organization</b>.</li>
+<li>Analytics render in-page via <b>Visualize.js</b> (no iframe, your brand) &mdash; native touchpoints, if any, wear <b>per-org CSS themes</b>.</li>
+<li><b>Multi-tenancy</b> = organizations for admin/branding isolation <b>+ attribute-driven datasources / row-level security</b> for data isolation, so shared report definitions serve every tenant safely.</li>
+<li><b>REST v2</b> automates the whole tenant lifecycle (provision, seed content, schedule, export/import).</li>
+<li><b>Enterprise</b> scales the JRS tier with clustering/HA behind a load balancer.</li>
+</ol>
+
+</body>
+</html>

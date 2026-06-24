@@ -791,6 +791,34 @@ already accounts for (see `webapp/jasper-wizard/README.md`):
 - **No local compile** of jrxml (drops the `jasperreports-lib` dependency); JRS
   compiles server-side on deploy and `deploy_report.ps1` lints the SQL first.
 
+## Collateral docs (HTML -> DOCX/PDF via Word)
+`scripts/make_docx.ps1` renders an HTML document to a `.docx` (and optionally a
+`.pdf`) by driving a hidden **Microsoft Word** instance over COM — full CSS/table
+styling fidelity with **no pandoc/LibreOffice**. This is the verified, repeatable
+pattern behind the `Jaspersoft_*` feature/comparison documents in the repo root
+(e.g. `Jaspersoft_Commercial_Edition.docx`), useful for generating report-
+accompanying write-ups, enablement briefs, and edition/feature summaries. Word
+COM is available on this machine; the script always releases the COM object in a
+`finally` block so a failed run leaves no orphaned `WINWORD.EXE`.
+
+```powershell
+$skill = ".\.claude\skills\jasper-deploy\scripts"
+# Full mode — convert a complete .html document and open it
+& $skill\make_docx.ps1 -Html Jaspersoft_Commercial_Edition.html -Open
+# Body mode — wrap an HTML *fragment* in the house theme (Actian-navy headings/
+# tables), then emit DOCX + PDF. -Title sets the heading/<title>.
+& $skill\make_docx.ps1 -BodyHtml summary_body.html -Title "Release Notes" -Pdf -Open
+```
+`-Out` overrides the output path (defaults to the input basename + `.docx`,
+alongside the input); `-Pdf` also exports a PDF (`wdFormatPDF`); `-Open` launches
+the result; `-KeepHtml` retains the wrapped temp HTML from `-BodyHtml`. **Verified
+end-to-end** (both modes; Full mode is byte-equivalent to the hand-run Word
+conversions, Body mode auto-cleans its `*.wrapped.html` temp). **Gotchas the
+script handles:** Word COM requires **absolute paths** (resolved internally), and
+the SaveAs format codes are **16 = `.docx`**, **17 = `.pdf`**. **Gotcha for
+callers:** PowerShell 5.1 will not parse an inline `(if … {} else {})` as a method
+argument — assign it to a variable first (this bit the script's own first draft).
+
 ## Notes / gotchas
 - The live server is `jasperserver-pro` on **port 8081** (HTTP Basic). Port 8080
   hosts an unrelated Bearer-token-gated Java service that 401s every path — not JRS.

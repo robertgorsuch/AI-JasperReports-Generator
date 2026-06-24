@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>JasperReports Server — Detailed Feature &amp; Functionality Summary</title>
+<style>
+  body { font-family: 'Calibri', 'Segoe UI', sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.42; }
+  h1 { font-family: 'Calibri Light', 'Segoe UI Light', sans-serif; color: #1a3a5c; font-size: 24pt; margin-bottom: 2pt; }
+  .subtitle { color: #5a6b7b; font-size: 12pt; margin-top: 0; margin-bottom: 16pt; }
+  h2 { color: #1a3a5c; font-size: 15pt; border-bottom: 1.5pt solid #2e6da4; padding-bottom: 3pt; margin-top: 20pt; }
+  h3 { color: #2e6da4; font-size: 12.5pt; margin-top: 14pt; margin-bottom: 2pt; }
+  ul { margin-top: 4pt; }
+  li { margin-bottom: 3pt; }
+  table { border-collapse: collapse; width: 100%; margin: 10pt 0; }
+  th { background-color: #1a3a5c; color: #ffffff; text-align: left; padding: 6pt 8pt; font-size: 10.5pt; }
+  td { border: 0.75pt solid #c8d2dc; padding: 5pt 8pt; font-size: 10.5pt; vertical-align: top; }
+  tr:nth-child(even) td { background-color: #eef3f8; }
+  code { font-family: 'Consolas', monospace; background-color: #eef1f4; padding: 1pt 3pt; font-size: 10pt; }
+  .note { background-color: #f4f8fb; border-left: 3pt solid #2e6da4; padding: 8pt 12pt; margin-top: 14pt; }
+  .tier { font-weight: bold; color: #1a3a5c; }
+</style>
+</head>
+<body>
+
+<h1>JasperReports Server</h1>
+<p class="subtitle">Detailed Feature &amp; Functionality Summary &mdash; Version 10</p>
+
+<p>JasperReports Server is the web-based <strong>reporting and analytics server</strong> at the center of the
+Jaspersoft platform. It is a Java web application (built on Spring, deployed in Apache Tomcat) that stores, runs,
+schedules, secures, and distributes reports, dashboards, and analytic views. It builds on the open-source
+<strong>JasperReports Library</strong> engine and exposes everything through a browser UI, a comprehensive
+<strong>REST v2 API</strong>, and the <strong>Visualize.js</strong> embedding framework. It ships in an open-source
+<strong>Community</strong> edition and a licensed <strong>Commercial</strong> edition (Professional / Enterprise);
+this summary covers the full feature surface, noting where capabilities are commercial-only.</p>
+
+<h2>Architecture &amp; Platform</h2>
+<ul>
+  <li><strong>Java web application</strong> on the Spring Framework + Spring Security, packaged as a WAR and run in <strong>Apache Tomcat</strong> (bundled or standalone).</li>
+  <li>A <strong>metadata repository database</strong> (PostgreSQL, MySQL, Oracle, SQL Server, etc.) stores all resources, users, roles, and configuration.</li>
+  <li><strong>JasperReports Library</strong> embedded as the fill/compile/export engine; <strong>Mondrian</strong> embedded as the ROLAP engine (commercial).</li>
+  <li>Runs on Windows and Linux, on-premise or in the cloud; available as <strong>AWS</strong> and <strong>Azure</strong> marketplace images (commercial).</li>
+  <li>Horizontally scalable with <strong>load-balanced clustering</strong> and a shared repository (commercial/Enterprise).</li>
+</ul>
+
+<h2>The Repository</h2>
+<ul>
+  <li>A <strong>hierarchical folder store</strong> for every resource type: report units, jrxml files, data sources, images, fonts, resource bundles, style templates, input controls, queries, Domains, OLAP schemas, dashboards, Ad Hoc views, and themes.</li>
+  <li>Resources are addressed by <strong>repository URI</strong> (e.g. <code>/reports/geocoder/county_summary</code>) and versioned with optimistic locking.</li>
+  <li><strong>Browse, search, organize, copy/move, and permission</strong> resources through the UI or REST.</li>
+  <li><strong>Import / Export</strong> service packages repository content (catalogs) for backup and <strong>dev&rarr;test&rarr;prod promotion</strong> across servers.</li>
+  <li>Reference resources (a report referencing a data source, a dashboard referencing reports) are tracked, with in-use protection against deleting a referenced resource.</li>
+</ul>
+
+<h2>Reporting</h2>
+
+<h3>Report execution &amp; rendering</h3>
+<ul>
+  <li>Server-side <strong>compile of jrxml</strong> on deploy/first run, then <strong>fill</strong> against the report's data source and <strong>export</strong>.</li>
+  <li><strong>Synchronous</strong> run (<code>/rest_v2/reports/{uri}.{fmt}</code>) and <strong>asynchronous</strong> execution (<code>reportExecutions</code>: submit &rarr; poll status &rarr; download) for large/slow fills.</li>
+  <li>Export to <strong>PDF, HTML, XLS/XLSX, CSV, DOCX, PPTX, RTF, ODT/ODS, XML,</strong> and image formats.</li>
+  <li><strong>Interactive HTML5 viewer</strong> (commercial) &mdash; in-place column sort, filter, conditional formatting, resize, floating headers, and save-as-new-report.</li>
+</ul>
+
+<h3>Parameters &amp; input controls</h3>
+<ul>
+  <li><strong>Input controls</strong> prompt users for report parameters: single value (text/number/date/datetime), single/multi <strong>select</strong>, boolean, and <strong>query-backed</strong> lists.</li>
+  <li><strong>Cascading input controls</strong> &mdash; a child control's options filter by the parent's selection.</li>
+  <li><strong>Saved report options</strong> &mdash; named sets of input-control values stored beside a report for one-click reruns.</li>
+</ul>
+
+<h2>Self-Service Analytics <span class="tier">(Commercial)</span></h2>
+
+<h3>Ad Hoc Editor</h3>
+<ul>
+  <li>No-code, browser-based designer for <strong>tables, crosstabs, and charts</strong> by drag-and-drop.</li>
+  <li>Built over <strong>Topics</strong> (a jrxml query), <strong>Domains</strong> (semantic layer), or OLAP connections.</li>
+  <li>Live filter/sort/group, calculated fields and measures, and conditional formatting &mdash; no SQL required.</li>
+  <li>Saved <strong>Ad Hoc Views</strong> are reusable in reports and dashboards.</li>
+</ul>
+
+<h3>Domains &mdash; semantic layer</h3>
+<ul>
+  <li>A governed, business-friendly model mapping physical tables/joins to friendly field names, sets, and filters.</li>
+  <li><strong>Multi-table joins, derived tables, and calculated fields</strong>; presentation groupings for the designer.</li>
+  <li><strong>Row- and column-level security</strong> enforced per user/role/tenant via security expressions and profile attributes.</li>
+</ul>
+
+<h3>Dashboards</h3>
+<ul>
+  <li>Drag-and-drop <strong>Dashboard Designer</strong> combining reports, Ad Hoc views, input controls, filters, text, images, and web content.</li>
+  <li><strong>Filter groups</strong> and cross-dashlet wiring so one control drives multiple tiles.</li>
+  <li>Interactive HTML5 dashboard viewer with per-tile drill-down and export.</li>
+</ul>
+
+<h3>OLAP &amp; in-memory analysis</h3>
+<ul>
+  <li><strong>Mondrian ROLAP</strong> with MDX, cubes, dimensions, and an analysis-view designer; XML/A connectivity to external OLAP servers.</li>
+  <li>In-memory acceleration for fast Ad Hoc over large datasets.</li>
+</ul>
+
+<h2>Data Connectivity</h2>
+<ul>
+  <li><strong>JDBC</strong> data sources (any driver), <strong>JNDI</strong>, <strong>Bean/Spring</strong>, and file-based (CSV/XML/JSON/Excel) data adapters.</li>
+  <li><strong>Virtual data sources</strong> (commercial) &mdash; combine multiple sources behind one Domain.</li>
+  <li><strong>AWS</strong> (RDS/Redshift-aware) descriptors and big-data/cloud-warehouse connectors (commercial).</li>
+  <li>Data sources are first-class repository resources, reusable across many reports.</li>
+</ul>
+
+<h2>Scheduling, Distribution &amp; Alerting</h2>
+<ul>
+  <li><strong>Report Scheduler</strong> &mdash; one-off, recurring (minute/hour/day/week), or calendar/trigger-based jobs.</li>
+  <li>Delivery to the <strong>repository, FTP, or email</strong> in multiple formats simultaneously, with parameterized values baked in.</li>
+  <li><strong>Data-driven alerts</strong> (commercial) &mdash; notify when a watched report value crosses a threshold.</li>
+  <li>Job management UI and REST CRUD for listing, editing, and removing scheduled jobs.</li>
+</ul>
+
+<h2>Security &amp; Multi-Tenancy</h2>
+<ul>
+  <li><strong>Authentication:</strong> built-in users; pluggable <strong>LDAP/Active Directory, SSO, SAML, OAuth, CAS, Kerberos</strong> via Spring Security (external auth is commercial-grade).</li>
+  <li><strong>Role-based access</strong> &mdash; users and roles with <strong>fine-grained repository permissions</strong> (administer / read+write / read-only / execute-only) per resource.</li>
+  <li><strong>Organizations (tenants)</strong> <span class="tier">(commercial/Enterprise)</span> &mdash; hierarchical tenant isolation of repository, users, roles, and themes for SaaS/multi-customer hosting.</li>
+  <li><strong>Attribute-based security</strong> &mdash; server/org/user attributes used in data-source URLs, queries, and Domain security for data-level isolation.</li>
+  <li><strong>Row- and column-level data security</strong>, password policies, and profile attributes.</li>
+</ul>
+
+<h2>Administration &amp; Operations</h2>
+<ul>
+  <li><strong>User, role, and organization management</strong> UI and REST services.</li>
+  <li><strong>Auditing &amp; monitoring</strong> (commercial) &mdash; track logins, report runs, and resource changes; built-in audit reports and a usage/analysis dashboard.</li>
+  <li><strong>Diagnostics</strong> &mdash; log collectors, JMX metrics, and a server-state/diagnostic snapshot.</li>
+  <li><strong>Cache management</strong> &mdash; query/Ad Hoc result caches with REST invalidation.</li>
+  <li><strong>Server-wide settings</strong>, themes, and attribute configuration.</li>
+  <li><strong>High availability &amp; clustering</strong> (commercial/Enterprise) for load-balanced, fault-tolerant deployments.</li>
+</ul>
+
+<h2>UI Themes &amp; White-Labelling</h2>
+<ul>
+  <li>The web UI is restyled via <strong>CSS theme folders</strong> (key file <code>overrides_custom.css</code>) under a <code>Themes</code> folder.</li>
+  <li>Themes are activated per <strong>organization</strong> and take effect immediately (no restart); previewable with a <code>&amp;theme=</code> URL parameter.</li>
+  <li>Full <strong>white-labelling</strong> for OEM/embedded deployments &mdash; banner, login, buttons, tables, fonts, and images.</li>
+</ul>
+
+<h2>APIs &amp; Embedding</h2>
+<ul>
+  <li><strong>REST v2 API</strong> &mdash; comprehensive coverage: resources, report execution (sync/async), input controls &amp; their values, jobs, alerts, permissions, attributes, users/roles/organizations, domains, queryExecutor, options, caches, export/import, and themes. Discoverable via the live <code>application.wadl</code>.</li>
+  <li><strong>Visualize.js</strong> <span class="tier">(commercial)</span> &mdash; JavaScript framework to embed reports, dashboards, Ad Hoc views, and input controls into any web app with full event/parameter/drill/export control and CORS domain-whitelisting.</li>
+  <li><strong>Embedded web components</strong> for React/Angular and an iframe/SSO embedding model.</li>
+  <li>Legacy SOAP and the older REST v1 are present for compatibility; <strong>REST v2 is the source of truth</strong>.</li>
+</ul>
+
+<h2>AI &amp; Modern Analytics <span class="tier">(Commercial)</span></h2>
+<ul>
+  <li><strong>Jaspersoft AI Analyst</strong> &mdash; a natural-language / generative-AI experience over a governed semantic model; business users ask questions and receive answers, charts, and narratives.</li>
+  <li>Semantic-model-driven metrics and dimensions shared between classic reporting and the AI layer.</li>
+</ul>
+
+<h2>Community vs. Commercial &mdash; Server Capabilities</h2>
+<table>
+  <tr><th>Capability</th><th>Community</th><th>Commercial (Pro / Enterprise)</th></tr>
+  <tr><td>Repository, run/export reports, REST v2 API</td><td>Yes</td><td>Yes</td></tr>
+  <tr><td>Input controls (incl. query-backed, cascading)</td><td>Yes</td><td>Yes</td></tr>
+  <tr><td>Basic scheduling</td><td>Yes</td><td>Yes (+ alerts)</td></tr>
+  <tr><td>Role-based security &amp; permissions</td><td>Yes</td><td>Yes</td></tr>
+  <tr><td>Ad Hoc editor &amp; Domains</td><td>No</td><td>Yes</td></tr>
+  <tr><td>Interactive dashboards &amp; HTML5 viewer</td><td>Basic / No</td><td>Yes</td></tr>
+  <tr><td>OLAP / Mondrian / in-memory</td><td>No</td><td>Yes</td></tr>
+  <tr><td>Multi-tenancy (organizations)</td><td>No</td><td>Yes (Enterprise)</td></tr>
+  <tr><td>LDAP/SSO/SAML, data-level security</td><td>Limited</td><td>Yes</td></tr>
+  <tr><td>Auditing, HA/clustering</td><td>No</td><td>Yes</td></tr>
+  <tr><td>Visualize.js embedding</td><td>No</td><td>Yes</td></tr>
+  <tr><td>AI Analyst, vendor support/SLA</td><td>No</td><td>Yes</td></tr>
+</table>
+
+<div class="note">
+<strong>Relation to this toolkit:</strong> the local server is a <strong>commercial</strong>
+<code>jasperserver-pro</code> 10.0 install on port 8081. The <code>/jasper-deploy</code> skill drives essentially
+every service above over REST v2 &mdash; deploying report units, creating JDBC/JNDI/virtual/AWS data sources,
+single-table Domains, OLAP/Mondrian schemas, style templates, query &amp; cascading input controls,
+scheduling jobs and alerts, managing users/roles/organizations, permissions and attributes, themes (white-labelling),
+import/export promotion, async execution, cache invalidation, and composing dashboards &mdash; with the live
+<code>application.wadl</code> as the authoritative endpoint map for this exact install.
+</div>
+
+</body>
+</html>

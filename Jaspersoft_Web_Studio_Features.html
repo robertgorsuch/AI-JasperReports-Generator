@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jaspersoft Web Studio — Detailed Feature &amp; Functionality Summary</title>
+<style>
+  body { font-family: 'Calibri', 'Segoe UI', sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.42; }
+  h1 { font-family: 'Calibri Light', 'Segoe UI Light', sans-serif; color: #1a3a5c; font-size: 24pt; margin-bottom: 2pt; }
+  .subtitle { color: #5a6b7b; font-size: 12pt; margin-top: 0; margin-bottom: 16pt; }
+  h2 { color: #1a3a5c; font-size: 15pt; border-bottom: 1.5pt solid #2e6da4; padding-bottom: 3pt; margin-top: 20pt; }
+  h3 { color: #2e6da4; font-size: 12.5pt; margin-top: 14pt; margin-bottom: 2pt; }
+  ul { margin-top: 4pt; }
+  li { margin-bottom: 3pt; }
+  table { border-collapse: collapse; width: 100%; margin: 10pt 0; }
+  th { background-color: #1a3a5c; color: #ffffff; text-align: left; padding: 6pt 8pt; font-size: 10.5pt; }
+  td { border: 0.75pt solid #c8d2dc; padding: 5pt 8pt; font-size: 10.5pt; vertical-align: top; }
+  tr:nth-child(even) td { background-color: #eef3f8; }
+  code { font-family: 'Consolas', monospace; background-color: #eef1f4; padding: 1pt 3pt; font-size: 10pt; }
+  .note { background-color: #f4f8fb; border-left: 3pt solid #2e6da4; padding: 8pt 12pt; margin-top: 14pt; }
+  .tier { font-weight: bold; color: #1a3a5c; }
+</style>
+</head>
+<body>
+
+<h1>Jaspersoft Web Studio</h1>
+<p class="subtitle">Detailed Feature &amp; Functionality Summary &mdash; Browser-Based Report Designer</p>
+
+<p>Jaspersoft Web Studio is the <strong>browser-based, zero-install report designer</strong> introduced into the
+Jaspersoft platform (JasperReports Server 9.x and carried forward in version 10). It brings the pixel-perfect
+report-authoring experience of the desktop <strong>Jaspersoft Studio</strong> directly into the web browser, running
+<strong>inside JasperReports Server</strong> itself. Report authors design, edit, preview, and publish JR7
+<code>.jrxml</code> reports without installing the Eclipse-based desktop client, working against the server's own
+repository and data sources. It is a <strong>commercial (Professional / Enterprise)</strong> feature aimed at
+closing the gap between heavyweight desktop design and the server's no-code Ad Hoc editor &mdash; giving developers
+and power users full control over layout without a local install.</p>
+
+<h2>What Jaspersoft Web Studio Is</h2>
+<ul>
+  <li>A <strong>web application embedded in JasperReports Server</strong> &mdash; opened from the server UI, no download or desktop install.</li>
+  <li>A <strong>WYSIWYG visual designer</strong> for pixel-perfect JR7 jrxml reports, running entirely in the browser.</li>
+  <li><strong>Repository-native</strong> &mdash; opens, edits, and saves reports and resources directly in the server repository.</li>
+  <li>A modern, web-rendered counterpart to the desktop <strong>Jaspersoft Studio</strong>, sharing the same jrxml format and report model.</li>
+</ul>
+
+<h2>Why It Exists &mdash; Positioning</h2>
+<ul>
+  <li>Removes the friction of installing and maintaining the <strong>Eclipse-based desktop Studio</strong> on every author's machine.</li>
+  <li>Bridges the spectrum between the <strong>no-code Ad Hoc Editor</strong> (business self-service) and full <strong>developer-grade pixel-perfect design</strong>.</li>
+  <li>Enables design from <strong>any OS or device with a browser</strong> &mdash; nothing to license, patch, or version locally.</li>
+  <li>Keeps authoring <strong>close to the server</strong> &mdash; same repository, data sources, and security context as runtime.</li>
+</ul>
+
+<h2>Design Environment</h2>
+<ul>
+  <li><strong>Visual drag-and-drop canvas</strong> with the standard report bands (Title, Page/Column Header &amp; Footer, Group Header/Footer, Detail, Summary, Background, No-Data).</li>
+  <li><strong>Palette</strong> of report elements and components to drag onto the canvas.</li>
+  <li><strong>Properties panel</strong> for context-sensitive element attributes (position, size, font, style, formatting, hyperlinks).</li>
+  <li><strong>Outline / report-structure tree</strong> for navigating bands, elements, fields, parameters, and variables.</li>
+  <li>Alignment, snapping, sizing, and z-order controls &mdash; the desktop layout conveniences in the browser.</li>
+  <li><strong>Source / jrxml view</strong> for direct inspection and editing of the underlying XML where supported.</li>
+</ul>
+
+<h2>Report Building Blocks</h2>
+<ul>
+  <li><strong>Fields, Parameters, and Variables</strong> with calculation types (Sum, Average, Count, Highest/Lowest, etc.).</li>
+  <li><strong>Expression editor</strong> for field/variable/conditional expressions and built-in functions.</li>
+  <li><strong>Groups</strong> with headers/footers and subtotals.</li>
+  <li><strong>Styles</strong> &mdash; named and conditional styles, plus references to shared style templates.</li>
+  <li><strong>Subreports</strong> and dataset-bound components.</li>
+</ul>
+
+<h2>Components &amp; Visualization</h2>
+<ul>
+  <li><strong>Tables</strong>, <strong>Lists</strong>, and <strong>Crosstabs</strong> (pivot tables with totals).</li>
+  <li><strong>Charts</strong> &mdash; the platform chart types (JFreeChart and, on the commercial server, HTML5/Highcharts and Fusion).</li>
+  <li><strong>Text fields, static text, images, shapes, frames, hyperlinks,</strong> and barcodes/QR.</li>
+  <li>Component configuration through the properties panel rather than hand-edited XML.</li>
+</ul>
+
+<h2>Data Connectivity</h2>
+<ul>
+  <li>Designs against the <strong>server's existing data sources</strong> (JDBC, JNDI, Bean, virtual, Domains) &mdash; no local driver setup.</li>
+  <li><strong>Query editor</strong> for the report's SQL/query, with field discovery from the result set.</li>
+  <li>Reuses repository <strong>data adapters</strong> and <strong>Domains</strong> as report data, keeping authoring and runtime aligned.</li>
+</ul>
+
+<h2>Preview, Publish &amp; Lifecycle</h2>
+<ul>
+  <li><strong>In-browser live preview</strong> &mdash; fill the report against real data and view the rendered output without leaving the designer.</li>
+  <li><strong>Server-side compile</strong> &mdash; the server validates and compiles the jrxml as part of save/preview.</li>
+  <li><strong>Save directly to the repository</strong> &mdash; the report is immediately available to run, schedule, embed, or place on a dashboard.</li>
+  <li><strong>Round-trips with desktop Studio</strong> &mdash; the same jrxml can be opened/edited in either tool.</li>
+  <li>Authoring respects the user's <strong>repository permissions and security context</strong>.</li>
+</ul>
+
+<h2>Jaspersoft Web Studio vs. Desktop Studio vs. Ad Hoc</h2>
+<table>
+  <tr><th>Dimension</th><th>Web Studio</th><th>Desktop Studio</th><th>Ad Hoc Editor</th></tr>
+  <tr><td>Install</td><td>None (in browser)</td><td>Eclipse desktop app</td><td>None (in browser)</td></tr>
+  <tr><td>Audience</td><td>Developers / power users</td><td>Developers</td><td>Business users</td></tr>
+  <tr><td>Output control</td><td>Pixel-perfect layout</td><td>Pixel-perfect layout</td><td>Guided tables/crosstabs/charts</td></tr>
+  <tr><td>Format</td><td>JR7 jrxml</td><td>JR7 jrxml</td><td>Ad Hoc view (over Topic/Domain)</td></tr>
+  <tr><td>Repository</td><td>Native (server)</td><td>Via publish/connect</td><td>Native (server)</td></tr>
+  <tr><td>Extensibility (extensions, custom jars)</td><td>Server-bounded</td><td>Full Eclipse plug-in model</td><td>n/a</td></tr>
+  <tr><td>Edition</td><td>Commercial</td><td>Community &amp; Commercial</td><td>Commercial</td></tr>
+</table>
+
+<h2>Strengths &amp; Considerations</h2>
+<h3>Strengths</h3>
+<ul>
+  <li><strong>Zero install / zero maintenance</strong> &mdash; nothing to deploy or patch on author machines.</li>
+  <li><strong>OS- and device-independent</strong> &mdash; design from anywhere with a browser.</li>
+  <li><strong>Repository- and security-native</strong> &mdash; authoring uses the same resources and permissions as runtime.</li>
+  <li><strong>Lower barrier</strong> for power users who need more than Ad Hoc but don't want the full Eclipse client.</li>
+  <li><strong>Same jrxml model</strong> &mdash; full interoperability with desktop Studio and the server.</li>
+</ul>
+<h3>Considerations</h3>
+<ul>
+  <li>It is a <strong>commercial</strong> feature &mdash; not part of the Community edition.</li>
+  <li>The <strong>Eclipse plug-in ecosystem</strong> and certain advanced/custom-extension workflows remain the domain of the desktop client.</li>
+  <li>Authoring runs <strong>inside the server</strong>, so capabilities track the server's installed components and version.</li>
+</ul>
+
+<div class="note">
+<strong>Relation to this toolkit:</strong> Jaspersoft Web Studio is the <strong>interactive, in-browser</strong> way
+to author the same JR7 jrxml that the <code>/jasper-deploy</code> skill produces and deploys <strong>by
+script</strong> (<code>scaffold_jrxml.py</code> &rarr; <code>compile_jrxml.ps1</code> &rarr;
+<code>deploy_report.ps1</code>) against the local <code>jasperserver-pro</code> install. The three authoring paths
+are complementary: <strong>Web Studio</strong> (browser, pixel-perfect, no install), <strong>desktop Jaspersoft
+Studio</strong> (full Eclipse tooling and extensions), and the <strong>scripted pipeline</strong>
+(reproducible/CI deployment) &mdash; all producing the identical jrxml report model in the server repository.
+</div>
+
+</body>
+</html>
