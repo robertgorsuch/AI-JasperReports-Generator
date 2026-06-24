@@ -17,7 +17,7 @@ LIMIT 15
 	<field name="sales" class="java.math.BigDecimal"/>
 	<field name="units" class="java.lang.Integer"/>
 
-	<title height="44">
+	<title height="52">
 		<element kind="image" x="0" y="0" width="44" height="44" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
 		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="17.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Foodmart - Sales by Product Category]]></text></element>
 		<element kind="staticText" x="0" y="26" width="555" height="14" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Top 15 categories by store sales (1998)]]></text></element>
@@ -46,12 +46,17 @@ LIMIT 15
 	</pageFooter>
 
 	<summary height="342">
-		<element kind="chart" chartType="bar" x="0" y="10" width="555" height="320" evaluationTime="Report">
+		<element kind="chart" chartType="bar" x="0" y="10" width="555" height="320" evaluationTime="Report" customizerClass="com.actian.jasper.GradientTrendCustomizer">
 			<dataset kind="category">
 				<series>
 					<seriesExpression><![CDATA["Sales"]]></seriesExpression>
 					<categoryExpression><![CDATA[$F{category}]]></categoryExpression>
 					<valueExpression><![CDATA[$F{sales}]]></valueExpression>
+				</series>
+				<series>
+					<seriesExpression><![CDATA["Units"]]></seriesExpression>
+					<categoryExpression><![CDATA[$F{category}]]></categoryExpression>
+					<valueExpression><![CDATA[$F{units}]]></valueExpression>
 				</series>
 			</dataset>
 			<plot showTickMarks="true" showTickLabels="true" categoryAxisTickLabelRotation="-45"/>

@@ -304,6 +304,12 @@ CHART_TYPES = {
     "stackedbar": ("stackedBar", "category"),
 }
 
+# Default JFreeChart customizer applied to `bar` charts: Actian-blue gradient bars
+# (color encodes the measure) + an optional trend line (second series) on a
+# secondary axis. Its jar (chart_customizers/actian-chart-customizers.jar) must be
+# on the JasperReports Server classpath (WEB-INF/lib). Disable with --no-gradient.
+CHART_CUSTOMIZER = "com.actian.jasper.GradientTrendCustomizer"
+
 
 def first_text_col(cols):
     for name, udt in cols:
@@ -320,11 +326,26 @@ def first_numeric_col(cols):
     return None
 
 
-def build_chart(chart, cat, val, series, *, width, y, height, label_rotation=0):
+def second_numeric_col(cols, exclude):
+    """First numeric column that isn't `exclude` (the trend-line measure)."""
+    for name, udt in cols:
+        if name == exclude:
+            continue
+        jc = java_class(udt)
+        if jc in NUMERIC_JAVA or jc in DECIMAL_JAVA:
+            return name
+    return None
+
+
+def build_chart(chart, cat, val, series, *, width, y, height, label_rotation=0,
+                trend=None, customizer=None):
     """Return jrxml lines for a JFreeChart <element kind="chart">."""
     chart_type, ds_kind = CHART_TYPES[chart]
-    o = [f'\t\t<element kind="chart" chartType="{chart_type}" x="0" y="{y}" '
-         f'width="{width}" height="{height}" evaluationTime="Report">']
+    head = (f'\t\t<element kind="chart" chartType="{chart_type}" x="0" y="{y}" '
+            f'width="{width}" height="{height}" evaluationTime="Report"')
+    if customizer:
+        head += f' customizerClass="{customizer}"'
+    o = [head + '>']
     if ds_kind == "pie":
         o.append('\t\t\t<dataset kind="pie">')
         o.append('\t\t\t\t<series>')
@@ -343,6 +364,13 @@ def build_chart(chart, cat, val, series, *, width, y, height, label_rotation=0):
         o.append(f'\t\t\t\t\t<categoryExpression><![CDATA[$F{{{cat}}}]]></categoryExpression>')
         o.append(f'\t\t\t\t\t<valueExpression><![CDATA[$F{{{val}}}]]></valueExpression>')
         o.append('\t\t\t\t</series>')
+        # second measure -> the customizer renders it as a trend line on a 2nd axis
+        if trend:
+            o.append('\t\t\t\t<series>')
+            o.append(f'\t\t\t\t\t<seriesExpression><![CDATA["{escape(label_for(trend))}"]]></seriesExpression>')
+            o.append(f'\t\t\t\t\t<categoryExpression><![CDATA[$F{{{cat}}}]]></categoryExpression>')
+            o.append(f'\t\t\t\t\t<valueExpression><![CDATA[$F{{{trend}}}]]></valueExpression>')
+            o.append('\t\t\t\t</series>')
         o.append('\t\t\t</dataset>')
         # JR7 plot classes differ by chart type: JRDesignLinePlot accepts only
         # showLines/showShapes (NOT showTickMarks/showTickLabels, which throw an
@@ -427,6 +455,7 @@ def el_image(x, y, w, h, expr, *, scale="RetainShape", halign="Left", valign="Mi
 def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
                 margin=20, chart=None, chart_cat=None, chart_val=None,
                 chart_series=None, chart_height=300, chart_label_rotation=0,
+                chart_trend=None, chart_gradient=True,
                 params=None, group_by=None, drills=None, highlights=None,
                 crosstab=None, subreport=None, theme=None, style_template=None,
                 logo=DEFAULT_LOGO_URI):
@@ -538,8 +567,9 @@ def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
     # title band -- Actian logo top-left, title/subtitle centered across full width
     title_h = 44 if subtitle else 28
     logo_sz = 44
+    logo_gap = 8  # whitespace below the title band so the logo clears the column header
     if logo:
-        title_h = max(title_h, logo_sz)
+        title_h = max(title_h, logo_sz) + logo_gap
     out.append(f'\t<title height="{title_h}">')
     if logo:
         out.append(el_image(0, 0, logo_sz, logo_sz, f'"{logo}"', halign="Left", valign="Top"))
@@ -643,9 +673,14 @@ def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
     summary = []
     sy = 10
     if chart:
+        # gradient-bar + trend-line customizer is the default for plain `bar`
+        # charts (not multi-series, not disabled). trend = optional 2nd measure.
+        use_cust = chart == "bar" and chart_gradient and not chart_series
         summary.extend(build_chart(chart, chart_cat, chart_val, chart_series,
                                    width=col_w, y=sy, height=chart_height,
-                                   label_rotation=chart_label_rotation))
+                                   label_rotation=chart_label_rotation,
+                                   trend=(chart_trend if use_cust else None),
+                                   customizer=(CHART_CUSTOMIZER if use_cust else None)))
         sy += chart_height + 12
     if subreport:
         sub_uri, sub_params = subreport
@@ -711,6 +746,13 @@ def main():
     ap.add_argument("--chart-label-rotation", type=int, default=0,
                     help="rotate category-axis tick labels by N degrees (e.g. -45) "
                          "to keep long bar/line labels from truncating")
+    ap.add_argument("--chart-trend", metavar="COLUMN",
+                    help="numeric column drawn as a trend line on a secondary axis "
+                         "over a `bar` chart (default: the first numeric column other "
+                         "than the bar value). Needs the chart customizer (on by default).")
+    ap.add_argument("--no-gradient", action="store_true",
+                    help="disable the default Actian gradient-bar + trend-line "
+                         "customizer on `bar` charts (plain flat bars instead)")
     ap.add_argument("--param", action="append", default=[], metavar="NAME:TYPE[:DEFAULT]",
                     help="declare a report parameter referenced as $P{NAME} in the "
                          "query; TYPE in string|integer|long|decimal|double|boolean|"
@@ -796,7 +838,7 @@ def main():
     if args.landscape:
         w, h = h, w
 
-    chart_cat = chart_val = None
+    chart_cat = chart_val = chart_trend = None
     if args.chart:
         chart_cat = args.chart_category or first_text_col(cols)
         chart_val = args.chart_value or first_numeric_col(cols)
@@ -804,6 +846,9 @@ def main():
             sys.stderr.write("ERROR: --chart needs a numeric column; none found "
                              "(use --chart-value).\n")
             sys.exit(2)
+        # default trend column for the gradient-bar customizer: first other numeric
+        if args.chart == "bar" and not args.no_gradient and not args.chart_series:
+            chart_trend = args.chart_trend or second_numeric_col(cols, chart_val)
 
     title = args.title or label_for(args.name)
     xml = build_jrxml(args.name, title, args.subtitle, query, cols,
@@ -811,6 +856,7 @@ def main():
                       chart_val=chart_val, chart_series=args.chart_series,
                       chart_height=args.chart_height,
                       chart_label_rotation=args.chart_label_rotation,
+                      chart_trend=chart_trend, chart_gradient=(not args.no_gradient),
                       params=params, group_by=args.group_by, drills=drills,
                       highlights=highlights, crosstab=crosstab, subreport=subreport,
                       theme=args.template, style_template=args.style_template,

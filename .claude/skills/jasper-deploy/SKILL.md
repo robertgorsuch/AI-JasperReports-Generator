@@ -93,6 +93,30 @@ type: `line` uses `showLines/showShapes` — `showTickMarks/showTickLabels` thro
 `UnrecognizedPropertyException` on a line plot — while bar/area/stackedbar use
 `showTickMarks/showTickLabels`.)
 
+**Branded `bar` charts (default).** A plain `--chart bar` is styled by the
+`com.actian.jasper.GradientTrendCustomizer` JFreeChart customizer **by default**:
+bars are painted on an **Actian-blue gradient that encodes the measure** (palest =
+lowest, deep navy = highest) instead of a flat color, and if a second numeric
+column exists it's drawn as an **amber trend line on a secondary axis** (auto-
+picked, or set with `--chart-trend COLUMN`). The scaffolder emits
+`customizerClass="…"` + a second `<series>`; the customizer identifies series by
+position (row 0 = gradient bars, row 1 = trend line) so it's generic. Disable with
+**`--no-gradient`** (plain flat bars). Only applies to `bar` (not bar3D/stacked/
+multi-series via `--chart-series`). **Verified** end-to-end (local RenderPng +
+server run-to-PDF).
+> **Server prerequisite (one-time):** the customizer is a Java class, so its jar
+> must be on the JRS classpath. Build + install:
+> ```powershell
+> $cc = ".\.claude\skills\jasper-deploy\chart_customizers"
+> javac -cp "C:\Users\rgorsuch\jasperreports-lib\*" -d $cc\build $cc\com\actian\jasper\GradientTrendCustomizer.java
+> jar cf $cc\actian-chart-customizers.jar -C $cc\build . ; Remove-Item -Recurse $cc\build
+> Copy-Item $cc\actian-chart-customizers.jar "C:\Jaspersoft\jasperreports-server-10.0.0\apache-tomcat\webapps\jasperserver-pro\WEB-INF\lib\" -Force
+> Restart-Service jasperreportsTomcat -Force   # needs admin/UAC; ~50s downtime
+> ```
+> Already installed on this server. It survives restarts but **not** a JRS
+> reinstall/upgrade — re-copy + restart then. A bar report whose customizer jar is
+> missing fails to fill (use `--no-gradient` to opt out).
+
 **Advanced report features** (all on `scaffold_jrxml.py`, all verified):
 - `--param NAME:TYPE[:DEFAULT]` — a report parameter used as `$P{NAME}` in the
   query (TYPE = string|integer|long|decimal|double|boolean|date|timestamp).
