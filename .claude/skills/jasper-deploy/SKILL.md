@@ -59,6 +59,15 @@ Use `--query-file q.sql` for long queries. Options: `--db --host --port --user`
 a4|letter`, `--landscape`. The scaffold is a starting point — refine layout by
 hand using `references/jr7-schema.md`, or open it in Jaspersoft Studio.
 
+**Branding (always-on):** the scaffolder emits a 44×44 **Actian logo** at the
+top-left of the title band (`kind="image"` → `repo:/images/actian_logo`) and
+**centers** the title/subtitle, on every report. This requires the logo to exist
+in the repo once — upload it with `upload_file.ps1 -File <jpg> -Uri
+/images/actian_logo -Type img -Overwrite` (Type **`img`**). `repo:` image refs
+resolve server-side at fill time (they won't appear in a local `RenderPng`
+preview — deploy + run-to-PDF to verify). Override the image with `--logo-uri`,
+or drop the logo with `--no-logo`.
+
 Pick a **visual template** with `--template` =
 `slate|corporate|forest|minimal|dark` (default `slate`, the original look). The
 theme sets the column-header band, title/subtitle, group band, row-rule and

@@ -411,11 +411,25 @@ def build_crosstab(row_col, col_col, meas_col, jclass, *, width, y=10):
     return o, height
 
 
+# Default repository URI for the Actian logo placed top-left of every report's
+# title band. Upload the image once with:
+#   upload_file.ps1 -File "<...>\Actian-Logo-RGB_Vertical-Blue.jpg" -Uri /images/actian_logo -Type img -Overwrite
+# Override with --logo-uri, or suppress with --no-logo.
+DEFAULT_LOGO_URI = "repo:/images/actian_logo"
+
+
+def el_image(x, y, w, h, expr, *, scale="RetainShape", halign="Left", valign="Middle"):
+    return (f'\t\t<element kind="image" x="{x}" y="{y}" width="{w}" height="{h}" '
+            f'scaleImage="{scale}" hImageAlign="{halign}" vImageAlign="{valign}">'
+            f'<expression><![CDATA[{expr}]]></expression></element>')
+
+
 def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
                 margin=20, chart=None, chart_cat=None, chart_val=None,
                 chart_series=None, chart_height=300, chart_label_rotation=0,
                 params=None, group_by=None, drills=None, highlights=None,
-                crosstab=None, subreport=None, theme=None, style_template=None):
+                crosstab=None, subreport=None, theme=None, style_template=None,
+                logo=DEFAULT_LOGO_URI):
     t = THEMES.get(theme or DEFAULT_THEME, THEMES[DEFAULT_THEME])
     col_w = page_w - 2 * margin
     widths = layout_widths(cols, col_w)
@@ -521,9 +535,14 @@ def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
         out.append('\t</group>')
         out.append('')
 
-    # title band
+    # title band -- Actian logo top-left, title/subtitle centered across full width
     title_h = 44 if subtitle else 28
+    logo_sz = 44
+    if logo:
+        title_h = max(title_h, logo_sz)
     out.append(f'\t<title height="{title_h}">')
+    if logo:
+        out.append(el_image(0, 0, logo_sz, logo_sz, f'"{logo}"', halign="Left", valign="Top"))
     out.append(el_static(0, 0, col_w, 24, escape(title), fontsize=t["title_size"],
                          bold=True, forecolor=t["title_fg"], halign="Center", valign=None))
     if subtitle:
@@ -676,6 +695,12 @@ def main():
                          "scaffold_style_template.py). A leading-'/' value is wrapped "
                          "as repo:URI; the template's isDefault style sets the report "
                          "font/base color centrally. Deploy the .jrtx with upload_file.ps1.")
+    ap.add_argument("--logo-uri", default=DEFAULT_LOGO_URI, metavar="URI",
+                    help=f"image URI for the logo placed top-left of the title band "
+                         f"(default: {DEFAULT_LOGO_URI}). Usually a repo:/... resource; "
+                         "upload it once with upload_file.ps1 -Type img.")
+    ap.add_argument("--no-logo", action="store_true",
+                    help="suppress the top-left logo in the title band")
     ap.add_argument("--chart", choices=list(CHART_TYPES),
                     help="also add a JFreeChart in the summary band "
                          "(pie|pie3d|bar|bar3d|line|area|stackedbar)")
@@ -788,7 +813,8 @@ def main():
                       chart_label_rotation=args.chart_label_rotation,
                       params=params, group_by=args.group_by, drills=drills,
                       highlights=highlights, crosstab=crosstab, subreport=subreport,
-                      theme=args.template, style_template=args.style_template)
+                      theme=args.template, style_template=args.style_template,
+                      logo=(None if args.no_logo else args.logo_uri))
 
     out_path = args.out or f"{args.name}.jrxml"
     with open(out_path, "w", encoding="utf-8") as f:
