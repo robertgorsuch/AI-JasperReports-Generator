@@ -28,6 +28,14 @@ webapp/jasper-wizard/build/
 webapp/jasper-wizard/target/
 webapp/jasper-wizard/work/
 
+# Secrets — service-account keys / credentials (must never be committed)
+sa.json
+*.sa.json
+*-sa.json
+
+# Load / job logs (regenerated on each run)
+*.log
+
 # Notes:
 #  - JasperReports runtime (C:\Users\rgorsuch\jasperreports-lib) and source
 #    (C:\Users\rgorsuch\jasperreports-7.0.6) live outside this repo by design.
