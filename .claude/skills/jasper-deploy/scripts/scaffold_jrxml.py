@@ -232,6 +232,44 @@ def introspect(query: str, host, port, user, db) -> list:
     return cols
 
 
+def row_count(query, host, port, user, db):
+    """Result-row count for `query` (used to size a pie color gradient).
+    Returns None if it can't be determined (gradient falls back to a fixed size)."""
+    sql = query.strip().rstrip(";")
+    # plain SQL over stdin (NOT \copy, which must be single-line) so a multi-line
+    # subquery works; -t -A => the bare count on stdout.
+    script = f"SELECT count(*) FROM ({sql}) _jr_cnt;\n"
+    cmd = ["psql", "-h", host, "-p", str(port), "-U", user, "-d", db,
+           "-v", "ON_ERROR_STOP=1", "-q", "-X", "-t", "-A", "-f", "-"]
+    proc = subprocess.run(cmd, input=script, capture_output=True, text=True)
+    if proc.returncode != 0:
+        return None
+    try:
+        return int(proc.stdout.strip())
+    except ValueError:
+        return None
+
+
+# Actian-blue pie-slice gradient endpoints (match the bar customizer): deepest
+# navy = largest slice, palest = smallest. Used as declarative <seriesColor>s so
+# no chart customizer / server restart is needed for pies.
+PIE_BLUE_DEEP = (0x0A, 0x2A, 0x4A)
+PIE_BLUE_LIGHT = (0xB8, 0xD4, 0xEC)
+
+
+def blue_gradient(n):
+    """n Actian-blue hex colors from deep (slice 0 / largest) to light."""
+    n = max(1, n)
+    out = []
+    for i in range(n):
+        t = i / (n - 1) if n > 1 else 0.0
+        r = round(PIE_BLUE_DEEP[0] + (PIE_BLUE_LIGHT[0] - PIE_BLUE_DEEP[0]) * t)
+        g = round(PIE_BLUE_DEEP[1] + (PIE_BLUE_LIGHT[1] - PIE_BLUE_DEEP[1]) * t)
+        b = round(PIE_BLUE_DEEP[2] + (PIE_BLUE_LIGHT[2] - PIE_BLUE_DEEP[2]) * t)
+        out.append(f"#{r:02X}{g:02X}{b:02X}")
+    return out
+
+
 # --- width layout ------------------------------------------------------------
 def layout_widths(cols, total):
     """Weighted column widths that are all positive and sum to exactly `total`.
@@ -338,7 +376,7 @@ def second_numeric_col(cols, exclude):
 
 
 def build_chart(chart, cat, val, series, *, width, y, height, label_rotation=0,
-                trend=None, customizer=None):
+                trend=None, customizer=None, slice_colors=None):
     """Return jrxml lines for a JFreeChart <element kind="chart">."""
     chart_type, ds_kind = CHART_TYPES[chart]
     head = (f'\t\t<element kind="chart" chartType="{chart_type}" x="0" y="{y}" '
@@ -353,7 +391,15 @@ def build_chart(chart, cat, val, series, *, width, y, height, label_rotation=0,
         o.append(f'\t\t\t\t\t<valueExpression><![CDATA[$F{{{val}}}]]></valueExpression>')
         o.append('\t\t\t\t</series>')
         o.append('\t\t\t</dataset>')
-        o.append('\t\t\t<plot labelFormat="{0}: {2}" legendLabelFormat="{0} ({2})"/>')
+        # Actian-blue slice gradient (deep -> light) via declarative <seriesColor>;
+        # the query should ORDER BY value DESC so the largest slice is deepest.
+        if slice_colors:
+            o.append('\t\t\t<plot labelFormat="{0}: {2}" legendLabelFormat="{0} ({2})">')
+            for i, c in enumerate(slice_colors):
+                o.append(f'\t\t\t\t<seriesColor order="{i}" color="{c}"/>')
+            o.append('\t\t\t</plot>')
+        else:
+            o.append('\t\t\t<plot labelFormat="{0}: {2}" legendLabelFormat="{0} ({2})"/>')
     else:
         o.append('\t\t\t<dataset kind="category">')
         o.append('\t\t\t\t<series>')
@@ -455,7 +501,7 @@ def el_image(x, y, w, h, expr, *, scale="RetainShape", halign="Left", valign="Mi
 def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
                 margin=20, chart=None, chart_cat=None, chart_val=None,
                 chart_series=None, chart_height=300, chart_label_rotation=0,
-                chart_trend=None, chart_gradient=True,
+                chart_trend=None, chart_gradient=True, chart_slice_colors=None,
                 params=None, group_by=None, drills=None, highlights=None,
                 crosstab=None, subreport=None, theme=None, style_template=None,
                 logo=DEFAULT_LOGO_URI):
@@ -680,7 +726,8 @@ def build_jrxml(name, title, subtitle, query, cols, *, page_w, page_h,
                                    width=col_w, y=sy, height=chart_height,
                                    label_rotation=chart_label_rotation,
                                    trend=(chart_trend if use_cust else None),
-                                   customizer=(CHART_CUSTOMIZER if use_cust else None)))
+                                   customizer=(CHART_CUSTOMIZER if use_cust else None),
+                                   slice_colors=chart_slice_colors))
         sy += chart_height + 12
     if subreport:
         sub_uri, sub_params = subreport
@@ -831,14 +878,14 @@ def main():
         sys.stderr.write(f"SQL {level}: {msg}\n")
 
     # introspect against a copy with $P{..} replaced by literals so psql can run it
-    cols = introspect(substitute_params(query, params) if params else query,
-                      args.host, args.port, args.user, args.db)
+    introspect_q = substitute_params(query, params) if params else query
+    cols = introspect(introspect_q, args.host, args.port, args.user, args.db)
 
     w, h = PAGE_SIZES[args.page_size]
     if args.landscape:
         w, h = h, w
 
-    chart_cat = chart_val = chart_trend = None
+    chart_cat = chart_val = chart_trend = chart_slice_colors = None
     if args.chart:
         chart_cat = args.chart_category or first_text_col(cols)
         chart_val = args.chart_value or first_numeric_col(cols)
@@ -849,6 +896,11 @@ def main():
         # default trend column for the gradient-bar customizer: first other numeric
         if args.chart == "bar" and not args.no_gradient and not args.chart_series:
             chart_trend = args.chart_trend or second_numeric_col(cols, chart_val)
+        # default Actian-blue slice gradient for pie charts (sized to the row count,
+        # capped; the query should ORDER BY value DESC for largest=deepest)
+        if args.chart in ("pie", "pie3d") and not args.no_gradient:
+            n = row_count(introspect_q, args.host, args.port, args.user, args.db)
+            chart_slice_colors = blue_gradient(min(n or 8, 24))
 
     title = args.title or label_for(args.name)
     xml = build_jrxml(args.name, title, args.subtitle, query, cols,
@@ -857,6 +909,7 @@ def main():
                       chart_height=args.chart_height,
                       chart_label_rotation=args.chart_label_rotation,
                       chart_trend=chart_trend, chart_gradient=(not args.no_gradient),
+                      chart_slice_colors=chart_slice_colors,
                       params=params, group_by=args.group_by, drills=drills,
                       highlights=highlights, crosstab=crosstab, subreport=subreport,
                       theme=args.template, style_template=args.style_template,

@@ -117,6 +117,18 @@ server run-to-PDF).
 > reinstall/upgrade — re-copy + restart then. A bar report whose customizer jar is
 > missing fails to fill (use `--no-gradient` to opt out).
 
+**Branded `pie`/`pie3d` charts (default).** Pie slices are colored on the same
+**Actian-blue gradient** (deepest navy = largest slice → palest = smallest). This
+is **pure jrxml** — declarative `<seriesColor order="N" color="#hex"/>` entries
+under `<plot>` (NOT a customizer, so **no jar / no server restart**). The
+scaffolder sizes the palette to the query's row count (`row_count` via psql,
+capped at 24) so the gradient spans exactly the number of slices; **the query
+should `ORDER BY <value> DESC`** so the largest slice is deepest. `--no-gradient`
+falls back to JFreeChart's default palette. **Verified** (compile + server
+run-to-PDF). **JR7 gotchas:** the element is repeated `<seriesColor>` (no
+`<seriesColors>` wrapper) and the index attribute is **`order`** (not
+`seriesOrder`) — either wrong name throws `UnrecognizedPropertyException`.
+
 **Advanced report features** (all on `scaffold_jrxml.py`, all verified):
 - `--param NAME:TYPE[:DEFAULT]` — a report parameter used as `$P{NAME}` in the
   query (TYPE = string|integer|long|decimal|double|boolean|date|timestamp).
