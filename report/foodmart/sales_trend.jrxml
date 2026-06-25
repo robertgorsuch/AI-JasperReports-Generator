@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sales trend over time (monthly store sales line chart). Chart-only,
+     wide-short page sized for the Sales Dashboard bottom-right band. JR7-native. -->
+<jasperReport name="sales_trend" language="java" pageWidth="1000" pageHeight="220" columnWidth="980" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
+	<query language="SQL"><![CDATA[
+SELECT lpad(t.month_of_year::text, 2, '0') || ' ' || left(t.the_month, 3) AS month,
+       round(sum(s.store_sales), 0)::numeric AS sales
+FROM sales_fact_1998 s
+JOIN time_by_day t ON t.time_id = s.time_id
+GROUP BY t.month_of_year, t.the_month
+ORDER BY t.month_of_year
+	]]></query>
+
+	<field name="month" class="java.lang.String"/>
+	<field name="sales" class="java.math.BigDecimal"/>
+
+	<title height="40">
+		<element kind="image" x="0" y="0" width="36" height="36" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
+		<element kind="staticText" x="0" y="0" width="980" height="22" fontSize="14.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Sales Trend (2026)]]></text></element>
+		<element kind="staticText" x="0" y="23" width="980" height="12" fontSize="8.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Monthly store sales]]></text></element>
+	</title>
+
+	<summary height="160">
+		<element kind="chart" chartType="line" x="0" y="0" width="980" height="160" evaluationTime="Report">
+			<dataset kind="category">
+				<series>
+					<seriesExpression><![CDATA["Sales"]]></seriesExpression>
+					<categoryExpression><![CDATA[$F{month}]]></categoryExpression>
+					<valueExpression><![CDATA[$F{sales}]]></valueExpression>
+				</series>
+			</dataset>
+			<plot showLines="true" showShapes="true" categoryAxisTickLabelRotation="-45">
+				<seriesColor order="0" color="#1F4E79"/>
+			</plot>
+		</element>
+	</summary>
+
+</jasperReport>
