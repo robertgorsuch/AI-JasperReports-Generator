@@ -1,19 +1,31 @@
 {
   "folder": "/reports/foodmart",
   "name": "foodmart_sales_dashboard_2dashlet",
-  "label": "Foodmart Sales Dashboard",
+  "label": "Sales Dashboard",
   "dashlets": [
     {
-      "resource": "/reports/foodmart/foodmart_sales_by_category",
-      "label": "Foodmart - Sales by Product Category",
+      "resource": "/reports/foodmart/foodmart_sales_units_map",
+      "label": "Sales & Units by Country (map)",
       "showTitleBar": false,
-      "x": 0, "y": 0, "width": 20, "height": 9
+      "x": 0, "y": 0, "width": 18, "height": 13
+    },
+    {
+      "resource": "/reports/foodmart/gross_margin_dial",
+      "label": "Gross Margin",
+      "showTitleBar": false,
+      "x": 18, "y": 0, "width": 9, "height": 13
+    },
+    {
+      "resource": "/reports/foodmart/foodmart_sales_by_category",
+      "label": "Sales by Product Category",
+      "showTitleBar": false,
+      "x": 27, "y": 0, "width": 13, "height": 6
     },
     {
       "resource": "/reports/foodmart/foodmart_sales_by_region",
-      "label": "Foodmart - Sales by Region",
+      "label": "Sales by Region",
       "showTitleBar": false,
-      "x": 20, "y": 0, "width": 20, "height": 9
+      "x": 27, "y": 6, "width": 13, "height": 6
     }
   ]
 }

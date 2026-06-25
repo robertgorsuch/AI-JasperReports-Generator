@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Total store sales (choropleth color) + total units sold (entity label) by
+  country across North America. PRO FusionMaps component (legacy 6.x jrxml,
+  fm:map namespace), rendered server-side by JasperReports Server. Uses the
+  installed "NorthAmerica" map (fusion/maps/fusioncharts.northamerica.js); entity
+  ids are the map's country keys: USA=023, Mexico=016, Canada=005.
+  NOT locally compilable - validate by deploy + run on the server.
+-->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="foodmart_sales_units_map" pageWidth="842" pageHeight="596" columnWidth="822"
+              leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10"
+              uuid="f00d0a17-0001-0002-0003-000000000001">
+	<queryString><![CDATA[SELECT s.store_country AS country, SUM(sf.store_sales)::numeric(12,2) AS sales, SUM(sf.unit_sales)::int AS units FROM sales_fact_1998 sf JOIN store s ON s.store_id = sf.store_id GROUP BY s.store_country ORDER BY sales DESC]]></queryString>
+	<field name="country" class="java.lang.String"/>
+	<field name="sales" class="java.math.BigDecimal"/>
+	<field name="units" class="java.lang.Integer"/>
+	<title>
+		<band height="576">
+			<image>
+				<reportElement x="0" y="0" width="44" height="44" uuid="f00d0a17-0001-0002-0003-000000000010"/>
+				<imageExpression><![CDATA["repo:/images/actian_logo"]]></imageExpression>
+			</image>
+			<staticText>
+				<reportElement x="0" y="0" width="822" height="24" forecolor="#1F4E79" uuid="f00d0a17-0001-0002-0003-000000000002"/>
+				<textElement textAlignment="Center"><font size="16" isBold="true"/></textElement>
+				<text><![CDATA[Total Sales & Units Sold by Country (2026)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="24" width="822" height="13" forecolor="#5B7DA6" uuid="f00d0a17-0001-0002-0003-000000000003"/>
+				<textElement textAlignment="Center"><font size="9"/></textElement>
+				<text><![CDATA[Geographic heatmap (North America) - color = total store sales; label shows sales and units sold]]></text>
+			</staticText>
+			<componentElement>
+				<reportElement x="0" y="50" width="822" height="526" uuid="f00d0a17-0001-0002-0003-000000000004"/>
+				<fm:map xmlns:fm="http://jaspersoft.com/fusion"
+				        xsi:schemaLocation="http://jaspersoft.com/fusion http://jaspersoft.com/schema/fusion.xsd"
+				        evaluationTime="Report">
+					<fm:mapNameExpression><![CDATA["NorthAmerica"]]></fm:mapNameExpression>
+					<fm:mapProperty name="showBorder">
+						<fm:propertyExpression><![CDATA["0"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="showCanvasBorder">
+						<fm:propertyExpression><![CDATA["0"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="canvasBorderThickness">
+						<fm:propertyExpression><![CDATA["0"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="showLabels">
+						<fm:propertyExpression><![CDATA[Boolean.TRUE]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="includeNameInLabels">
+						<fm:propertyExpression><![CDATA[Boolean.FALSE]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="numberPrefix">
+						<fm:propertyExpression><![CDATA["$"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="legendPosition">
+						<fm:propertyExpression><![CDATA["BOTTOM"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="baseFontColor">
+						<fm:propertyExpression><![CDATA["#FFFFFF"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="legendItemFontColor">
+						<fm:propertyExpression><![CDATA["#454545"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:colorRange color="#4A6FA5">
+						<fm:minValueExpression><![CDATA[0]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[150000]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA["< $150K"]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:colorRange color="#2B4C7E">
+						<fm:minValueExpression><![CDATA[150000]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[450000]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA["$150K - $450K"]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:colorRange color="#0A2A4A">
+						<fm:minValueExpression><![CDATA[450000]]></fm:minValueExpression>
+						<fm:maxValueExpression><![CDATA[700000]]></fm:maxValueExpression>
+						<fm:labelExpression><![CDATA["$450K+"]]></fm:labelExpression>
+					</fm:colorRange>
+					<fm:mapDataset>
+						<fm:entity>
+							<fm:idExpression><![CDATA[$F{country}.equals("USA") ? "023" : ($F{country}.equals("Mexico") ? "016" : "005")]]></fm:idExpression>
+							<fm:valueExpression><![CDATA[$F{sales}]]></fm:valueExpression>
+							<fm:labelExpression><![CDATA[$F{country} + " - " + new java.text.DecimalFormat("#,##0").format($F{units}) + " units"]]></fm:labelExpression>
+						</fm:entity>
+					</fm:mapDataset>
+					<fm:shapeData/>
+					<c:markerData xmlns:c="http://jasperreports.sourceforge.net/jasperreports/components"
+					              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports/components http://jasperreports.sourceforge.net/xsd/components.xsd"/>
+				</fm:map>
+			</componentElement>
+		</band>
+	</title>
+</jasperReport>

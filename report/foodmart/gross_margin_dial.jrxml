@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gross margin KPI as a JFreeChart dial (meter) gauge. JR7-native, community
+     charts (jasperreports-charts), compiles + renders locally. Gross margin =
+     SUM(store_sales - store_cost) / SUM(store_sales) * 100. -->
+<jasperReport name="gross_margin_dial" language="java" pageWidth="270" pageHeight="362" columnWidth="250" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
+	<query language="SQL"><![CDATA[SELECT round((SUM(store_sales - store_cost) / SUM(store_sales) * 100)::numeric, 1) AS gross_margin, round(SUM(store_sales)::numeric, 0) AS total_sales, round(SUM(store_cost)::numeric, 0) AS total_cost FROM sales_fact_1998]]></query>
+
+	<field name="gross_margin" class="java.math.BigDecimal"/>
+	<field name="total_sales" class="java.math.BigDecimal"/>
+	<field name="total_cost" class="java.math.BigDecimal"/>
+
+	<title height="342">
+		<element kind="image" x="0" y="0" width="44" height="44" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
+		<element kind="staticText" x="0" y="0" width="250" height="24" fontSize="16.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Gross Margin (2026)]]></text></element>
+		<element kind="staticText" x="0" y="24" width="250" height="13" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Gross profit as a percent of store sales]]></text></element>
+
+		<element kind="chart" chartType="meter" x="0" y="48" width="250" height="250" evaluationTime="Report">
+			<dataset kind="value">
+				<valueExpression><![CDATA[$F{gross_margin}]]></valueExpression>
+			</dataset>
+			<plot shape="dial" units="%" tickCount="11" meterAngle="180" needleColor="#1F4E79" tickColor="#5B7DA6">
+				<dataRange>
+					<lowExpression><![CDATA[Double.valueOf(0)]]></lowExpression>
+					<highExpression><![CDATA[Double.valueOf(100)]]></highExpression>
+				</dataRange>
+				<valueDisplay color="#1F4E79" mask="#,##0.0'%'"/>
+				<interval label="Poor" backgroundColor="#D9534F">
+					<dataRange>
+						<lowExpression><![CDATA[Double.valueOf(0)]]></lowExpression>
+						<highExpression><![CDATA[Double.valueOf(40)]]></highExpression>
+					</dataRange>
+				</interval>
+				<interval label="Fair" backgroundColor="#F0AD4E">
+					<dataRange>
+						<lowExpression><![CDATA[Double.valueOf(40)]]></lowExpression>
+						<highExpression><![CDATA[Double.valueOf(60)]]></highExpression>
+					</dataRange>
+				</interval>
+				<interval label="Good" backgroundColor="#5CB85C">
+					<dataRange>
+						<lowExpression><![CDATA[Double.valueOf(60)]]></lowExpression>
+						<highExpression><![CDATA[Double.valueOf(100)]]></highExpression>
+					</dataRange>
+				</interval>
+			</plot>
+		</element>
+
+		<element kind="textField" x="0" y="190" width="250" height="28" fontSize="18.0" bold="true" forecolor="#1F4E79" hTextAlign="Center" vTextAlign="Middle" evaluationTime="Report"><expression><![CDATA[new java.text.DecimalFormat("#,##0.0").format($F{gross_margin}) + "%"]]></expression></element>
+
+		<element kind="textField" x="0" y="304" width="250" height="16" fontSize="11.0" bold="true" forecolor="#1F4E79" hTextAlign="Center" evaluationTime="Report"><expression><![CDATA["Total Sales:  $" + new java.text.DecimalFormat("#,##0").format($F{total_sales})]]></expression></element>
+		<element kind="textField" x="0" y="322" width="250" height="16" fontSize="11.0" bold="true" forecolor="#5B7DA6" hTextAlign="Center" evaluationTime="Report"><expression><![CDATA["Total Cost:  $" + new java.text.DecimalFormat("#,##0").format($F{total_cost})]]></expression></element>
+	</title>
+</jasperReport>

@@ -18,7 +18,7 @@ ORDER BY sales DESC
 
 	<title height="52">
 		<element kind="image" x="0" y="0" width="44" height="44" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
-		<element kind="staticText" x="0" y="0" width="910" height="24" fontSize="17.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Foodmart - Sales by Region]]></text></element>
+		<element kind="staticText" x="0" y="0" width="910" height="24" fontSize="17.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Sales by Region]]></text></element>
 		<element kind="staticText" x="0" y="26" width="910" height="14" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Store sales by sales region (2026)]]></text></element>
 	</title>
 
