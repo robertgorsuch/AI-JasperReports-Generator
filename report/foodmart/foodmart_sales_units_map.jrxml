@@ -34,7 +34,7 @@
 				<text><![CDATA[Geographic heatmap (North America) - color = total store sales; label shows sales and units sold]]></text>
 			</staticText>
 			<componentElement>
-				<reportElement x="0" y="50" width="822" height="526" uuid="f00d0a17-0001-0002-0003-000000000004"/>
+				<reportElement x="150" y="50" width="672" height="526" uuid="f00d0a17-0001-0002-0003-000000000004"/>
 				<fm:map xmlns:fm="http://jaspersoft.com/fusion"
 				        xsi:schemaLocation="http://jaspersoft.com/fusion http://jaspersoft.com/schema/fusion.xsd"
 				        evaluationTime="Report">
@@ -57,8 +57,8 @@
 					<fm:mapProperty name="numberPrefix">
 						<fm:propertyExpression><![CDATA["$"]]></fm:propertyExpression>
 					</fm:mapProperty>
-					<fm:mapProperty name="legendPosition">
-						<fm:propertyExpression><![CDATA["BOTTOM"]]></fm:propertyExpression>
+					<fm:mapProperty name="showLegend">
+						<fm:propertyExpression><![CDATA["0"]]></fm:propertyExpression>
 					</fm:mapProperty>
 					<fm:mapProperty name="baseFontColor">
 						<fm:propertyExpression><![CDATA["#FFFFFF"]]></fm:propertyExpression>
@@ -93,6 +93,38 @@
 					              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports/components http://jasperreports.sourceforge.net/xsd/components.xsd"/>
 				</fm:map>
 			</componentElement>
+			<staticText>
+				<reportElement x="6" y="270" width="138" height="14" forecolor="#1F4E79" uuid="f00d0a17-0001-0002-0003-000000000020"/>
+				<textElement><font size="10" isBold="true"/></textElement>
+				<text><![CDATA[Total Sales]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="10" y="290" width="20" height="14" mode="Opaque" backcolor="#4A6FA5" forecolor="#4A6FA5" uuid="f00d0a17-0001-0002-0003-000000000021"/>
+				<graphicElement><pen lineWidth="0.0"/></graphicElement>
+			</rectangle>
+			<staticText>
+				<reportElement x="36" y="290" width="108" height="14" uuid="f00d0a17-0001-0002-0003-000000000022"/>
+				<textElement verticalAlignment="Middle"><font size="9"/></textElement>
+				<text><![CDATA[< $150K]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="10" y="312" width="20" height="14" mode="Opaque" backcolor="#2B4C7E" forecolor="#2B4C7E" uuid="f00d0a17-0001-0002-0003-000000000023"/>
+				<graphicElement><pen lineWidth="0.0"/></graphicElement>
+			</rectangle>
+			<staticText>
+				<reportElement x="36" y="312" width="108" height="14" uuid="f00d0a17-0001-0002-0003-000000000024"/>
+				<textElement verticalAlignment="Middle"><font size="9"/></textElement>
+				<text><![CDATA[$150K - $450K]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="10" y="334" width="20" height="14" mode="Opaque" backcolor="#0A2A4A" forecolor="#0A2A4A" uuid="f00d0a17-0001-0002-0003-000000000025"/>
+				<graphicElement><pen lineWidth="0.0"/></graphicElement>
+			</rectangle>
+			<staticText>
+				<reportElement x="36" y="334" width="108" height="14" uuid="f00d0a17-0001-0002-0003-000000000026"/>
+				<textElement verticalAlignment="Middle"><font size="9"/></textElement>
+				<text><![CDATA[$450K+]]></text>
+			</staticText>
 		</band>
 	</title>
 </jasperReport>

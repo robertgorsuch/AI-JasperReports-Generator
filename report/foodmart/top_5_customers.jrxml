@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Top 5 customers by revenue. Wide-short page sized for the Sales Dashboard
+     tile below the map. JR7-native. -->
+<jasperReport name="top_5_customers" language="java" pageWidth="800" pageHeight="214" columnWidth="780" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
+	<query language="SQL"><![CDATA[
+SELECT c.fullname AS customer, c.city || ', ' || c.state_province AS location, SUM(sf.store_sales)::numeric(12,2) AS revenue, SUM(sf.unit_sales)::int AS units FROM sales_fact_1998 sf JOIN customer c ON c.customer_id = sf.customer_id GROUP BY c.customer_id, c.fullname, c.city, c.state_province ORDER BY revenue DESC LIMIT 5
+	]]></query>
+
+	<field name="customer" class="java.lang.String"/>
+	<field name="location" class="java.lang.String"/>
+	<field name="revenue" class="java.math.BigDecimal"/>
+	<field name="units" class="java.lang.Integer"/>
+
+	<title height="52">
+		<element kind="image" x="0" y="0" width="44" height="44" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
+		<element kind="staticText" x="0" y="0" width="780" height="24" fontSize="16.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Top 5 Customers by Revenue (2026)]]></text></element>
+		<element kind="staticText" x="0" y="26" width="780" height="14" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Highest-revenue customers]]></text></element>
+	</title>
+
+	<columnHeader height="22">
+		<element kind="rectangle" x="0" y="0" width="780" height="22" mode="Opaque" backcolor="#1F4E79" forecolor="#1F4E79"/>
+		<element kind="staticText" x="6" y="0" width="34" height="22" fontSize="10.0" bold="true" forecolor="#FFFFFF" hTextAlign="Center" vTextAlign="Middle"><text><![CDATA[#]]></text></element>
+		<element kind="staticText" x="46" y="0" width="250" height="22" fontSize="10.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Customer]]></text></element>
+		<element kind="staticText" x="300" y="0" width="230" height="22" fontSize="10.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Location]]></text></element>
+		<element kind="staticText" x="536" y="0" width="118" height="22" fontSize="10.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Revenue]]></text></element>
+		<element kind="staticText" x="658" y="0" width="118" height="22" fontSize="10.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Units]]></text></element>
+	</columnHeader>
+
+	<detail>
+		<band height="24">
+		<element kind="textField" x="6" y="0" width="34" height="20" fontSize="10.0" bold="true" forecolor="#1F4E79" hTextAlign="Center" vTextAlign="Middle"><expression><![CDATA[$V{REPORT_COUNT}]]></expression></element>
+		<element kind="textField" x="46" y="0" width="250" height="20" fontSize="10.0" vTextAlign="Middle"><expression><![CDATA[$F{customer}]]></expression></element>
+		<element kind="textField" x="300" y="0" width="230" height="20" fontSize="10.0" vTextAlign="Middle"><expression><![CDATA[$F{location}]]></expression></element>
+		<element kind="textField" x="536" y="0" width="118" height="20" fontSize="10.0" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00"><expression><![CDATA[$F{revenue}]]></expression></element>
+		<element kind="textField" x="658" y="0" width="118" height="20" fontSize="10.0" hTextAlign="Right" vTextAlign="Middle" pattern="#,##0"><expression><![CDATA[$F{units}]]></expression></element>
+			<element kind="line" x="0" y="23" width="780" height="1" forecolor="#D6E0EF"/>
+		</band>
+	</detail>
+
+</jasperReport>

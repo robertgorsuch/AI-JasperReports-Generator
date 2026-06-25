@@ -10,6 +10,12 @@
       "x": 0, "y": 0, "width": 18, "height": 13
     },
     {
+      "resource": "/reports/foodmart/top_5_customers",
+      "label": "Top 5 Customers",
+      "showTitleBar": false,
+      "x": 0, "y": 13, "width": 18, "height": 5
+    },
+    {
       "resource": "/reports/foodmart/gross_margin_dial",
       "label": "Gross Margin",
       "showTitleBar": false,
