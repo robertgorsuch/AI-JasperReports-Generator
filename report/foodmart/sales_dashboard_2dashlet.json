@@ -46,6 +46,12 @@
       "x": 0, "y": 16, "width": 14, "height": 7
     },
     {
+      "resource": "/reports/foodmart/top_5_products",
+      "label": "Top 5 Products",
+      "showTitleBar": false,
+      "x": 14, "y": 16, "width": 14, "height": 7
+    },
+    {
       "resource": "/reports/foodmart/kpi_strip",
       "label": "Key Metrics",
       "showTitleBar": false,
