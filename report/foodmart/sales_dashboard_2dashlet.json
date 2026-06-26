@@ -25,13 +25,13 @@
       "resource": "/reports/foodmart/foodmart_sales_by_category",
       "label": "Sales by Product Category",
       "showTitleBar": false,
-      "x": 28, "y": 0, "width": 12, "height": 10
+      "x": 28, "y": 2, "width": 12, "height": 10
     },
     {
       "resource": "/reports/foodmart/foodmart_sales_by_region",
       "label": "Sales by Region",
       "showTitleBar": false,
-      "x": 28, "y": 10, "width": 12, "height": 10
+      "x": 28, "y": 12, "width": 12, "height": 11
     },
     {
       "resource": "/reports/foodmart/sales_trend",
@@ -55,7 +55,13 @@
       "resource": "/reports/foodmart/kpi_strip",
       "label": "Key Metrics",
       "showTitleBar": false,
-      "x": 0, "y": 24, "width": 40, "height": 6
+      "x": 0, "y": 23, "width": 40, "height": 7
+    },
+    {
+      "resource": "/reports/foodmart/last_updated",
+      "label": "Last Updated",
+      "showTitleBar": false,
+      "x": 28, "y": 0, "width": 12, "height": 2
     }
   ]
 }

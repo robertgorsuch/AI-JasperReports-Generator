@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Live "last refreshed" timestamp + version, as a small report tile. now() is
+     evaluated each time the dashboard runs the report -> dynamic. Wide-short page
+     for the top-right corner tile. JR7-native. -->
+<jasperReport name="last_updated" language="java" pageWidth="600" pageHeight="72" columnWidth="588" leftMargin="6" rightMargin="6" topMargin="6" bottomMargin="6">
+	<query language="SQL"><![CDATA[SELECT now()::timestamp AS refreshed]]></query>
+
+	<field name="refreshed" class="java.sql.Timestamp"/>
+
+	<title height="60">
+		<element kind="textField" x="0" y="0" width="588" height="60" fontSize="13.0" bold="true" forecolor="#5B7DA6" hTextAlign="Center" vTextAlign="Middle" evaluationTime="Report"><expression><![CDATA["Last refreshed: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format($F{refreshed}) + "       ·       Version 1.0"]]></expression></element>
+	</title>
+
+</jasperReport>
