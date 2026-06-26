@@ -19,7 +19,13 @@
       "resource": "/reports/foodmart/gross_margin_dial",
       "label": "Gross Margin",
       "showTitleBar": false,
-      "x": 18, "y": 0, "width": 9, "height": 13
+      "x": 18, "y": 0, "width": 9, "height": 6
+    },
+    {
+      "resource": "/reports/foodmart/yoy_growth_dial",
+      "label": "YoY Sales Growth",
+      "showTitleBar": false,
+      "x": 18, "y": 7, "width": 9, "height": 6
     },
     {
       "resource": "/reports/foodmart/foodmart_sales_by_category",
@@ -38,6 +44,12 @@
       "label": "Sales Trend",
       "showTitleBar": false,
       "x": 18, "y": 13, "width": 22, "height": 5
+    },
+    {
+      "resource": "/reports/foodmart/kpi_strip",
+      "label": "Key Metrics",
+      "showTitleBar": false,
+      "x": 0, "y": 18, "width": 40, "height": 4
     }
   ]
 }

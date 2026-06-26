@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 4-up KPI number strip (Revenue / Gross Profit / Units / Customers). Wide-short
+     page sized for a full-width dashboard row. JR7-native. -->
+<jasperReport name="kpi_strip" language="java" pageWidth="1600" pageHeight="130" columnWidth="1580" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
+	<query language="SQL"><![CDATA[SELECT round(SUM(store_sales), 0) AS revenue, round(SUM(store_sales - store_cost), 0) AS gross_profit, round(SUM(unit_sales), 0) AS units, COUNT(DISTINCT customer_id)::int AS customers FROM sales_fact_1998]]></query>
+
+	<field name="revenue" class="java.math.BigDecimal"/>
+	<field name="gross_profit" class="java.math.BigDecimal"/>
+	<field name="units" class="java.math.BigDecimal"/>
+	<field name="customers" class="java.lang.Integer"/>
+
+	<title height="110">
+		<element kind="staticText" x="0" y="14" width="395" height="26" fontSize="13.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Total Revenue]]></text></element>
+		<element kind="textField" x="0" y="44" width="395" height="50" fontSize="30.0" bold="true" forecolor="#1F4E79" hTextAlign="Center" vTextAlign="Middle" pattern="$#,##0" evaluationTime="Report"><expression><![CDATA[$F{revenue}]]></expression></element>
+
+		<element kind="line" x="395" y="20" width="1" height="70" forecolor="#D6E0EF"/>
+		<element kind="staticText" x="395" y="14" width="395" height="26" fontSize="13.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Gross Profit]]></text></element>
+		<element kind="textField" x="395" y="44" width="395" height="50" fontSize="30.0" bold="true" forecolor="#1F4E79" hTextAlign="Center" vTextAlign="Middle" pattern="$#,##0" evaluationTime="Report"><expression><![CDATA[$F{gross_profit}]]></expression></element>
+
+		<element kind="line" x="790" y="20" width="1" height="70" forecolor="#D6E0EF"/>
+		<element kind="staticText" x="790" y="14" width="395" height="26" fontSize="13.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Units Sold]]></text></element>
+		<element kind="textField" x="790" y="44" width="395" height="50" fontSize="30.0" bold="true" forecolor="#1F4E79" hTextAlign="Center" vTextAlign="Middle" pattern="#,##0" evaluationTime="Report"><expression><![CDATA[$F{units}]]></expression></element>
+
+		<element kind="line" x="1185" y="20" width="1" height="70" forecolor="#D6E0EF"/>
+		<element kind="staticText" x="1185" y="14" width="395" height="26" fontSize="13.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Active Customers]]></text></element>
+		<element kind="textField" x="1185" y="44" width="395" height="50" fontSize="30.0" bold="true" forecolor="#1F4E79" hTextAlign="Center" vTextAlign="Middle" pattern="#,##0" evaluationTime="Report"><expression><![CDATA[$F{customers}]]></expression></element>
+	</title>
+
+</jasperReport>
