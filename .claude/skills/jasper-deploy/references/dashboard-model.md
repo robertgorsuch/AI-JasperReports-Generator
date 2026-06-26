@@ -41,6 +41,52 @@ Two base events broadcast from the properties singleton to every tile:
 producer→consumer events (cross-dashlet filtering) can be appended — the manifest
 `"wiring":[{"producer":"A:out","consumers":["B:param"]}]` passes them through.
 
+## Recompose ALWAYS deletes the dashboard first
+`compose_dashboard.ps1` imports with `update=true`, which **does NOT overwrite an
+existing dashboard's companion files** (`layout`/`components`/`wiring`). So a
+recompose over an existing dashboard silently keeps the OLD layout. The script now
+**deletes the dashboard before importing by default** (pass `-KeepExisting` to
+skip). Deleting it also releases the `resource.in.use` locks on the dashlet
+reports. If you ever import by hand, DELETE the dashboard first.
+
+## Designer hand-edits vs the manifest — keep them in sync
+Rearranging a dashboard in the JRS designer changes the live `layout`, but the
+compose **manifest** is unaware — a later recompose would revert the hand edits.
+After any designer rearrange, re-derive the manifest from the live dashboard:
+```powershell
+& scripts\sync_manifest_from_dashboard.ps1 -Uri /reports/<folder>/<name> -Out report\<...>.json
+```
+It exports the dashboard and rewrites the manifest's dashlet list + x/y/w/h (report,
+text, and image tiles) to match the live layout. Then recompose is safe.
+
+## Tile sizing rule (avoid scrollbars / whitespace)
+Tiles render the report scaled **to the tile width** (`scaleToFit:width`), so the
+report's page aspect drives the fit:
+- A tile scrolls when the report is **taller** than the tile: ensure
+  `tile_height/tile_width  ≥  page_height/page_width`.
+- Dashlet **padding** (~5px each side) shrinks the usable tile, so a tile sized to
+  the EXACT page aspect still scrolls a little — make the **report page ~5–10%
+  shorter** than the exact match (this is why the timestamp tile is 600×72, not 96).
+- Trim the report page to its content so the tile shows no empty band. Wide-short
+  reports (tables, bar/line, KPI strips) suit short bands; near-square (dials) or
+  portrait (maps) need taller tiles.
+- Every tile: `showTitleBar:false` (now honored per-dashlet by `gen_dashboard.py`).
+
+## Ready-made tile recipes
+- **Live "last refreshed" timestamp** — a tiny report (not a text tile, which is
+  static): `SELECT now()::timestamp AS refreshed`, one `textField`
+  (`evaluationTime="Report"`) formatting it + a version string. Re-runs each load →
+  dynamic. Page ~600×72 for a `~12×2` tile.
+- **KPI number strip (N-up)** — one report, query returns one row of N aggregates;
+  N cells each = a label `staticText` + a big `textField` (pattern `$#,##0` /
+  `#,##0`, `evaluationTime="Report"`), with thin `<line>` dividers. Page very
+  wide-short (e.g. 1600×130 for a full-width `40×4`–`40×7` row).
+- **KPI dial** — `scaffold_kpi_dial.py` (JFreeChart meter; see
+  `references/fusion-pro-gotchas.md`).
+- **Top-N table tile** — scaffold a table, add a `#` rank column via
+  `$V{REPORT_COUNT}`, currency pattern on money cols, drop the page footer, and
+  trim to a wide-short page (e.g. 800×214).
+
 ## What is NOT synthesizable (designer-only)
 - **filterGroup + inputControl tiles** — the interactive filter UI depends on
   designer-generated temp resources (`tmpAdv_*_files`, `ownerResourceId`), so a

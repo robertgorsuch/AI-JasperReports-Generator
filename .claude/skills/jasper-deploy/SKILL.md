@@ -93,6 +93,21 @@ type: `line` uses `showLines/showShapes` — `showTickMarks/showTickLabels` thro
 `UnrecognizedPropertyException` on a line plot — while bar/area/stackedbar use
 `showTickMarks/showTickLabels`.)
 
+**KPI dial (gauge):** for a single-value gauge use `scripts/scaffold_kpi_dial.py`
+(a JFreeChart **meter**, `shape="dial"`) — NOT the Pro FusionWidgets angular gauge,
+which deploys with opaque `400`s. The meter is a community chart that compiles +
+renders locally. The scaffolder bakes in the gotchas (SQUARE element → perfect
+circle; an overlay `textField` for the value since the meter's `<valueDisplay>` is
+unreliable; `meterColor`/`fontSize` element-name traps):
+```powershell
+python $skill\scaffold_kpi_dial.py --name gross_margin_dial --title "Gross Margin" `
+    --query "SELECT round((SUM(store_sales-store_cost)/SUM(store_sales)*100)::numeric,1) AS v FROM sales_fact_1998" `
+    --value-col v --min 0 --max 100 --units % --out report\foodmart\gross_margin_dial.jrxml
+```
+`--zones "label:#color:lo:hi;..."` overrides the default red/amber/green thirds;
+`--units none` for no units; `--subtitle`, `--decimals`, `--tick-count`, `--no-logo`.
+See `references/fusion-pro-gotchas.md` for the meter + FusionMaps reference.
+
 **Branded `bar` charts (default).** A plain `--chart bar` is styled by the
 `com.actian.jasper.GradientTrendCustomizer` JFreeChart customizer **by default**:
 bars are painted on an **Actian-blue gradient that encodes the measure** (palest =
@@ -552,6 +567,24 @@ unconditionally, so an absolute `-WorkDir` produced an invalid `C:\cwd\C:\abs`
 path and `ExtractToDirectory` threw "the given path's format is not supported";
 that's fixed — pass an absolute `-WorkDir` when the caller's CWD isn't writable
 (e.g. the web wizard runs it from the Tomcat temp dir).
+
+**Recompose deletes the dashboard first (by default).** JRS import won't overwrite
+an existing dashboard's companion files (`layout`/`components`/`wiring`), so a
+recompose over an existing dashboard would silently keep the OLD layout.
+`compose_dashboard.ps1` now **deletes the target dashboard before importing** (pass
+`-KeepExisting` to skip). This also frees the dashlet reports' `resource.in.use`
+locks. `build_dashlets.ps1 -Compose` inherits this.
+
+**Designer hand-edits → re-sync the manifest.** If the dashboard is rearranged in
+the JRS designer, the compose manifest is stale and a recompose reverts those
+edits. Re-derive the manifest from the live dashboard first:
+```powershell
+& $skill\sync_manifest_from_dashboard.ps1 -Uri /reports/foodmart/<dash> -Out report\foodmart\<dash>.json
+```
+It exports the dashboard and rewrites the manifest's dashlet list + x/y/w/h (report,
+text, and image tiles) to match the live layout, so the next recompose preserves
+the arrangement. See `references/dashboard-model.md` for the tile-sizing rule
+(`tile h/w ≥ page h/w`, minus dashlet padding) and ready-made tile recipes.
 
 **Gotcha — `resource.in.use` (403).** A report that is already a dashlet of an
 **existing** dashboard is modification-locked by JRS: re-deploying it (delete or

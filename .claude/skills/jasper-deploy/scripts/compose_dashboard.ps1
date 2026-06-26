@@ -46,6 +46,11 @@ param(
     [switch]$AutoGrid,
     [string]$WorkDir = "out\dash_build",
     [int]$TimeoutSec = 120,
+    # By default, DELETE any existing dashboard at the target URI before importing.
+    # JRS import (update=true) does NOT overwrite an existing dashboard's companion
+    # files (layout/components/wiring), so without this a recompose silently keeps
+    # the OLD layout. Pass -KeepExisting to skip the delete (rarely wanted).
+    [switch]$KeepExisting,
     [string]$ServerUrl,
     [string]$User,
     [string]$Password
@@ -143,7 +148,15 @@ with zipfile.ZipFile(sys.argv[2], 'w', zipfile.ZIP_DEFLATED) as z:
 "@ $treeFull $finalZip
 if ($LASTEXITCODE -ne 0) { throw "re-zip failed" }
 
-# --- 5. import & verify -------------------------------------------------------
+# --- 5. delete existing dashboard, then import & verify ------------------------
+# JRS import won't overwrite an existing dashboard's companion files, so a
+# recompose would keep the old layout/components. Delete first (default) so the
+# fresh model takes. (Deleting the dashboard also releases the resource.in.use
+# locks on its dashlet reports.)
+if (-not $KeepExisting) {
+    $delCode = & curl.exe -s -o NUL -w "%{http_code}" -u $auth -X DELETE "$($jrs.ServerUrl)/rest_v2/resources$dashUri"
+    if ("$delCode".Trim() -eq "204") { Write-Host "  deleted existing dashboard $dashUri (will recreate)" }
+}
 & (Join-Path $PSScriptRoot "import_resource.ps1") -Zip $finalZip `
     -ServerUrl $jrs.ServerUrl -User $jrs.User -Password $jrs.Password | Write-Host
 
