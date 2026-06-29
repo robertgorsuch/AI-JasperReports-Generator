@@ -128,7 +128,7 @@ $ff = [IO.Path]::GetTempFileName()
 try {
     $r = Invoke-JrsPut -Jrs $jrs -Uri $themeUri -ContentType "application/repository.folder+json" -JsonFile $ff -Overwrite
 } finally { Remove-Item $ff -ErrorAction SilentlyContinue }
-if ($r.Code -notmatch '^2\d\d$') { throw "create theme folder $themeUri failed ($($r.Code)): $($r.Body)" }
+Assert-JrsOk -Response $r -Operation "create theme folder $themeUri failed" | Out-Null
 Write-Host "OK ($($r.Code)): theme folder $themeUri"
 
 # upload each file as a repository file resource (createFolders builds images/ etc.)
@@ -142,7 +142,7 @@ foreach ($pair in $files) {
     ([ordered]@{ label = $label; type = $type; content = $b64 } | ConvertTo-Json) | Set-Content $jf -Encoding utf8
     try { $fr = Invoke-JrsPut -Jrs $jrs -Uri $uri -ContentType "application/repository.file+json" -JsonFile $jf -Overwrite }
     finally { Remove-Item $jf -ErrorAction SilentlyContinue }
-    if ($fr.Code -notmatch '^2\d\d$') { throw "upload $uri failed ($($fr.Code)): $($fr.Body)" }
+    Assert-JrsOk -Response $fr -Operation "upload $uri failed" | Out-Null
     Write-Host "  + $rel ($type)"
 }
 Write-Host "OK: deployed $($files.Count) file(s) to $themeUri"
@@ -156,7 +156,7 @@ if ($Activate) {
         $ar = Invoke-JrsRest -Jrs $jrs -Method PUT -Path "/rest_v2/organizations/$Organization" `
             -ContentType "application/json" -JsonFile $jf
     } finally { Remove-Item $jf -ErrorAction SilentlyContinue }
-    if ($ar.Code -notmatch '^2\d\d$') { throw "activate (PUT /organizations/$Organization theme=$Name) failed ($($ar.Code)): $($ar.Body)" }
+    Assert-JrsOk -Response $ar -Operation "activate (PUT /organizations/$Organization theme=$Name) failed" | Out-Null
     $now = try { ($ar.Body | ConvertFrom-Json).theme } catch { $null }
     Write-Host "OK ($($ar.Code)): activated theme '$Name' for org '$Organization'$(if ($now) { " (theme=$now)" })"
 } else {

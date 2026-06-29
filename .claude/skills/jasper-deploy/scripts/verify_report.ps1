@@ -44,7 +44,6 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "_jrs_common.ps1")
 $jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password
-$auth = "$($jrs.User):$($jrs.Password)"
 if (-not $Uri.StartsWith("/")) { $Uri = "/$Uri" }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $rname = ($Uri -split "/")[-1]
@@ -62,7 +61,8 @@ $magic = @{ pdf = "%PDF-"; xlsx = "PK"; docx = "PK"; pptx = "PK"; ods = "PK"; od
 
 # --- 1. run in the requested format -------------------------------------------
 $outFile = Join-Path $OutDir "$rname.$Format"
-$code = & curl.exe -s -o $outFile -w "%{http_code}" -u $auth "$base.$Format$qs"
+# -AllowError: this check reports http/size/magic itself rather than throwing.
+$code = Invoke-JrsDownload -Jrs $jrs -Url "$base.$Format$qs" -OutFile $outFile -AllowError
 $size = if (Test-Path $outFile) { (Get-Item $outFile).Length } else { 0 }
 $head = if (Test-Path $outFile) { (Get-Content $outFile -TotalCount 1 -ErrorAction SilentlyContinue) } else { "" }
 $wantMagic = $magic[$Format]
@@ -73,7 +73,7 @@ else { Write-Host "FAIL run     $Format http=$code size=$size"; $fails += "run" 
 # --- 2. content assertions via CSV --------------------------------------------
 if ($MinRows -gt 0 -or $Contains) {
     $csv = Join-Path $OutDir "$rname.csv"
-    $cc = & curl.exe -s -o $csv -w "%{http_code}" -u $auth "$base.csv$qs"
+    $cc = Invoke-JrsDownload -Jrs $jrs -Url "$base.csv$qs" -OutFile $csv -AllowError
     $text = if (Test-Path $csv) { Get-Content $csv -Raw } else { "" }
     # data rows: non-empty lines that carry a value, minus the title/header lines
     $lines = @(Get-Content $csv -ErrorAction SilentlyContinue | Where-Object { $_ -match "\S" })
@@ -92,7 +92,9 @@ if ($MinRows -gt 0 -or $Contains) {
 if ($Baseline) {
     $pdf = Join-Path $OutDir "$rname.pdf"
     if ($Format -ne "pdf" -or -not (Test-Path $pdf)) {
-        & curl.exe -s -o $pdf -u $auth "$base.pdf$qs" | Out-Null
+        # Hard-check here: a 404/500 body masquerading as a PDF would make the
+        # pixel-diff meaningless, so throw rather than rasterize garbage.
+        Invoke-JrsDownload -Jrs $jrs -Url "$base.pdf$qs" -OutFile $pdf | Out-Null
     }
     $png = Join-Path $OutDir "$rname.page1.png"
     $args = @("$PSScriptRoot\pdf_verify.py", "--pdf", $pdf, "--png", $png,

@@ -68,21 +68,21 @@ switch ($Action) {
     "list" {
         $r = Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/organizations"
         if ($r.Code -eq "204") { Write-Host "No organizations found."; return }
-        if ($r.Code -notmatch '^2\d\d$') { throw "list failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "list failed" | Out-Null
         Write-Output $r.Body
         return
     }
     "get" {
         if (-not $Id) { throw "-Id is required for get" }
         $r = Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/organizations/$Id"
-        if ($r.Code -notmatch '^2\d\d$') { throw "get failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "get failed" | Out-Null
         Write-Output $r.Body
         return
     }
     "delete" {
         if (-not $Id) { throw "-Id is required for delete" }
         $r = Invoke-JrsRest -Jrs $jrs -Method DELETE -Path "/rest_v2/organizations/$Id"
-        if ($r.Code -notmatch '^(2\d\d|404)$') { throw "delete failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "delete failed" -Ok '^(2\d\d|404)$' | Out-Null
         Write-Host "OK ($($r.Code)): deleted organization $Id"
         return
     }
@@ -104,7 +104,7 @@ switch ($Action) {
                 -Path "/rest_v2/organizations?createDefaultUsers=$($CreateDefaultUsers.ToString().ToLower())" `
                 -ContentType "application/json" -Accept "application/json" -JsonFile $f
         } finally { Remove-Item $f -ErrorAction SilentlyContinue }
-        if ($r.Code -notmatch '^2\d\d$') { Write-Host $r.Body; throw "create failed HTTP $($r.Code)" }
+        Assert-JrsOk -Response $r -Operation "create failed" | Out-Null
         Write-Host "OK ($($r.Code)): created organization $Id"
         return
     }
@@ -112,7 +112,7 @@ switch ($Action) {
         if (-not $Id) { throw "-Id is required for update" }
         # read-modify-write so we don't blank fields we aren't changing
         $cur = Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/organizations/$Id"
-        if ($cur.Code -notmatch '^2\d\d$') { throw "update: read failed ($($cur.Code)): $($cur.Body)" }
+        Assert-JrsOk -Response $cur -Operation "update: read failed" | Out-Null
         $obj = $cur.Body | ConvertFrom-Json
         if ($Theme) { $obj | Add-Member -NotePropertyName theme -NotePropertyValue $Theme -Force }
         $f = [IO.Path]::GetTempFileName()
@@ -121,7 +121,7 @@ switch ($Action) {
             $r = Invoke-JrsRest -Jrs $jrs -Method PUT -Path "/rest_v2/organizations/$Id" `
                 -ContentType "application/json" -Accept "application/json" -JsonFile $f
         } finally { Remove-Item $f -ErrorAction SilentlyContinue }
-        if ($r.Code -notmatch '^2\d\d$') { Write-Host $r.Body; throw "update failed HTTP $($r.Code)" }
+        Assert-JrsOk -Response $r -Operation "update failed" | Out-Null
         Write-Host "OK ($($r.Code)): updated organization $Id$(if ($Theme) { " (theme=$Theme)" })"
         return
     }

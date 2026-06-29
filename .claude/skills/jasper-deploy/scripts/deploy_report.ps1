@@ -166,7 +166,7 @@ if ($Control -or $QueryControl -or $QueryMultiControl) {
         ($obj | ConvertTo-Json -Depth 8) | Set-Content $f -Encoding utf8
         try { $rr = Invoke-JrsPut -Jrs $jrs -Uri $uri -Overwrite -ContentType $ctype -JsonFile $f }
         finally { Remove-Item $f -ErrorAction SilentlyContinue }
-        if ($rr.Code -notmatch '^2\d\d$') { throw "input control PUT $uri failed ($($rr.Code)): $($rr.Body)" }
+        Assert-JrsOk -Response $rr -Operation "input control PUT $uri failed" | Out-Null
     }
 
     $icRefs = @()
@@ -232,7 +232,7 @@ if ($Control -or $QueryControl -or $QueryMultiControl) {
             $icJson | Set-Content $icf -Encoding utf8
             try { $icr = Invoke-JrsPut -Jrs $jrs -Uri $icUri -Overwrite -ContentType "application/repository.inputControl+json" -JsonFile $icf }
             finally { Remove-Item $icf -ErrorAction SilentlyContinue }
-            if ($icr.Code -notmatch '^2\d\d$') { throw "query control PUT $icUri failed ($($icr.Code)): $($icr.Body)" }
+            Assert-JrsOk -Response $icr -Operation "query control PUT $icUri failed" | Out-Null
             $icRefs += [ordered]@{ inputControlReference = [ordered]@{ uri = $icUri } }
             Write-Host "  input control: $cname (query type $qtype, value=$valueCol) -> $icUri"
         }
@@ -240,7 +240,7 @@ if ($Control -or $QueryControl -or $QueryMultiControl) {
 
     # reference the controls from the report unit
     $cur = Invoke-JrsGet -Jrs $jrs -Uri $TargetUri
-    if ($cur.Code -notmatch '^2\d\d$') { throw "could not re-read $TargetUri to attach controls ($($cur.Code))" }
+    Assert-JrsOk -Response $cur -Operation "could not re-read $TargetUri to attach controls" | Out-Null
     $ru = $cur.Body | ConvertFrom-Json
     $ru | Add-Member -NotePropertyName inputControls -NotePropertyValue $icRefs -Force
     $ru | Add-Member -NotePropertyName controlsLayout -NotePropertyValue $ControlsLayout -Force
@@ -248,6 +248,6 @@ if ($Control -or $QueryControl -or $QueryMultiControl) {
     ($ru | ConvertTo-Json -Depth 12) | Set-Content $f2 -Encoding utf8
     try { $ur = Invoke-JrsPut -Jrs $jrs -Uri $TargetUri -Overwrite -ContentType "application/repository.reportUnit+json" -JsonFile $f2 }
     finally { Remove-Item $f2 -ErrorAction SilentlyContinue }
-    if ($ur.Code -notmatch '^2\d\d$') { throw "attaching controls to $TargetUri failed ($($ur.Code)): $($ur.Body)" }
+    Assert-JrsOk -Response $ur -Operation "attaching controls to $TargetUri failed" | Out-Null
     Write-Host "OK: attached $($icRefs.Count) input control(s) to $TargetUri"
 }

@@ -81,13 +81,13 @@ switch ($Action) {
         }
         try { $r = Invoke-JrsRest -Jrs $jrs -Method PUT -Path $path -ContentType "application/json" -JsonFile $f }
         finally { Remove-Item $f -ErrorAction SilentlyContinue }
-        if ($r.Code -notmatch '^2\d\d$') { Write-Host $r.Body; throw "set attribute failed HTTP $($r.Code)" }
+        Assert-JrsOk -Response $r -Operation "set attribute failed" | Out-Null
         Write-Host "OK ($($r.Code)): set $Scope attribute '$Name'"
     }
     "delete" {
         $path = if ($subResource) { $base } else { "${base}?name=$Name" }
         $r = Invoke-JrsRest -Jrs $jrs -Method DELETE -Path $path
         Write-Host "DELETE $Scope attribute '$Name' -> $($r.Code)"
-        if ($r.Code -notmatch '^(2\d\d|404)$') { Write-Host $r.Body; throw "delete attribute failed HTTP $($r.Code)" }
+        Assert-JrsOk -Response $r -Operation "delete attribute failed" -Ok '^(2\d\d|404)$' | Out-Null
     }
 }

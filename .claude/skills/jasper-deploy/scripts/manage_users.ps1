@@ -84,21 +84,21 @@ switch ($Action) {
         $path = if ($q.Count) { "${usersBase}?$($q -join '&')" } else { $usersBase }
         $r = Invoke-JrsRest -Jrs $jrs -Method GET -Path $path
         if ($r.Code -eq "204") { Write-Host "No users found."; return }
-        if ($r.Code -notmatch '^2\d\d$') { throw "list failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "list failed" | Out-Null
         Write-Output $r.Body
         return
     }
     "get" {
         if (-not $UserName) { throw "-UserName is required for get" }
         $r = Invoke-JrsRest -Jrs $jrs -Method GET -Path "$usersBase/$UserName"
-        if ($r.Code -notmatch '^2\d\d$') { throw "get failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "get failed" | Out-Null
         Write-Output $r.Body
         return
     }
     "delete" {
         if (-not $UserName) { throw "-UserName is required for delete" }
         $r = Invoke-JrsRest -Jrs $jrs -Method DELETE -Path "$usersBase/$UserName"
-        if ($r.Code -notmatch '^(2\d\d|404)$') { throw "delete failed ($($r.Code)): $($r.Body)" }
+        Assert-JrsOk -Response $r -Operation "delete failed" -Ok '^(2\d\d|404)$' | Out-Null
         Write-Host "OK ($($r.Code)): deleted user $UserName"
         return
     }
@@ -120,7 +120,7 @@ switch ($Action) {
             $r = Invoke-JrsRest -Jrs $jrs -Method PUT -Path "$usersBase/$UserName" `
                 -ContentType "application/json" -Accept "application/json" -JsonFile $f
         } finally { Remove-Item $f -ErrorAction SilentlyContinue }
-        if ($r.Code -notmatch '^2\d\d$') { Write-Host $r.Body; throw "create failed HTTP $($r.Code)" }
+        Assert-JrsOk -Response $r -Operation "create failed" | Out-Null
         Write-Host "OK ($($r.Code)): created/updated user $UserName (roles: $($Roles -join ', '))"
         return
     }

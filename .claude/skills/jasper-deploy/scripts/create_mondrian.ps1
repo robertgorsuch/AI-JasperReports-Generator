@@ -62,7 +62,7 @@ $sf = [IO.Path]::GetTempFileName()
 ([ordered]@{ label = ($SchemaUri -split "/")[-1]; type = "olapMondrianSchema"; content = $b64 } | ConvertTo-Json) | Set-Content $sf -Encoding utf8
 try { $sr = Invoke-JrsPut -Jrs $jrs -Uri $SchemaUri -ContentType "application/repository.file+json" -JsonFile $sf -Overwrite:$Overwrite }
 finally { Remove-Item $sf -ErrorAction SilentlyContinue }
-if ($sr.Code -notmatch '^2\d\d$') { throw "upload schema $SchemaUri failed ($($sr.Code)): $($sr.Body)" }
+Assert-JrsOk -Response $sr -Operation "upload schema $SchemaUri failed" | Out-Null
 Write-Host "OK ($($sr.Code)): mondrian schema $SchemaUri"
 
 # 2. create the secureMondrianConnection (datasource + schema)
@@ -76,7 +76,7 @@ $cf = [IO.Path]::GetTempFileName()
 ($conn | ConvertTo-Json -Depth 6) | Set-Content $cf -Encoding utf8
 try { $cr = Invoke-JrsPut -Jrs $jrs -Uri $Uri -ContentType "application/repository.secureMondrianConnection+json" -JsonFile $cf -Overwrite:$Overwrite }
 finally { Remove-Item $cf -ErrorAction SilentlyContinue }
-if ($cr.Code -notmatch '^2\d\d$') { throw "create connection $Uri failed ($($cr.Code)): $($cr.Body)" }
+Assert-JrsOk -Response $cr -Operation "create connection $Uri failed" | Out-Null
 Write-Host "OK ($($cr.Code)): mondrian connection $Uri"
 
 # 3. optional OLAP analysis view (olapUnit) with an MDX query
