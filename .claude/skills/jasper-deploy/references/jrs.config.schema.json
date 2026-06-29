@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jasper-deploy/references/jrs.config.schema.json",
+  "title": "jasper-deploy jrs.config.json",
+  "description": "The skill's local connection config (jrs.config.json in the skill root, gitignored). All jasper-deploy scripts resolve credentials in order: script params -> env JRS_URL/JRS_USER/JRS_PASS (and JR_LIB_DIR) -> this file. Copy jrs.config.example.json to jrs.config.json and fill it in. Unknown keys are allowed.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["serverUrl", "user", "password"],
+  "properties": {
+    "serverUrl": {
+      "type": "string",
+      "description": "Base URL of the JasperReports Server, e.g. http://localhost:8081/jasperserver-pro (no trailing slash; scripts trim one anyway). Overridden by -ServerUrl or $env:JRS_URL.",
+      "format": "uri"
+    },
+    "user": {
+      "type": "string",
+      "description": "JRS user for HTTP Basic auth, e.g. superuser. Overridden by -User or $env:JRS_USER."
+    },
+    "password": {
+      "type": "string",
+      "description": "Password for the JRS user. Overridden by -Password or $env:JRS_PASS. Keep this file gitignored."
+    },
+    "dataSourceUri": {
+      "type": "string",
+      "description": "Optional default datasource repository URI used as a fallback when a script's -DataSourceUri is not supplied, e.g. /datasources/postgis_34_sample.",
+      "pattern": "^/"
+    },
+    "jrLibDir": {
+      "type": "string",
+      "description": "Optional path to the JasperReports 7 runtime jar directory used for local compile/render, e.g. C:\\Users\\rgorsuch\\jasperreports-lib. Overridden by -LibDir or $env:JR_LIB_DIR; defaults to that path if unset."
+    }
+  }
+}

@@ -5,7 +5,7 @@
 
 .DESCRIPTION
   Exercises, against the foodmart DB + JRS, under a throwaway -Folder:
-    scaffold (chart + param + highlight) -> compile -> deploy (+ input control)
+    scaffold (chart + param + highlight) -> lint -> compile -> deploy (+ input control)
     -> verify_report (content) -> run to PDF -> schedule_job CRUD -> manage_alert
     CRUD -> compose a dashboard (report + text tile) -> style template (.jrtx)
     referenced by a report -> single-table Domain -> non-JDBC (jndi) datasource
@@ -56,6 +56,11 @@ GROUP BY 1 ORDER BY 2 DESC
         --chart bar --chart-label-rotation -30 --highlight "sales:>:100000:#FFE0B2" `
         --query-file "$work\smoke.sql" --out $jrxml | Out-Null
     step "scaffold" (Test-Path $jrxml)
+
+    # 1b. lint the scaffolded jrxml (strict-Jackson + SQL gotchas) before compile.
+    #     A clean compile does NOT catch the Jackson/plot/SQL traps lint_jrxml.ps1 does.
+    & "$skill\lint_jrxml.ps1" -Path $jrxml *>$null
+    step "lint" ($LASTEXITCODE -eq 0)
 
     # 2. compile
     step "compile" (Invoke-JrCompile -Jrxml $jrxml)

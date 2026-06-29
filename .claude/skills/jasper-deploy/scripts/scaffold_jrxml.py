@@ -418,16 +418,22 @@ def build_chart(chart, cat, val, series, *, width, y, height, label_rotation=0,
             o.append(f'\t\t\t\t\t<valueExpression><![CDATA[$F{{{trend}}}]]></valueExpression>')
             o.append('\t\t\t\t</series>')
         o.append('\t\t\t</dataset>')
-        # JR7 plot classes differ by chart type: JRDesignLinePlot accepts only
-        # showLines/showShapes (NOT showTickMarks/showTickLabels, which throw an
-        # UnrecognizedPropertyException at compile); bar/area/stackedbar plots
-        # take showTickMarks/showTickLabels. categoryAxisTickLabelRotation
-        # (degrees, e.g. -45) is valid on every category plot and keeps long
-        # category labels from being truncated.
+        # JR7 plot classes differ by chart type, and the strict Jackson loader
+        # rejects any property the target plot class does not declare:
+        #   line      -> JRDesignLinePlot: showLines/showShapes ONLY
+        #               (showTickMarks/showTickLabels throw UnrecognizedPropertyException)
+        #   area      -> JRDesignAreaPlot: supports NEITHER the tick props NOR
+        #               showLines/showShapes (verified: a bare <plot/> compiles;
+        #               showTickMarks 400s). Only categoryAxisTickLabelRotation is valid.
+        #   bar/bar3d/stackedbar -> JRDesignBarPlot: showTickMarks/showTickLabels.
+        # categoryAxisTickLabelRotation (degrees, e.g. -45) is valid on every
+        # category plot and keeps long category labels from being truncated.
         rot = (f' categoryAxisTickLabelRotation="{label_rotation}"'
                if label_rotation else '')
         if chart == "line":
             o.append(f'\t\t\t<plot showLines="true" showShapes="true"{rot}/>')
+        elif chart == "area":
+            o.append(f'\t\t\t<plot{rot}/>')
         else:
             o.append(f'\t\t\t<plot showTickMarks="true" showTickLabels="true"{rot}/>')
     o.append('\t\t</element>')

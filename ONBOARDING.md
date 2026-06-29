@@ -23,7 +23,9 @@ against a local **JasperReports Server 10**.
   data sources (JDBC + non-JDBC incl. AWS), shared style templates (`.jrtx`), single-table Domains,
   ad hoc views (list/export/import), UI themes, query-based & cascading input controls, repository
   permissions/attributes, users/roles/organizations admin, async run / saved options / cache, and
-  OLAP/Mondrian (schema + connection). Its `smoke_test.ps1` is an 18-step gate.
+  OLAP/Mondrian (schema + connection). It also ships a static jrxml **linter** (`lint_jrxml.ps1`), a
+  metadata/**lineage extractor** (`extract_lineage.py`), and **drift detection** (`diff_resource.ps1`);
+  `references/gotchas.md` is the symptom→fix troubleshooting index. Its `smoke_test.ps1` is a 19-step gate.
 - **Web wizard:** `webapp\jasper-wizard\` is an Actian-branded browser UI over the skill (runs inside
   the JRS Tomcat at `http://localhost:8081/jasper-wizard/`). Business users create/run/deliver/manage
   artifacts with no JRXML, and a **Server Summary** page shows live repository inventory + runtime
@@ -48,6 +50,10 @@ against a local **JasperReports Server 10**.
    `"${base}?name="` not `"$base?name="` (else `405`); `ConvertTo-Json` unwraps single-element arrays
    to scalars (server `400`), so emit those as hand-built JSON. AWS datasource `-Region` is the endpoint
    host (`us-east-1.amazonaws.com`), not `us-east-1`.
+10. **Lint before you deploy.** `lint_jrxml.ps1` catches the strict-Jackson traps offline (isDefault,
+    line/**area** plot props, `.jrdax` JR6 elements, leading-`WITH` SQL) — a clean local compile does
+    *not*. When a deploy `400`s with an opaque error, `references/gotchas.md` is indexed by symptom and
+    `references/jr7-valid-elements.md` lists the valid/rejected element names per construct.
 
 ## Key prerequisites
 
@@ -64,5 +70,9 @@ prebuilt at `C:\Users\rgorsuch\jasperreports-lib\`. Census TIGER data staging li
   After editing any skill script, run `…\scripts\smoke_test.ps1` as the end-to-end check. See RUNBOOK §9.
 - **Build/redeploy the web wizard:** `cd webapp\jasper-wizard; .\build.ps1` (compiles against Tomcat's
   Jakarta servlet-api, bundles the skill scripts into the WAR, hot-deploys to the JRS Tomcat). See RUNBOOK §10.
+- **Lint / lineage / drift (jasper-deploy skill):** lint a jrxml before deploy with
+  `.\.claude\skills\jasper-deploy\scripts\lint_jrxml.ps1 -Path report\foo.jrxml`; emit a lineage graph with
+  `python .\.claude\skills\jasper-deploy\scripts\extract_lineage.py --folder /public/Samples`; detect drift
+  with `.\.claude\skills\jasper-deploy\scripts\diff_resource.ps1 -Uri <uri> -Against <local.json>`.
 
 Full details, rebuild order, and exact commands: **`tx-geocoder\RUNBOOK.md`** (§9 for the jasper-deploy skill).

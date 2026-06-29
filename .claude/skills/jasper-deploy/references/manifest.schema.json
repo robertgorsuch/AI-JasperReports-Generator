@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jasper-deploy/references/manifest.schema.json",
+  "title": "jasper-deploy dashboard build manifest",
+  "description": "The unified manifest consumed by build_dashlets.ps1 / gen_dashboard.py. It carries BOTH the report-build spec (db/datasource/queries) AND the dashboard grid layout (x/y/width/height per tile). For each report dashlet build_dashlets.ps1 scaffolds -> compiles -> deploys -> verifies, then (-Compose) gen_dashboard.py synthesizes the dashboard descriptor + companion files. A real example lives at report/foodmart/dashboard.json.",
+  "type": "object",
+  "required": ["dataSourceUri", "folder", "name", "dashlets"],
+  "additionalProperties": true,
+  "properties": {
+    "db": {
+      "type": "string",
+      "description": "PostgreSQL database name used when scaffolding report tiles (column introspection runs against it). Default postgis_34_sample."
+    },
+    "host": {
+      "type": "string",
+      "description": "PostgreSQL host for scaffolding introspection. Default localhost."
+    },
+    "port": {
+      "type": ["string", "integer"],
+      "description": "PostgreSQL port for scaffolding introspection. Default 5432."
+    },
+    "user": {
+      "type": "string",
+      "description": "PostgreSQL user for scaffolding introspection. Default postgres (password comes from $env:PGPASSWORD)."
+    },
+    "dataSourceUri": {
+      "type": "string",
+      "description": "Repository URI of the JDBC datasource the report tiles run against, e.g. /public/Samples/Data_Sources/FoodmartDataSource. Must already exist on the server.",
+      "pattern": "^/"
+    },
+    "folder": {
+      "type": "string",
+      "description": "Repository folder the dashboard and its report tiles are deployed under, e.g. /reports/foodmart.",
+      "pattern": "^/"
+    },
+    "name": {
+      "type": "string",
+      "description": "Leaf name of the composed dashboard resource (the folder + name form its repository URI)."
+    },
+    "label": {
+      "type": "string",
+      "description": "Human-readable dashboard label. The component id is derived from this via re.sub('[^0-9A-Za-z]','_', label), so keep labels unique across tiles."
+    },
+    "outDir": {
+      "type": "string",
+      "description": "Local output directory for generated jrxml/jasper artifacts, e.g. report\\foodmart (Windows path, backslashes escaped in JSON)."
+    },
+    "cols": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Column count used by -AutoGrid when tile x/y/width/height are omitted. Default 2. Ignored when explicit grid placement is given.",
+      "default": 2
+    },
+    "wiring": {
+      "type": "array",
+      "description": "Optional cross-dashlet (filter) wiring appended to the synthesized wiring.data. Each entry broadcasts a producer event to one or more consumer tiles.",
+      "items": {
+        "type": "object",
+        "required": ["producer", "consumers"],
+        "additionalProperties": false,
+        "properties": {
+          "producer": {
+            "type": "string",
+            "description": "Producer event in the form 'ComponentId:output', e.g. 'A:out'."
+          },
+          "consumers": {
+            "type": "array",
+            "description": "Consumer events in the form 'ComponentId:param', e.g. ['B:param'].",
+            "items": { "type": "string" },
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "dashlets": {
+      "type": "array",
+      "description": "The dashboard tiles. Each tile has a 'kind' of report (default), text, or image, plus grid placement x/y/width/height on a 40-wide grid.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "description": "A single dashboard tile. Kind-specific fields are validated by the if/then branches below; all kinds share the grid placement fields.",
+        "required": ["name"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["report", "text", "image"],
+            "default": "report",
+            "description": "Tile kind. Omit (or 'report') for a deployed report dashlet; 'text' for a static text tile; 'image' for an image tile. Only report tiles carry a repository resource."
+          },
+          "name": {
+            "type": "string",
+            "description": "Tile name. For a report tile this is the leaf resource name (scaffolded + deployed under 'folder'). For text/image it is the component name only."
+          },
+          "x": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Grid column origin on the 40-wide grid. Omit all of x/y/width/height to let -AutoGrid place tiles."
+          },
+          "y": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Grid row origin."
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 40,
+            "description": "Tile width in grid columns (1..40)."
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Tile height in grid rows. For a report tile honor tile_height/tile_width >= page_height/page_width to avoid scrollbars (see dashboard-model.md)."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "kind": { "const": "text" } },
+              "required": ["kind"]
+            },
+            "then": {
+              "description": "Text tile: a static label rendered directly in the dashboard (NOT dynamic; for a live value use a tiny report tile instead).",
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "description": "The literal text to display."
+                },
+                "size": {
+                  "type": ["integer", "number"],
+                  "description": "Font size in points, e.g. 18."
+                },
+                "bold": {
+                  "type": "boolean",
+                  "description": "Render the text bold."
+                },
+                "align": {
+                  "type": "string",
+                  "enum": ["left", "center", "right"],
+                  "description": "Horizontal text alignment."
+                },
+                "color": {
+                  "type": "string",
+                  "description": "Text color as a CSS rgb()/rgba() string, e.g. 'rgba(20,40,80,1)'."
+                },
+                "background": {
+                  "type": "string",
+                  "description": "Tile background color as a CSS rgb()/rgba() string."
+                }
+              },
+              "required": ["text"]
+            }
+          },
+          {
+            "if": {
+              "properties": { "kind": { "const": "image" } },
+              "required": ["kind"]
+            },
+            "then": {
+              "description": "Image tile: a logo or static image. Carries no repository resource.",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "Image source: a repository ref 'repo:/path' or an absolute http(s):// URL."
+                }
+              },
+              "required": ["url"]
+            }
+          },
+          {
+            "if": {
+              "anyOf": [
+                { "not": { "required": ["kind"] } },
+                { "properties": { "kind": { "const": "report" } } }
+              ]
+            },
+            "then": {
+              "description": "Report tile (default kind): scaffolded from SQL into a tabular report with a chart in its summary band, then deployed and verified.",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "Report title band text."
+                },
+                "subtitle": {
+                  "type": "string",
+                  "description": "Report subtitle text under the title."
+                },
+                "chart": {
+                  "type": "string",
+                  "enum": ["pie", "pie3d", "bar", "bar3d", "line", "area", "stackedbar"],
+                  "description": "Summary-band chart type. bar (default styling) and pie/pie3d get the Actian-blue gradient branding."
+                },
+                "chartCategory": {
+                  "type": "string",
+                  "description": "Query column used for the chart category axis. Defaults to the first text column."
+                },
+                "chartValue": {
+                  "type": "string",
+                  "description": "Query column used for the chart value/measure. Defaults to the first numeric column."
+                },
+                "chartSeries": {
+                  "type": "string",
+                  "description": "Query column that splits a multi-series category chart (e.g. year for a grouped/stacked bar)."
+                },
+                "chartHeight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Chart height in pixels, e.g. 380."
+                },
+                "landscape": {
+                  "type": "boolean",
+                  "description": "Emit a landscape page (wider than tall) for wide charts/tables."
+                },
+                "chartLabelRotation": {
+                  "type": "integer",
+                  "description": "Rotation (degrees) of category-axis tick labels so long labels do not truncate, e.g. -45."
+                },
+                "queryFile": {
+                  "type": "string",
+                  "description": "Path to a .sql file holding the report query (preferred for long queries). Mutually exclusive with 'query'.",
+                  "pattern": "\\.sql$"
+                },
+                "query": {
+                  "type": "string",
+                  "description": "Inline SQL SELECT for the report. Use 'queryFile' instead for long queries. Must not begin with WITH (the JRS validator rejects leading CTEs)."
+                }
+              },
+              "oneOf": [
+                { "required": ["queryFile"] },
+                { "required": ["query"] }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

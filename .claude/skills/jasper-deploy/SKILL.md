@@ -89,9 +89,12 @@ override with `--chart-category`, `--chart-value`, `--chart-series` (multi-serie
 category charts), `--chart-height`. Best with a small number of categories.
 `--chart-label-rotation -45` rotates category-axis tick labels so long bar/line
 labels don't truncate. (The scaffolder emits the correct JR7 plot per chart
-type: `line` uses `showLines/showShapes` — `showTickMarks/showTickLabels` throw
-`UnrecognizedPropertyException` on a line plot — while bar/area/stackedbar use
-`showTickMarks/showTickLabels`.)
+type: `line` uses `showLines/showShapes`; **`bar`/`bar3d`/`stackedbar` use
+`showTickMarks/showTickLabels`**; **`area` (`JRDesignAreaPlot`) accepts NEITHER
+pair** — it gets a bare `<plot/>` (only `categoryAxisTickLabelRotation` is valid).
+Emitting the wrong pair throws `UnrecognizedPropertyException` at compile/fill.
+Verified by compiling each type; the per-class valid-property lists are in
+`references/jr7-valid-elements.md` and enforced by `scripts/lint_jrxml.ps1`.)
 
 **KPI dial (gauge):** for a single-value gauge use `scripts/scaffold_kpi_dial.py`
 (a JFreeChart **meter**, `shape="dial"`) — NOT the Pro FusionWidgets angular gauge,
@@ -901,7 +904,8 @@ argument — assign it to a variable first (this bit the script's own first draf
 - The live server is `jasperserver-pro` on **port 8081** (HTTP Basic). Port 8080
   hosts an unrelated Bearer-token-gated Java service that 401s every path — not JRS.
 - **Smoke test:** after editing any script, run `scripts/smoke_test.ps1`
-  (`$env:PGPASSWORD="postgres"` first) — it scaffolds → compiles → deploys (+input
+  (`$env:PGPASSWORD="postgres"` first) — it scaffolds → **lints** (`lint_jrxml.ps1`)
+  → compiles → deploys (+input
   control) → verifies content → runs to PDF → schedules a job (CRUD) → sets an
   alert (CRUD) → composes a dashboard (report + text tile) → deploys a **style
   template** and runs a report that references it → creates a single-table
@@ -909,7 +913,7 @@ argument — assign it to a variable first (this bit the script's own first draf
   creates an **AWS** datasource → deploys a report with **cascading query input
   controls** (asserts the child option count changes per parent) → sets+clears
   **permissions** → server **attribute** CRUD → creates a **Mondrian** schema +
-  connection → tears down, asserting each of the 18 steps under a throwaway
+  connection → tears down, asserting each of the 19 steps under a throwaway
   `/reports/_smoke` (the theme lives under `/themes` and is cleaned up too).
 - **JR runtime lib dir** resolves via `-LibDir` → `$env:JR_LIB_DIR` → `jrs.config.json`
   `jrLibDir` → the machine default; set `jrLibDir` on a fresh clone. The shared
@@ -944,7 +948,64 @@ argument — assign it to a variable first (this bit the script's own first draf
   handles this; if you hand-edit the SQL, keep `<field class>` in sync.
 - Reference reports known to compile and render:
   `..\..\report\tx_density_blockgroup_report_jr7.jrxml` (tabular + groups),
-  `..\..\report\metro_population_piechart.jrxml` (pie chart).
+  `..\..\report\metro_population_piechart.jrxml` (pie chart). A fuller index of
+  canonical exemplars per feature is in `fixtures/README.md`.
+
+## Skill resources index (`references/`, `fixtures/`, `baselines/`)
+
+Reference docs and assets that back the workflows above. Prefer these over the
+external community docs (which version-drift and 403 scripted fetches).
+
+**Troubleshooting & schema**
+- `references/gotchas.md` — 50 gotchas indexed **by symptom** (HTTP code / error
+  text / observed behavior) → cause → fix → handled-by script. First stop when a
+  deploy/fill/import fails with an opaque error.
+- `references/jr7-valid-elements.md` — the strict-Jackson **valid element/attribute
+  lists** (and rejected JR6 names) for the constructs that throw
+  `UnrecognizedPropertyException`: CSV `.jrdax`, `.jrtx` styles, pie `seriesColor`,
+  bar-vs-line-vs-**area** plots, the meter/dial — each cited to JR7 source. Records
+  the verified correction that **`area` plots accept neither tick nor line/shape
+  props**.
+- `references/jr7-schema.md` — the JR7 jrxml authoring reference (hand-layout).
+- `references/application.wadl` — a committed snapshot of THIS server's exact
+  `rest_v2` surface (145 resources, 10.0.0). Version-controlled so it survives the
+  server being down; complements `references/jrs-rest-api.md`.
+
+**Linting & validation**
+- `scripts/lint_jrxml.ps1` — static pre-deploy linter for `.jrxml`/`.jrtx`/`.jrdax`
+  that codifies the gotchas (isDefault, `.jrdax` non-CsvDataAdapter elements, pie
+  `<seriesColors>`/`seriesOrder`, leading-`WITH` SQL, line/area plot props, title-band
+  `evaluationTime`). Catches strict-Jackson 400s a clean compile misses. Exit 1 on
+  any ERROR. `-WarningsAsErrors` to also fail on WARN.
+- `references/manifest.schema.json` — JSON Schema (draft 2020-12) for the dashboard
+  build manifest (`build_dashlets.ps1`/`gen_dashboard.py`): top-level keys + report/
+  text/image dashlet branches + grid placement + `wiring[]`.
+- `references/jrs.config.schema.json` — JSON Schema for `jrs.config.json`.
+
+**Metadata / lineage / drift**
+- `scripts/extract_lineage.py` — read-only crawler that emits an asset + lineage
+  graph (`lineage.json` + `assets.csv`/`edges.csv`): reports → datasources/domains/
+  source-tables, dashboards → reports. Stdlib-only. Verified end-to-end (128 assets /
+  114 edges over `/public/Samples`). Implements the model in
+  `../../JASPERSOFT_CATALOG_CONNECTOR_PDD.md`.
+- `scripts/diff_resource.ps1` — drift detector: diffs a live resource descriptor
+  against a committed local `.json`; exits nonzero on drift. Pairs with `promote.ps1`.
+
+**Reproducibility & testing**
+- `references/seed-data.md` — the two sample DBs the examples assume (`foodmart` 41
+  tables; `postgis_34_sample` 52 tiger tables) + psql verification + reload pointers.
+- `fixtures/README.md` — index of known-good JR7 exemplars per feature.
+- `baselines/*.png` — committed page-1 renders for `verify_report.ps1 -Baseline`
+  visual-regression (rasterized at `pdf_verify.py`'s default `scale=2`).
+- `references/ci-smoke.md` — run `smoke_test.ps1` as recurring regression CI
+  (schtasks / `/schedule` / `/loop`).
+- `references/smtp-testing.md` — verify `schedule_job.ps1` / `manage_alert.ps1` email
+  delivery end-to-end with a local SMTP catcher (smtp4dev/MailHog).
+
+**Embedding & dashboards**
+- `references/visualize-embedding.md` — embed a report/dashboard via Visualize.js
+  (auth + run-into-div + `domainWhitelist`/CORS).
+- `references/dashboard-model.md`, `references/fusion-pro-gotchas.md` — as before.
 
 ## Visualization components
 

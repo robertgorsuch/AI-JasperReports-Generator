@@ -130,8 +130,13 @@ FROM geocode('901 Bagby St, Houston, TX 77002', 1) AS g;
 
 `.claude/skills/jasper-deploy/` scripts the full JasperReports lifecycle against a local
 **JasperReports Server 10** over REST v2. Everything is **JR 7.0.6-native**. `SKILL.md` is the
-authoritative reference; `references/` holds the distilled JR7 schema, the verified JRS REST API map,
-and the reverse-engineered dashboard model.
+authoritative reference; `references/` now holds: `gotchas.md` (50 issues indexed by symptom → fix),
+`jr7-valid-elements.md` (strict-Jackson valid/rejected element lists, source-cited), the distilled JR7
+schema (`jr7-schema.md`), the verified JRS REST API map + `application.wadl` (a committed snapshot of
+this server's exact REST surface), the reverse-engineered dashboard model, `manifest.schema.json` +
+`jrs.config.schema.json` (JSON Schemas), and `seed-data.md` / `smtp-testing.md` / `ci-smoke.md` /
+`visualize-embedding.md`. `fixtures/README.md` indexes known-good exemplars and `baselines/*.png` back
+`verify_report.ps1 -Baseline`.
 
 **Server / toolchain**
 - JRS PRO at **`http://localhost:8081/jasperserver-pro`** (HTTP Basic, `superuser`/`superuser`).
@@ -164,7 +169,10 @@ and the reverse-engineered dashboard model.
 | `export_resource.ps1` / `import_resource.ps1` | Export/import any resource (back up, version, restore). |
 | `promote.ps1` | Export from a source server, import into a target — dev→prod promotion. |
 | `teardown_dashboard.ps1` | Delete a dashboard then (optionally) its report tiles + `_controls`, in lock-safe order. |
-| `smoke_test.ps1` | 18-step end-to-end regression gate (scaffold→…→style template→domain→jndi/aws datasource→theme→cascading query controls→permissions→attributes→mondrian→teardown under `/reports/_smoke`). |
+| `lint_jrxml.ps1` | Static pre-deploy linter for `.jrxml`/`.jrtx`/`.jrdax` — catches the strict-Jackson 400s a clean compile misses (isDefault, `.jrdax` non-CSV elements, pie `seriesColors`/`seriesOrder`, leading-`WITH` SQL, line/area plot props, title-band `evaluationTime`). Exit 1 on error; `-WarningsAsErrors` to fail on warnings too. Wired into `smoke_test.ps1`. |
+| `extract_lineage.py` | Read-only repository crawler → asset + lineage graph (`lineage.json` + `assets.csv`/`edges.csv`): reports→datasources/domains/source-tables, dashboards→reports. Stdlib-only. Implements the model in `JASPERSOFT_CATALOG_CONNECTOR_PDD.md`. |
+| `diff_resource.ps1` | Drift detector — diffs a live resource descriptor vs. a committed local `.json`; exits nonzero on drift. Pairs with `promote.ps1`. |
+| `smoke_test.ps1` | 19-step end-to-end regression gate (scaffold→**lint**→compile→deploy→…→style template→domain→jndi/aws datasource→theme→cascading query controls→permissions→attributes→mondrian→teardown under `/reports/_smoke`). |
 | `upload_file.ps1`, `deploy_jr_samples.ps1`, `_jrs_common.ps1` | File upload, bulk sample deploy, shared helpers. |
 
 **Quick start**
@@ -214,9 +222,14 @@ $skill = ".\.claude\skills\jasper-deploy\scripts"; $env:PGPASSWORD = "postgres"
     `"$base?name="` drops the base (→ `405`) — use `"${base}?name="`. And `ConvertTo-Json` unwraps a
     single-element array property to a scalar (server `400`s `ArrayList from String`) — emit such arrays
     as hand-built JSON. (`manage_attributes.ps1` / `deploy_report.ps1` handle both.)
-11. **JR7 line plot**: use `showLines`/`showShapes`, not `showTickMarks`/`showTickLabels` (the scaffolder
-   handles this). The harmless SLF4J "no providers" line goes to stderr and can abort a
-   `$ErrorActionPreference=Stop` wrapper — `Invoke-JrCompile` absorbs it.
+11. **JR7 chart plot properties are per-class.** `line` uses `showLines`/`showShapes`;
+   `bar`/`bar3d`/`stackedbar` use `showTickMarks`/`showTickLabels`; **`area` (`JRDesignAreaPlot`) accepts
+   NEITHER pair** — it gets a bare `<plot/>` (only `categoryAxisTickLabelRotation` is valid). The wrong
+   pair throws `UnrecognizedPropertyException` at compile/fill. `scaffold_jrxml.py` emits the correct plot
+   per type (a prior version emitted tick props for `--chart area`, which failed to compile — now fixed);
+   `lint_jrxml.ps1` catches the wrong form, and the per-class valid lists are in
+   `references/jr7-valid-elements.md`. The harmless SLF4J "no providers" line goes to stderr and can abort
+   a `$ErrorActionPreference=Stop` wrapper — `Invoke-JrCompile` absorbs it.
 12. **`compose_dashboard.ps1 -WorkDir` accepts an absolute path now.** It previously joined the work dir
    with `Get-Location` unconditionally, so an absolute `-WorkDir` produced an invalid `C:\cwd\C:\abs`
    path and `ExtractToDirectory` threw "the given path's format is not supported". Pass an absolute
