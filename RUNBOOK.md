@@ -129,14 +129,16 @@ FROM geocode('901 Bagby St, Houston, TX 77002', 1) AS g;
 ## 9. JasperReports Server automation — the `jasper-deploy` skill
 
 `.claude/skills/jasper-deploy/` scripts the full JasperReports lifecycle against a local
-**JasperReports Server 10** over REST v2. Everything is **JR 7.0.6-native**. `SKILL.md` is the
-authoritative reference; `references/` now holds: `gotchas.md` (50 issues indexed by symptom → fix),
-`jr7-valid-elements.md` (strict-Jackson valid/rejected element lists, source-cited), the distilled JR7
-schema (`jr7-schema.md`), the verified JRS REST API map + `application.wadl` (a committed snapshot of
-this server's exact REST surface), the reverse-engineered dashboard model, `manifest.schema.json` +
-`jrs.config.schema.json` (JSON Schemas), and `seed-data.md` / `smtp-testing.md` / `ci-smoke.md` /
-`visualize-embedding.md`. `fixtures/README.md` indexes known-good exemplars and `baselines/*.png` back
-`verify_report.ps1 -Baseline`.
+**JasperReports Server 10** over REST v2. Everything is **JR 7.0.6-native**. `SKILL.md` is a lean
+**index** (capability map + happy path + cross-cutting gotchas); topic detail is split into
+`references/`: `reports.md`, `dashboards.md`, `data-and-semantic-layer.md`, `admin-and-scheduling.md`,
+plus `jr7-schema.md`, `jr7-valid-elements.md` (strict-Jackson valid/rejected element lists, source-cited),
+`gotchas.md` (50 issues indexed by symptom → fix), the JRS REST API map + `application.wadl` (a committed
+snapshot of this server's exact REST surface), the dashboard model, `security-and-config.md`
+(secrets/portability), `seed-data.md` / `smtp-testing.md` / `ci-smoke.md` / `visualize-embedding.md`, and
+the JSON schemas `manifest.schema.json` / `jrs.config.schema.json` / `environment.schema.json`.
+`fixtures/README.md` indexes known-good exemplars, `baselines/*.png` back `verify_report.ps1 -Baseline`,
+and `tests/` holds the server-less Pester unit suite (run in the smoke prechecks).
 
 **Server / toolchain**
 - JRS PRO at **`http://localhost:8081/jasperserver-pro`** (HTTP Basic, `superuser`/`superuser`).
@@ -169,9 +171,12 @@ this server's exact REST surface), the reverse-engineered dashboard model, `mani
 | `export_resource.ps1` / `import_resource.ps1` | Export/import any resource (back up, version, restore). |
 | `promote.ps1` | Export from a source server, import into a target — dev→prod promotion. |
 | `teardown_dashboard.ps1` | Delete a dashboard then (optionally) its report tiles + `_controls`, in lock-safe order. |
-| `lint_jrxml.ps1` | Static pre-deploy linter for `.jrxml`/`.jrtx`/`.jrdax` — catches the strict-Jackson 400s a clean compile misses (isDefault, `.jrdax` non-CSV elements, pie `seriesColors`/`seriesOrder`, leading-`WITH` SQL, line/area plot props, title-band `evaluationTime`). Exit 1 on error; `-WarningsAsErrors` to fail on warnings too. Wired into `smoke_test.ps1`. |
-| `extract_lineage.py` | Read-only repository crawler → asset + lineage graph (`lineage.json` + `assets.csv`/`edges.csv`): reports→datasources/domains/source-tables, dashboards→reports. Stdlib-only. Implements the model in `JASPERSOFT_CATALOG_CONNECTOR_PDD.md`. |
+| `lint_jrxml.ps1` | Static pre-deploy linter for `.jrxml`/`.jrtx`/`.jrdax` — catches the strict-Jackson 400s a clean compile misses (isDefault, `.jrdax` non-CSV elements, pie `seriesColors`/`seriesOrder`, leading-`WITH` SQL, line/area plot props, title-band `evaluationTime`). Exit 1 on error; `-WarningsAsErrors` too. **Now a gate inside `deploy_report.ps1`** (`-SkipLint` to bypass) and in the smoke prechecks. |
+| `extract_lineage.py` | Read-only crawler → asset + **column-level** lineage graph (reports→datasources/domains/tables/columns via `sqlglot`, dashboards→reports); `--format openlineage` emits OpenLineage events. Stdlib + optional `sqlglot` (graceful regex fallback). Implements `JASPERSOFT_CATALOG_CONNECTOR_PDD.md`. |
 | `diff_resource.ps1` | Drift detector — diffs a live resource descriptor vs. a committed local `.json`; exits nonzero on drift. Pairs with `promote.ps1`. |
+| `reconcile.ps1` | Declarative "desired state" applier (Terraform-for-JRS): reads an environment manifest, diffs vs. live, prints a plan; `-Apply` creates/updates via the existing scripts. **Plan-only by default.** Schema: `references/environment.schema.json`. |
+| `doctor.ps1` | Environment preflight — server/DB reachable, jars + chart-customizer jar present, `jrs.config.json` valid, python/`sqlglot`/`pypdfium2` available. PASS/WARN/FAIL checklist; nonzero on FAIL. |
+| `check_docs.ps1` | Doc-consistency guard — every `references/` link + capability-map script resolves, no stale step counts. Runs in the smoke prechecks. |
 | `smoke_test.ps1` | 19-step end-to-end regression gate (scaffold→**lint**→compile→deploy→…→style template→domain→jndi/aws datasource→theme→cascading query controls→permissions→attributes→mondrian→teardown under `/reports/_smoke`). |
 | `upload_file.ps1`, `deploy_jr_samples.ps1`, `_jrs_common.ps1` | File upload, bulk sample deploy, shared helpers. |
 

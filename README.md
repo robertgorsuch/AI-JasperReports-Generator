@@ -27,7 +27,7 @@ FROM geocode('1100 Congress Ave, Austin, TX 78701', 1) AS g;   -- rating 0, exac
 |------|----------|
 | `scripts/` | TIGER data loaders (verified curl downloads + CRC retry). `load_tiger_nation.bat`, `load_remaining.ps1`, etc. |
 | `report/`  | JasperReports: `*_jr7.jrxml` (native JR 7) + 6.x version, JDBC data adapter, compile/fill harnesses. `report/foodmart/` holds the deployable KPI reports + `dashboard.json` manifest |
-| `.claude/skills/jasper-deploy/` | The **jasper-deploy skill**: scripts for reports (`scaffold_jrxml.py`, `deploy_report.ps1`, `verify_report.ps1`), dashboards (`build_dashlets.ps1`, `compose_dashboard.ps1`), style templates (`scaffold_style_template.py`), domains (`scaffold_domain_schema.py`, `create_domain.ps1`), ad hoc views (`manage_adhoc.ps1`), datasources (`create_datasource.ps1`), themes (`scaffold_theme.py`, `deploy_theme.ps1`), OLAP (`create_mondrian.ps1`), governance (`manage_permissions.ps1`, `manage_attributes.ps1`), lifecycle (`promote.ps1`, `teardown_dashboard.ps1`, `smoke_test.ps1`), quality/governance (`lint_jrxml.ps1`, `extract_lineage.py`, `diff_resource.ps1`), plus `SKILL.md`, `references/` (gotchas, jr7-valid-elements, JR7 schema, JRS REST API + `application.wadl` snapshot, dashboard model, manifest/config JSON schemas, seed-data, smtp-testing, ci-smoke, visualize-embedding), `fixtures/` (exemplar index), and `baselines/` (visual-regression PNGs) |
+| `.claude/skills/jasper-deploy/` | The **jasper-deploy skill**: scripts for reports (`scaffold_jrxml.py`, `deploy_report.ps1`, `verify_report.ps1`), dashboards (`build_dashlets.ps1`, `compose_dashboard.ps1`), style templates (`scaffold_style_template.py`), domains (`scaffold_domain_schema.py`, `create_domain.ps1`), ad hoc views (`manage_adhoc.ps1`), datasources (`create_datasource.ps1`), themes (`scaffold_theme.py`, `deploy_theme.ps1`), OLAP (`create_mondrian.ps1`), governance (`manage_permissions.ps1`, `manage_attributes.ps1`), lifecycle (`promote.ps1`, `teardown_dashboard.ps1`, `smoke_test.ps1`), quality/governance (`lint_jrxml.ps1`, `extract_lineage.py`, `diff_resource.ps1`), operations (`reconcile.ps1`, `doctor.ps1`, `check_docs.ps1`), plus `SKILL.md` (lean index) + topic `references/` (reports, dashboards, data-and-semantic-layer, admin-and-scheduling, gotchas, jr7-valid-elements, JR7 schema, REST API + `application.wadl`, dashboard model, security-and-config, seed-data, smtp-testing, ci-smoke, visualize-embedding, JSON schemas), `fixtures/`, `baselines/`, and `tests/` (Pester) |
 | `webapp/jasper-wizard/` | **Self-service web wizard** (Jakarta servlet WAR) over the skill: reports, dashboards, data sources, domains, themes, run/export, scheduling, repository browse, ad hoc, permissions, and a Server Summary. Builds with `build.ps1` (no Maven), bundles the skill scripts, hot-deploys to the JRS Tomcat. See its `README.md` |
 | `maps/`    | Self-contained Leaflet HTML visualizations (open in a browser) |
 | `backups/` | Versioned JRS export archives (dashboards) for restore / dev→prod promotion |
@@ -87,11 +87,15 @@ FROM geocode('1100 Congress Ave, Austin, TX 78701', 1) AS g;   -- rating 0, exac
   `manage_options.ps1` (saved input-control sets), `manage_cache.ps1` (clear a server cache).
 - **Lifecycle** — `export_resource.ps1` / `import_resource.ps1`, `promote.ps1` (dev→prod),
   `teardown_dashboard.ps1`, and `smoke_test.ps1` (19-step end-to-end regression gate).
-- **Quality & governance** — `lint_jrxml.ps1` statically validates `.jrxml`/`.jrtx`/`.jrdax` before
-  deploy (catches the strict-Jackson 400s a clean compile misses; wired into the smoke gate);
-  `extract_lineage.py` emits a metadata + lineage graph (reports→datasources/tables, dashboards→reports);
-  `diff_resource.ps1` detects drift between a live resource and its committed source. Troubleshooting:
-  `references/gotchas.md` is indexed by symptom.
+- **Quality & governance** — `lint_jrxml.ps1` statically validates `.jrxml`/`.jrtx`/`.jrdax` (now a
+  gate **inside** `deploy_report.ps1`, also in the smoke prechecks); `extract_lineage.py` emits a
+  metadata + **column-level** lineage graph (reports→datasources/tables/columns via `sqlglot`, also
+  OpenLineage); `diff_resource.ps1` detects drift vs. a committed source. Troubleshooting:
+  `references/gotchas.md` is indexed by symptom (and JRS errors auto-print a pointer to it).
+- **Operations** — `reconcile.ps1` applies a whole environment from one manifest (plan by default,
+  `-Apply` to execute); `doctor.ps1` is a one-command environment preflight; `check_docs.ps1` guards
+  doc/link consistency; `tests/` holds server-less Pester unit tests. Secrets/portability:
+  `references/security-and-config.md` (env-only creds, `passwordCommand`, no plaintext on disk).
 
 A 7-tile **Foodmart KPI dashboard** built this way is the reference example
 (`report/foodmart/dashboard.json`). Full reference: the skill's `SKILL.md`, and [RUNBOOK.md](RUNBOOK.md) §9.

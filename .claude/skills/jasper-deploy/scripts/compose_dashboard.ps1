@@ -51,6 +51,8 @@ param(
     # files (layout/components/wiring), so without this a recompose silently keeps
     # the OLD layout. Pass -KeepExisting to skip the delete (rarely wanted).
     [switch]$KeepExisting,
+    [switch]$Backup,            # export the existing dashboard before deleting it (rollback safety)
+    [string]$BackupDir,         # where -Backup writes the archive (default: skill out\backups)
     [string]$ServerUrl,
     [string]$User,
     [string]$Password
@@ -154,6 +156,15 @@ if ($LASTEXITCODE -ne 0) { throw "re-zip failed" }
 # fresh model takes. (Deleting the dashboard also releases the resource.in.use
 # locks on its dashlet reports.)
 if (-not $KeepExisting) {
+    # rollback safety: export the existing dashboard (descriptor + companions) before deleting
+    if ($Backup -and ($check0 = & curl.exe -s -o NUL -w "%{http_code}" -u $auth "$($jrs.ServerUrl)/rest_v2/resources$dashUri") -and "$check0".Trim() -match '^2\d\d$') {
+        if (-not $BackupDir) { $BackupDir = Join-Path $PSScriptRoot "..\out\backups" }
+        New-Item -ItemType Directory -Force $BackupDir | Out-Null
+        $bkPath = Join-Path $BackupDir (($dashUri.TrimStart("/") -replace "[^0-9A-Za-z]", "_") + "-$(Get-Date -Format yyyyMMdd-HHmmss).zip")
+        try { & (Join-Path $PSScriptRoot "export_resource.ps1") -Uri $dashUri -Out $bkPath -ServerUrl $jrs.ServerUrl -User $jrs.User -Password $jrs.Password *>$null
+              if (Test-Path $bkPath) { Write-Host "  backup: $dashUri -> $bkPath" } }
+        catch { Write-Warning "backup of $dashUri failed (continuing): $_" }
+    }
     $delCode = & curl.exe -s -o NUL -w "%{http_code}" -u $auth -X DELETE "$($jrs.ServerUrl)/rest_v2/resources$dashUri"
     if ("$delCode".Trim() -eq "204") { Write-Host "  deleted existing dashboard $dashUri (will recreate)" }
 }

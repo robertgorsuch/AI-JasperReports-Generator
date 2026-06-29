@@ -42,6 +42,9 @@ param(
     [string[]]$ResourceFiles,   # companion resources: "name=localpath" (bundles, images, subreports)
     [switch]$Overwrite,
     [switch]$SkipSqlLint,       # bypass the SELECT-first / leading-WITH guard
+    [switch]$SkipLint,          # bypass the lint_jrxml.ps1 pre-deploy gate
+    [switch]$Backup,            # before an -Overwrite, export the current version first (rollback safety)
+    [string]$BackupDir,         # where -Backup writes the archive (default: skill out\backups)
     [string[]]$Control,         # input controls: "param:kind[:label[:extra]]"
                                 #   kind=select|multiselect  extra="Food;Drink" (or lab=val;..)
                                 #   kind=single              extra=text|number|date|datetime
@@ -80,6 +83,20 @@ if (-not $SkipSqlLint) {
             throw "SQL lint: query begins with WITH (CTE). JRS rejects this at fill time though it compiles locally. Rewrite each CTE as a FROM subquery so the statement starts with SELECT, or pass -SkipSqlLint. (See SKILL.md gotchas.)"
         } elseif ($kw -and $kw -ne "select") {
             Write-Warning "SQL lint: query begins with '$kw', not SELECT; JRS requires report queries to start with SELECT."
+        }
+    }
+}
+
+# --- jrxml lint: catch strict-Jackson / chart-plot / control gotchas that
+#     compile clean locally but 400 at fill time. lint_jrxml.ps1 exits 1 on any
+#     ERROR. This is the real deploy gate (the smoke test lints too).
+if (-not $SkipLint) {
+    $linter = Join-Path $PSScriptRoot "lint_jrxml.ps1"
+    if (Test-Path $linter) {
+        $lintOut = & $linter -Path $jrxmlFull *>&1
+        if ($LASTEXITCODE -ne 0) {
+            $lintOut | ForEach-Object { Write-Host $_ }
+            throw "jrxml lint found blocking issue(s) in $Jrxml -- fix them or pass -SkipLint. See references/jr7-valid-elements.md."
         }
     }
 }
@@ -133,6 +150,27 @@ if ($ResourceFiles) {
 # updates the resource IN PLACE -- no delete, so it also works for a report that
 # is a dependency of a dashboard (a delete-then-create would 403 on the delete,
 # since referenced resources are delete-protected).
+
+# --- optional rollback safety: export the current version before overwriting ---
+if ($Backup -and $Overwrite) {
+    if ((Invoke-JrsGet -Jrs $jrs -Uri $TargetUri).Code -match '^2\d\d$') {
+        $exporter = Join-Path $PSScriptRoot "export_resource.ps1"
+        if (-not $BackupDir) { $BackupDir = Join-Path $PSScriptRoot "..\out\backups" }
+        New-Item -ItemType Directory -Force $BackupDir | Out-Null
+        $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        $bkName = ($TargetUri.TrimStart("/") -replace "[^0-9A-Za-z]", "_") + "-$stamp.zip"
+        $bkPath = Join-Path $BackupDir $bkName
+        $cred = @{}
+        if ($ServerUrl) { $cred.ServerUrl = $ServerUrl }
+        if ($User)      { $cred.User = $User }
+        if ($Password)  { $cred.Password = $Password }
+        try {
+            & $exporter -Uri $TargetUri -Out $bkPath @cred *>$null
+            if (Test-Path $bkPath) { Write-Host "  backup: $TargetUri -> $bkPath" }
+        } catch { Write-Warning "backup of $TargetUri failed (continuing): $_" }
+    }
+}
+
 $jsonFile = [IO.Path]::GetTempFileName()
 ($desc | ConvertTo-Json -Depth 8) | Set-Content -Path $jsonFile -Encoding utf8
 try {
@@ -142,14 +180,9 @@ try {
     Remove-Item $jsonFile -ErrorAction SilentlyContinue
 }
 
-if ($r.Code -match '^2\d\d$') {
-    Write-Host "OK ($($r.Code)): deployed $TargetUri"
-    if ($r.Body) { Write-Host $r.Body }
-} else {
-    Write-Host "FAILED ($($r.Code))"
-    if ($r.Body) { Write-Host $r.Body }
-    throw "deploy failed with HTTP $($r.Code): $($r.Body)"
-}
+Assert-JrsOk -Response $r -Operation "deploy of $TargetUri failed" | Out-Null
+Write-Host "OK ($($r.Code)): deployed $TargetUri"
+if ($r.Body) { Write-Host $r.Body }
 
 # --- input controls -------------------------------------------------------
 # Build each control as a standalone repository resource (the verified JRS

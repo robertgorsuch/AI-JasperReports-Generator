@@ -8,8 +8,21 @@ Phase-1 MVP slice of the connector spec'd in
 JASPERSOFT_CATALOG_CONNECTOR_PDD.md: inventory + asset-level lineage with a
 best-effort SQL source-table parse.
 
-Standard library only (urllib, base64, json, csv, re, xml.etree, argparse, os).
-No pip dependencies. ASCII output only.
+Standard library plus the OPTIONAL sqlglot package (the only non-stdlib
+dependency). When sqlglot is importable, each reportUnit's SQL is parsed into an
+AST to resolve report fields to source table.column(s) -- column-level lineage
+with confidence "exact" (1:1 column projection) or "derived" (expression /
+aggregate fan-in). When sqlglot is absent or a query fails to parse, the crawl
+falls back to the regex table-level extraction (confidence "inferred"). ASCII
+output only.
+
+OUTPUT FORMATS (--format)
+  - internal (default): {assets:[...], edges:[...]} JSON + sibling assets.csv /
+    edges.csv. Edges now include report->column field-level edges.
+  - openlineage: OpenLineage-style RunEvents JSON (jobs = reports, output
+    datasets carry a columnLineage facet, inputs = source tables) to --out.
+
+  --dialect sets the sqlglot SQL dialect (default 'postgres').
 
 WHAT IT DOES
   - GET /rest_v2/resources?recursive=true under --folder, paginated (limit/offset),
@@ -59,6 +72,7 @@ USAGE
 import argparse
 import base64
 import csv
+import datetime
 import json
 import os
 import re
@@ -66,9 +80,24 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 import xml.etree.ElementTree as ET
 
+# Optional column-level lineage backend. sqlglot is the ONLY non-stdlib
+# dependency and it is strictly optional: if it is not importable the crawl
+# transparently falls back to the regex table-level extraction (confidence
+# "inferred"). See extract_column_lineage() / run().
+try:
+    import sqlglot
+    from sqlglot import exp as sqlglot_exp
+    from sqlglot.optimizer.scope import build_scope as sqlglot_build_scope
+except Exception:  # pragma: no cover - exercised only when sqlglot absent
+    sqlglot = None
+    sqlglot_exp = None
+    sqlglot_build_scope = None
+
 DEFAULT_SERVER = "http://localhost:8081/jasperserver-pro"
+DEFAULT_DIALECT = "postgres"
 PAGE_LIMIT = 100
 
 # Resource types that the descriptor parser treats specially.
@@ -238,6 +267,129 @@ def extract_source_tables(sql):
 
 
 # --------------------------------------------------------------------------- #
+# Column-level lineage (sqlglot AST). Optional -- returns None to signal that
+# the caller should fall back to the regex table-level extractor.
+# --------------------------------------------------------------------------- #
+def _normalize_params(sql):
+    """Replace Jaspersoft bind/clause tokens ($P{}, $P!{}, $X{}, $R{}) with a
+    benign literal so the SQL parser does not choke on them."""
+    return re.sub(r"\$[PXR]!?\{[^}]*\}", " '__JP__' ", sql or "")
+
+
+def _table_fullname(table):
+    """Dotted physical name for a sqlglot exp.Table: [catalog.][db.]name."""
+    parts = []
+    for key in ("catalog", "db"):
+        val = table.text(key)
+        if val:
+            parts.append(val)
+    if table.name:
+        parts.append(table.name)
+    return ".".join(parts)
+
+
+def extract_column_lineage(sql, fields, dialect):
+    """Resolve report fields to source table.column(s) via a sqlglot AST walk.
+
+    Returns a tuple (tables, col_edges) or None.
+
+      tables    -- list of physical table full-names referenced anywhere in the
+                   query (CTE names excluded). Drives table-level edges with
+                   AST confidence "parsed".
+      col_edges -- list of (field, "table.column", confidence) where confidence
+                   is "exact" for a 1:1 column projection or "derived" when the
+                   projected value is an expression/aggregate (one edge per
+                   contributing column).
+
+    None is returned when sqlglot is unavailable or the query fails to parse, so
+    the caller can fall back to the regex table-level extractor (confidence
+    "inferred"). Never raises on malformed SQL.
+    """
+    if sqlglot is None or not sql:
+        return None
+    cleaned = _normalize_params(sql)
+    try:
+        tree = sqlglot.parse_one(cleaned, read=dialect)
+    except Exception:
+        return None
+    if tree is None:
+        return None
+    exp = sqlglot_exp
+
+    # CTE aliases are logical names, not physical tables -- exclude them.
+    cte_names = set()
+    try:
+        for cte in tree.find_all(exp.CTE):
+            if cte.alias:
+                cte_names.add(cte.alias.lower())
+    except Exception:
+        return None
+
+    # Physical tables across every scope (subqueries included).
+    tables = []
+    seen_t = set()
+    for tbl in tree.find_all(exp.Table):
+        if not tbl.name or tbl.name.lower() in cte_names:
+            continue
+        full = _table_fullname(tbl)
+        if not full or full.lower() in seen_t:
+            continue
+        seen_t.add(full.lower())
+        tables.append(full)
+
+    # Column resolution against the outermost SELECT scope.
+    col_edges = []
+    try:
+        root = sqlglot_build_scope(tree)
+    except Exception:
+        root = None
+    select = tree.find(exp.Select)
+    if root is not None and select is not None:
+        # alias/table -> physical full-name for this scope's direct sources.
+        src_map = {}
+        single = None
+        n_tables = 0
+        for name, source in root.sources.items():
+            if isinstance(source, exp.Table):
+                full = _table_fullname(source)
+                src_map[name.lower()] = full
+                src_map.setdefault(source.name.lower(), full)
+                single = full
+                n_tables += 1
+        field_set = set((f or "").lower() for f in (fields or []))
+        for proj in select.selects:
+            out_name = proj.alias_or_name
+            if not out_name:
+                continue
+            if field_set and out_name.lower() not in field_set:
+                continue
+            core = proj.this if isinstance(proj, exp.Alias) else proj
+            cols = list(proj.find_all(exp.Column))
+            if not cols:
+                continue
+            exact = isinstance(core, exp.Column) and len(cols) == 1
+            conf = "exact" if exact else "derived"
+            for col in cols:
+                qualifier = (col.table or "").lower()
+                colname = col.name
+                if not colname:
+                    continue
+                if qualifier:
+                    tbl = src_map.get(qualifier)
+                    if tbl is None:
+                        # Qualifier points at a subquery/derived alias -- cannot
+                        # resolve to a physical column without schema. Skip.
+                        continue
+                elif n_tables == 1:
+                    tbl = single
+                else:
+                    # Unqualified column with >1 source: ambiguous, skip.
+                    continue
+                col_edges.append((out_name, "%s.%s" % (tbl, colname), conf))
+    return tables, col_edges
+
+
+# --------------------------------------------------------------------------- #
 # Reference helpers
 # --------------------------------------------------------------------------- #
 def ref_uri(node):
@@ -314,7 +466,7 @@ def dashboard_referenced_uris(client, descriptor):
 # --------------------------------------------------------------------------- #
 # Main extraction
 # --------------------------------------------------------------------------- #
-def run(client, folder):
+def run(client, folder, dialect=DEFAULT_DIALECT):
     raw = crawl(client, folder)
 
     assets = []
@@ -382,10 +534,25 @@ def run(client, folder):
                     langs = set()
                     for q in parsed["queries"]:
                         langs.add(q["language"])
-                        if q["language"].lower().startswith("sql"):
-                            for tbl, conf in extract_source_tables(q["text"]):
-                                add_edge(uri, tbl, "report->table", conf, "source-table")
-                        elif q["language"].lower().startswith("domain"):
+                        ql = q["language"].lower()
+                        if ql.startswith("sql"):
+                            col_lin = extract_column_lineage(
+                                q["text"], rec.get("fields"), dialect)
+                            if col_lin is None:
+                                # sqlglot missing or parse failed: regex fallback,
+                                # tagged "inferred" (lower confidence, no AST).
+                                for tbl, _conf in extract_source_tables(q["text"]):
+                                    add_edge(uri, tbl, "report->table",
+                                             "inferred", "source-table")
+                            else:
+                                tables, col_edges = col_lin
+                                for tbl in tables:
+                                    add_edge(uri, tbl, "report->table",
+                                             "parsed", "source-table")
+                                for fname, target, cconf in col_edges:
+                                    add_edge(uri, target, "report->column",
+                                             cconf, "field:%s" % fname)
+                        elif ql.startswith("domain"):
                             # Domain-language query: the bound DS is the domain.
                             if ds_uri:
                                 add_edge(uri, ds_uri, "report->domain", "resolved",
@@ -451,13 +618,112 @@ def write_outputs(out_path, assets, edges):
     return assets_csv, edges_csv
 
 
+_PRODUCER = "jasper-deploy/extract_lineage.py"
+_CL_SCHEMA = ("https://openlineage.io/spec/facets/1-0-1/"
+              "ColumnLineageDatasetFacet.json")
+
+
+def build_openlineage(assets, edges, server):
+    """Build OpenLineage-style RunEvents (one per reportUnit).
+
+    Each report is a job; its output dataset carries a columnLineage facet
+    mapping report fields to source table.columns, and inputs list the source
+    tables. Namespaces: reports under the server URL, source tables under the
+    report's bound datasource URI. Returns a list of event dicts.
+    """
+    jrs_ns = server
+    now = (datetime.datetime.now(datetime.timezone.utc)
+           .replace(microsecond=0, tzinfo=None).isoformat() + "Z")
+
+    table_by_report = {}
+    cols_by_report = {}
+    for e in edges:
+        src = e["source"]
+        if e["type"] == "report->table":
+            table_by_report.setdefault(src, []).append(e["target"])
+        elif e["type"] == "report->column":
+            detail = e.get("detail") or ""
+            field = detail[6:] if detail.startswith("field:") else detail
+            tbl, _, col = e["target"].rpartition(".")
+            cols_by_report.setdefault(src, {}).setdefault(field, []).append(
+                (tbl, col, e["confidence"]))
+
+    events = []
+    for a in assets:
+        if a["type"] != REPORT_TYPE:
+            continue
+        uri = a["uri"]
+        ds_ns = a.get("datasource") or "jaspersoft:unknown"
+
+        inputs = []
+        seen_in = set()
+        for tbl in table_by_report.get(uri, []):
+            if tbl in seen_in:
+                continue
+            seen_in.add(tbl)
+            inputs.append({"namespace": ds_ns, "name": tbl, "facets": {}})
+
+        fields_facet = {}
+        for field, srcs in cols_by_report.get(uri, {}).items():
+            in_fields = []
+            seen_f = set()
+            for tbl, col, conf in srcs:
+                key = (tbl, col)
+                if key in seen_f:
+                    continue
+                seen_f.add(key)
+                in_fields.append({
+                    "namespace": ds_ns,
+                    "name": tbl,
+                    "field": col,
+                    "transformations": [{
+                        "type": "DIRECT" if conf == "exact" else "INDIRECT",
+                        "subtype": conf,
+                    }],
+                })
+            fields_facet[field] = {"inputFields": in_fields}
+
+        out_facets = {}
+        if fields_facet:
+            out_facets["columnLineage"] = {
+                "_producer": _PRODUCER,
+                "_schemaURL": _CL_SCHEMA,
+                "fields": fields_facet,
+            }
+        outputs = [{"namespace": jrs_ns, "name": uri, "facets": out_facets}]
+
+        events.append({
+            "eventType": "COMPLETE",
+            "eventTime": a.get("updateDate") or now,
+            "producer": _PRODUCER,
+            "run": {"runId": str(uuid.uuid5(uuid.NAMESPACE_URL, jrs_ns + uri))},
+            "job": {"namespace": jrs_ns, "name": uri},
+            "inputs": inputs,
+            "outputs": outputs,
+        })
+    return events
+
+
+def write_openlineage(out_path, events):
+    out_dir = os.path.dirname(os.path.abspath(out_path))
+    if out_dir and not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+    with open(out_path, "w") as fh:
+        json.dump(events, fh, indent=2)
+
+
 def summarize(assets, edges, skips):
     counts = {}
     for a in assets:
         counts[a["type"]] = counts.get(a["type"], 0) + 1
     type_str = ", ".join("%s=%d" % (k, counts[k]) for k in sorted(counts))
-    return ("assets=%d (%s) | edges=%d | skipped=%d"
-            % (len(assets), type_str, len(edges), len(skips)))
+    etypes = {}
+    for e in edges:
+        etypes[e["type"]] = etypes.get(e["type"], 0) + 1
+    col_n = etypes.get("report->column", 0)
+    edge_str = ", ".join("%s=%d" % (k, etypes[k]) for k in sorted(etypes))
+    return ("assets=%d (%s) | edges=%d [%s] | column-edges=%d | skipped=%d"
+            % (len(assets), type_str, len(edges), edge_str, col_n, len(skips)))
 
 
 def main(argv=None):
@@ -468,19 +734,35 @@ def main(argv=None):
     parser.add_argument("--password", help="JRS password (default from config/env).")
     parser.add_argument("--folder", default="/", help="Root repository folder to crawl (default '/').")
     parser.add_argument("--out", default="lineage.json", help="Output JSON path (default lineage.json).")
+    parser.add_argument("--dialect", default=DEFAULT_DIALECT,
+                        help="SQL dialect for sqlglot column parsing (default 'postgres').")
+    parser.add_argument("--format", default="internal",
+                        choices=("internal", "openlineage"),
+                        help="Output format: 'internal' (assets/edges JSON + CSVs) "
+                             "or 'openlineage' (RunEvents JSON). Default 'internal'.")
     args = parser.parse_args(argv)
 
     server, user, password = resolve_config(args)
+    if sqlglot is None:
+        sys.stderr.write("WARN: sqlglot not importable; column-level lineage "
+                         "disabled, falling back to regex table extraction.\n")
     sys.stderr.write("Crawling %s under %s ...\n" % (server, args.folder))
     client = JrsClient(server, user, password)
 
-    assets, edges, skips = run(client, args.folder)
-    assets_csv, edges_csv = write_outputs(args.out, assets, edges)
+    assets, edges, skips = run(client, args.folder, args.dialect)
 
-    print(summarize(assets, edges, skips))
-    print("Wrote: %s" % os.path.abspath(args.out))
-    print("       %s" % assets_csv)
-    print("       %s" % edges_csv)
+    if args.format == "openlineage":
+        events = build_openlineage(assets, edges, server)
+        write_openlineage(args.out, events)
+        print(summarize(assets, edges, skips))
+        print("Format: openlineage | runEvents=%d" % len(events))
+        print("Wrote: %s" % os.path.abspath(args.out))
+    else:
+        assets_csv, edges_csv = write_outputs(args.out, assets, edges)
+        print(summarize(assets, edges, skips))
+        print("Wrote: %s" % os.path.abspath(args.out))
+        print("       %s" % assets_csv)
+        print("       %s" % edges_csv)
     if skips:
         sys.stderr.write("Skipped %d resource(s):\n" % len(skips))
         for uri, reason in skips[:20]:

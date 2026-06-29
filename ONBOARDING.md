@@ -23,9 +23,12 @@ against a local **JasperReports Server 10**.
   data sources (JDBC + non-JDBC incl. AWS), shared style templates (`.jrtx`), single-table Domains,
   ad hoc views (list/export/import), UI themes, query-based & cascading input controls, repository
   permissions/attributes, users/roles/organizations admin, async run / saved options / cache, and
-  OLAP/Mondrian (schema + connection). It also ships a static jrxml **linter** (`lint_jrxml.ps1`), a
-  metadata/**lineage extractor** (`extract_lineage.py`), and **drift detection** (`diff_resource.ps1`);
-  `references/gotchas.md` is the symptom→fix troubleshooting index. Its `smoke_test.ps1` is a 19-step gate.
+  OLAP/Mondrian (schema + connection). It also ships a static jrxml **linter** (`lint_jrxml.ps1`, now a
+  gate inside `deploy_report.ps1`), a metadata/**column-level lineage extractor** (`extract_lineage.py`,
+  sqlglot + OpenLineage), **drift detection** (`diff_resource.ps1`), a declarative **reconcile** applier,
+  an environment **doctor** preflight, a **check_docs** guard, and a `tests/` Pester suite;
+  `references/gotchas.md` is the symptom→fix index (JRS errors auto-point to it). `smoke_test.ps1` is a
+  19-step gate (with offline doc + unit-test prechecks).
 - **Web wizard:** `webapp\jasper-wizard\` is an Actian-branded browser UI over the skill (runs inside
   the JRS Tomcat at `http://localhost:8081/jasper-wizard/`). Business users create/run/deliver/manage
   artifacts with no JRXML, and a **Server Summary** page shows live repository inventory + runtime
@@ -74,5 +77,8 @@ prebuilt at `C:\Users\rgorsuch\jasperreports-lib\`. Census TIGER data staging li
   `.\.claude\skills\jasper-deploy\scripts\lint_jrxml.ps1 -Path report\foo.jrxml`; emit a lineage graph with
   `python .\.claude\skills\jasper-deploy\scripts\extract_lineage.py --folder /public/Samples`; detect drift
   with `.\.claude\skills\jasper-deploy\scripts\diff_resource.ps1 -Uri <uri> -Against <local.json>`.
+- **Check readiness / reconcile an environment:** run `…\scripts\doctor.ps1` to confirm the box is
+  deploy-ready; preview a desired-state apply with `…\scripts\reconcile.ps1 -Manifest env.json` (plan-only;
+  add `-Apply` to execute). See RUNBOOK §9.
 
 Full details, rebuild order, and exact commands: **`tx-geocoder\RUNBOOK.md`** (§9 for the jasper-deploy skill).

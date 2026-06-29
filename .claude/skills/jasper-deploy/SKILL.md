@@ -74,10 +74,14 @@ that area** — the deep detail lives there, not here.
 | REST v2 endpoint map (verified vs doc-only) | — | `references/jrs-rest-api.md` |
 | Dashboard model shapes (descriptor + companions) | — | `references/dashboard-model.md` |
 | Lint a jrxml/.jrtx/.jrdax before deploy | `lint_jrxml.ps1` | `references/jr7-valid-elements.md` |
-| Extract a metadata + lineage graph (read-only) | `extract_lineage.py` | `../../JASPERSOFT_CATALOG_CONNECTOR_PDD.md` |
+| Extract metadata + column-level lineage (read-only; OpenLineage out) | `extract_lineage.py` | `../../JASPERSOFT_CATALOG_CONNECTOR_PDD.md` |
 | Detect live-vs-committed resource drift | `diff_resource.ps1` | `references/admin-and-scheduling.md` |
+| Apply a whole environment from one manifest (plan by default, `-Apply`) | `reconcile.ps1` | `references/environment.schema.json` |
+| Preflight: is this environment ready to deploy? | `doctor.ps1` | `references/security-and-config.md` |
+| Doc/link consistency check (CI guard) | `check_docs.ps1` | — |
 | Troubleshoot a deploy/fill error by symptom | — | `references/gotchas.md` |
 | Valid JR7 elements per construct (strict-Jackson) | — | `references/jr7-valid-elements.md` |
+| Secrets / config / portability (env, passwordCommand, no plaintext) | — | `references/security-and-config.md` |
 | Sample DBs / email test / CI / Visualize.js embed | — | `references/{seed-data,smtp-testing,ci-smoke,visualize-embedding}.md` |
 | REST surface snapshot + manifest/config JSON schemas | — | `references/application.wadl`, `manifest.schema.json`, `jrs.config.schema.json` |
 
@@ -122,13 +126,16 @@ handling, and designer-authored dashboards are in `references/dashboards.md`.
   rejects unknown elements at *fill time* as a generic `400`, not a clean compile
   error. This bites `.jrtx` (`default="true"`, not `isDefault`) and `.jrdax`
   adapters (limited element set). See `references/jr7-schema.md` + `reports.md`.
-- **Lint before deploy.** `lint_jrxml.ps1` catches the strict-Jackson 400s a clean
-  compile misses (isDefault, `.jrdax` JR6 elements, pie `seriesColors`/`seriesOrder`,
+- **Lint before deploy (now automatic).** `deploy_report.ps1` runs `lint_jrxml.ps1`
+  as a pre-deploy gate (`-SkipLint` to bypass); it catches the strict-Jackson 400s a
+  clean compile misses (isDefault, `.jrdax` JR6 elements, pie `seriesColors`/`seriesOrder`,
   leading-`WITH` SQL, line/area plot props, title-band `evaluationTime`). Chart plot
   props are per-class: `line` = showLines/showShapes; `bar`/`bar3d`/`stackedbar` =
   showTickMarks/showTickLabels; **`area` (`JRDesignAreaPlot`) accepts NEITHER** —
   bare `<plot/>` only. Valid names per construct: `references/jr7-valid-elements.md`;
-  symptom→fix index: `references/gotchas.md`.
+  symptom→fix index: `references/gotchas.md`. When a JRS call still fails, `Assert-JrsOk`
+  appends a `gotchas.md` pointer (via `Get-GotchaHint`). Pass `-Backup` to
+  `deploy_report.ps1`/`compose_dashboard.ps1` to export the current version first.
 - **Report queries must begin with `SELECT`.** A leading `WITH` (CTE) is rejected
   by the JRS SQL security validator at fill time (`JSSecurityException`) — a
   generic `400` that a clean local compile does NOT catch. `deploy_report.ps1`
@@ -151,7 +158,9 @@ handling, and designer-authored dashboards are in `references/dashboards.md`.
 $env:PGPASSWORD = "postgres"
 & $skill\smoke_test.ps1
 ```
-Runs the full 19-step lifecycle under a throwaway `/reports/_smoke` (+ `/themes`):
+First runs **offline prechecks** (`check_docs.ps1` doc-consistency + the `tests/`
+Pester unit suite), then the full 19-step server lifecycle under a throwaway
+`/reports/_smoke` (+ `/themes`):
 scaffold → **lint** → compile → deploy (+input control) → verify → run-to-PDF → schedule job
 (CRUD) → alert (CRUD) → compose dashboard (report + text tile) → style template →
 single-table Domain → jndi datasource → UI theme → AWS datasource → cascading query

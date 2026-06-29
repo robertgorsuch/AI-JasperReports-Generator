@@ -5,7 +5,8 @@
   "description": "The skill's local connection config (jrs.config.json in the skill root, gitignored). All jasper-deploy scripts resolve credentials in order: script params -> env JRS_URL/JRS_USER/JRS_PASS (and JR_LIB_DIR) -> this file. Copy jrs.config.example.json to jrs.config.json and fill it in. Unknown keys are allowed.",
   "type": "object",
   "additionalProperties": true,
-  "required": ["serverUrl", "user", "password"],
+  "required": ["serverUrl", "user"],
+  "description": "The password may come from `password` (plaintext), `passwordCommand` (a PowerShell command whose stdout is the secret, so nothing plaintext lives on disk), or $env:JRS_PASS / -Password. At least one must be resolvable at run time.",
   "properties": {
     "serverUrl": {
       "type": "string",
@@ -18,7 +19,11 @@
     },
     "password": {
       "type": "string",
-      "description": "Password for the JRS user. Overridden by -Password or $env:JRS_PASS. Keep this file gitignored."
+      "description": "Plaintext password for the JRS user. Overridden by -Password or $env:JRS_PASS. Keep this file gitignored. Prefer passwordCommand or $env:JRS_PASS to avoid a plaintext secret on disk."
+    },
+    "passwordCommand": {
+      "type": "string",
+      "description": "Alternative to `password`: a PowerShell command whose stdout is the password (used only if password/env are not set), so the secret can live in Windows Credential Manager or a vault instead of this file. Example: \"(cmdkey /list); (Get-StoredCredential -Target jrs).GetNetworkCredential().Password\" or any command that prints the secret."
     },
     "dataSourceUri": {
       "type": "string",

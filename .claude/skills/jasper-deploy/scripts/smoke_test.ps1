@@ -5,6 +5,7 @@
 
 .DESCRIPTION
   Exercises, against the foodmart DB + JRS, under a throwaway -Folder:
+    [offline prechecks: check_docs.ps1 + Pester unit tests]
     scaffold (chart + param + highlight) -> lint -> compile -> deploy (+ input control)
     -> verify_report (content) -> run to PDF -> schedule_job CRUD -> manage_alert
     CRUD -> compose a dashboard (report + text tile) -> style template (.jrtx)
@@ -44,6 +45,18 @@ function step($name, $ok) {
 }
 
 try {
+    # --- offline prechecks (fail fast before touching the server): doc consistency
+    #     + server-less unit tests. Not counted in the 19-step server lifecycle.
+    & "$skill\check_docs.ps1" *> $null
+    if ($LASTEXITCODE -ne 0) { & "$skill\check_docs.ps1"; throw "precheck: check_docs.ps1 found doc issues" }
+    Write-Host "PRECHECK  doc-check OK"
+    $testsDir = Join-Path (Split-Path $skill -Parent) "tests"
+    if ((Get-Module -ListAvailable Pester) -and (Test-Path $testsDir)) {
+        $pr = Invoke-Pester -Path $testsDir -Quiet -PassThru
+        if ($pr.FailedCount -gt 0) { throw "precheck: $($pr.FailedCount) Pester unit test(s) failed" }
+        Write-Host "PRECHECK  unit tests OK ($($pr.PassedCount) passed)"
+    }
+
     # 1. scaffold
     @"
 SELECT pc.product_family AS family, round(sum(s.store_sales),0)::numeric AS sales

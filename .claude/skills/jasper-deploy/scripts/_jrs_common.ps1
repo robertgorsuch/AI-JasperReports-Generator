@@ -16,6 +16,13 @@
   Assert-JrsOk       - throw a uniform error unless a { Code; Body } response
                        carries a 2xx (override -Ok to allow e.g. 404 on delete).
                        Replaces the inline `if (-notmatch '^2\d\d$') { throw }`.
+                       Appends a Get-GotchaHint pointer when the error matches a
+                       known signature.
+  Get-GotchaHint     - map an HTTP code + body to a one-line references/gotchas.md
+                       pointer (UnrecognizedPropertyException, resource.in.use,
+                       validateSQL, etc.); "" if no rule matches.
+  Resolve-JrsConfig also honors a `passwordCommand` in jrs.config.json (PowerShell
+  command whose stdout is the password) so no plaintext secret need live on disk.
   Invoke-JrsRest     - generic call to ANY rest_v2 path (not just /resources):
                        arbitrary method, Content-Type, Accept, optional JSON body
                        from a file. Used by the jobs/alerts wrappers, whose
@@ -48,6 +55,13 @@ function Resolve-JrsConfig {
     $u   = pick $ServerUrl "JRS_URL"  "serverUrl"
     $usr = pick $User      "JRS_USER" "user"
     $pw  = pick $Password  "JRS_PASS" "password"
+    # Secret hardening: instead of a plaintext `password`, jrs.config.json may set
+    # `passwordCommand` (a PowerShell command whose stdout is the password) so the
+    # secret lives in Windows Credential Manager / a vault, not the file. Env vars
+    # (JRS_PASS) and -Password still win; this is the no-plaintext-on-disk fallback.
+    if ([string]::IsNullOrEmpty($pw) -and $cfg -and ($cfg.PSObject.Properties.Name -contains "passwordCommand") -and $cfg.passwordCommand) {
+        try { $pw = (Invoke-Expression $cfg.passwordCommand | Out-String).Trim() } catch { $pw = $null }
+    }
 
     if (-not $u) { throw "No server URL. Set -ServerUrl, `$env:JRS_URL, or serverUrl in jrs.config.json" }
     if (-not $usr -or -not $pw) { throw "No credentials. Set -User/-Password, `$env:JRS_USER/JRS_PASS, or user/password in jrs.config.json" }
@@ -101,9 +115,29 @@ function Invoke-JrsGet {
     return [pscustomobject]@{ Code = $code; Body = $body }
 }
 
+function Get-GotchaHint {
+    # Map a JRS error (HTTP code + body) to a one-line pointer into the gotchas
+    # catalog, so a failing call says WHERE to look. Returns "" if nothing matches.
+    [CmdletBinding()]
+    param([string]$Code, [string]$Body)
+    $b = "$Body"
+    $rules = @(
+        @{ m = 'UnrecognizedPropertyException|Unrecognized field'; h = 'strict-Jackson unknown element/attr in a .jrxml/.jrtx/.jrdax -- run lint_jrxml.ps1; see references/jr7-valid-elements.md + gotchas.md (strict-Jackson section)' },
+        @{ m = 'resource\.in\.use'; h = 'resource is a dashlet of a dashboard (delete-locked) -- remove/recompose the owning dashboard first; gotchas.md (Dashboards)' },
+        @{ m = 'version.*(not match|mismatch)|optimistic'; h = 'optimistic-lock conflict -- re-run with -Overwrite; gotchas.md' },
+        @{ m = 'JSSecurityException|validateSQL|Validator'; h = 'query must start with SELECT (no leading WITH/CTE) -- gotchas.md (SQL security validator)' },
+        @{ m = 'resource\.does\.not\.exist'; h = 'a referenced resource is missing or an embedded child is orphaned (e.g. a Domain schema must be inline) -- gotchas.md (Domains)' },
+        @{ m = 'bytes is null|serialization\.error'; h = "don't PUT a dashboard / ad hoc view -- use the export-inject-import path; gotchas.md (Dashboards)" },
+        @{ m = 'Misplaced quote|Number of columns'; h = 'CSV adapter: strip the UTF-8 BOM and match recordDelimiter to the file; gotchas.md (data adapters)' }
+    )
+    foreach ($r in $rules) { if ($b -match $r.m) { return $r.h } }
+    return ""
+}
+
 function Assert-JrsOk {
     # Throw a uniform error unless $Response.Code matches $Ok (default any 2xx).
-    # $Operation is the human label; the response body is appended for diagnostics.
+    # $Operation is the human label; the response body + a gotchas hint (if the
+    # error matches a known signature) are appended for diagnostics.
     # Returns $Response so it can be used inline: $r = Assert-JrsOk (Invoke-JrsGet ...) "get X".
     [CmdletBinding()]
     param(
@@ -112,7 +146,10 @@ function Assert-JrsOk {
         [string]$Ok = '^2\d\d$'                     # success-code regex
     )
     if ("$($Response.Code)" -notmatch $Ok) {
-        throw "$Operation (HTTP $($Response.Code)): $($Response.Body)"
+        $msg = "$Operation (HTTP $($Response.Code)): $($Response.Body)"
+        $hint = Get-GotchaHint -Code "$($Response.Code)" -Body "$($Response.Body)"
+        if ($hint) { $msg += "`n  -> hint: $hint" }
+        throw $msg
     }
     return $Response
 }
