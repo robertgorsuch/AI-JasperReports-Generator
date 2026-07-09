@@ -1,0 +1,78 @@
+{
+  "db": "foodmart",
+  "host": "localhost",
+  "port": "5432",
+  "user": "postgres",
+  "dataSourceUri": "/public/Samples/Data_Sources/FoodmartDataSource",
+  "folder": "/reports/supermart",
+  "name": "supermart_dashboard_improved",
+  "label": "Supermart Executive Dashboard (Improved)",
+  "outDir": "report\\supermart",
+  "dashlets": [
+    {
+      "name": "supermart_kpi",
+      "title": "Key Performance Indicators",
+      "subtitle": "Foodmart store performance — fiscal year 1997",
+      "landscape": true,
+      "queryFile": "report\\supermart\\supermart_kpi.sql"
+    },
+    {
+      "name": "supermart_yoy_sales",
+      "title": "Year-over-Year Sales (1997 vs 1998)",
+      "subtitle": "Monthly store sales compared across years",
+      "chart": "bar", "chartCategory": "month", "chartValue": "sales", "chartSeries": "year",
+      "chartHeight": 360, "landscape": true,
+      "queryFile": "report\\supermart\\supermart_yoy_sales.sql"
+    },
+    {
+      "name": "supermart_sales_by_family",
+      "title": "Sales by Product Family",
+      "subtitle": "Revenue composition across product families",
+      "chart": "pie3d", "chartHeight": 360,
+      "queryFile": "report\\supermart\\supermart_sales_by_family.sql"
+    },
+    {
+      "name": "supermart_top_categories",
+      "title": "Top 10 Product Categories",
+      "subtitle": "Highest-revenue categories",
+      "chart": "bar", "chartHeight": 360, "landscape": true, "chartLabelRotation": -45,
+      "queryFile": "report\\supermart\\supermart_top_categories.sql"
+    },
+    {
+      "name": "supermart_sales_by_state",
+      "title": "Sales by State",
+      "subtitle": "Store-sales distribution by state",
+      "chart": "bar", "chartHeight": 360,
+      "queryFile": "report\\supermart\\supermart_sales_by_state.sql"
+    },
+    {
+      "name": "supermart_monthly_sales",
+      "title": "Monthly Sales Trend",
+      "subtitle": "Foodmart store sales by month (1997)",
+      "chart": "line", "chartHeight": 360, "landscape": true,
+      "queryFile": "report\\supermart\\supermart_monthly_sales.sql"
+    },
+    {
+      "name": "supermart_quarterly_sales_by_family",
+      "title": "Quarterly Sales by Family",
+      "subtitle": "Sales per quarter, stacked by product family",
+      "chart": "stackedbar", "chartCategory": "quarter", "chartValue": "sales", "chartSeries": "family",
+      "chartHeight": 360, "landscape": true,
+      "queryFile": "report\\supermart\\supermart_quarterly_sales_by_family.sql"
+    },
+    {
+      "name": "supermart_store_profit",
+      "title": "Profit by Store",
+      "subtitle": "Gross profit (sales − cost) by store city",
+      "chart": "bar", "chartHeight": 360, "landscape": true, "chartLabelRotation": -45,
+      "queryFile": "report\\supermart\\supermart_store_profit.sql"
+    },
+    {
+      "name": "supermart_promotion_effectiveness",
+      "title": "Promotion Effectiveness",
+      "subtitle": "Sales attributed to each promotional media type",
+      "chart": "bar", "chartHeight": 360, "landscape": true, "chartLabelRotation": -45,
+      "queryFile": "report\\supermart\\supermart_promotion_effectiveness.sql"
+    }
+  ]
+}

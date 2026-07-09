@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Calibri, 'Segoe UI', sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.4; }
+  h1 { font-size: 22pt; color: #0b2e4f; border-bottom: 3px solid #0b6efd; padding-bottom: 6px; }
+  h2 { font-size: 15pt; color: #0b2e4f; margin-top: 22px; border-bottom: 1px solid #c9d6e3; padding-bottom: 3px; }
+  h3 { font-size: 12.5pt; color: #14507e; margin-top: 16px; }
+  .subtitle { color: #555; font-size: 11pt; margin-top: -6px; }
+  .meta { color: #777; font-size: 9.5pt; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 10pt; }
+  th { background: #0b2e4f; color: #fff; text-align: left; padding: 6px 8px; }
+  td { border: 1px solid #c9d6e3; padding: 5px 8px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f3f7fb; }
+  code { font-family: Consolas, 'Courier New', monospace; font-size: 9.5pt; background: #eef2f6; padding: 1px 4px; }
+  pre { font-family: Consolas, 'Courier New', monospace; font-size: 9pt; background: #f6f8fa;
+        border: 1px solid #d0d7de; border-left: 4px solid #0b6efd; padding: 10px 12px; white-space: pre-wrap; }
+  .note { background: #fff8e6; border-left: 4px solid #f0ad4e; padding: 8px 12px; margin: 10px 0; font-size: 10pt; }
+  .ok { color: #1a7f37; font-weight: bold; }
+  .stub { color: #b35900; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Jaspersoft Copilot — Preflight Module</h1>
+<p class="subtitle">Developer specification for the shared entitlement / metering / guardrails chokepoint</p>
+<p class="meta">Companion to the Product Brief and Licensing &amp; Metering Scope &middot; Owner: Robert Gorsuch &middot; 2026-06-26 &middot; Status: stub for review</p>
+
+<h2>1. Purpose</h2>
+<p>The preflight module is the single place every <code>jasper-deploy</code> script
+passes through before it does work. It exists so the four cross-cutting product
+concerns — entitlement, connection profiles, metering, and guardrails — are applied
+<b>uniformly</b> instead of being re-implemented (and drifting) across ~25 scripts.</p>
+<p>It is the <b>critical path</b> identified in the licensing scope: get this interface
+right, refactor the scripts to source it, and all four concerns land together. There
+are two implementations sharing one on-disk contract:</p>
+<table>
+<tr><th>File</th><th>Consumed by</th></tr>
+<tr><td><code>copilot/preflight/Entitlement.psm1</code></td><td>PowerShell scripts — <code>deploy_report.ps1</code>, <code>compose_dashboard.ps1</code>, <code>create_domain.ps1</code>, …</td></tr>
+<tr><td><code>copilot/preflight/entitlement.py</code></td><td>Python scaffolders — <code>scaffold_jrxml.py</code>, <code>gen_dashboard.py</code>, <code>scaffold_domain_schema.py</code>, …</td></tr>
+</table>
+<p>Both read the same layout under <code>~/.jaspersoft-copilot/</code>
+(<code>config.json</code>, <code>usage.ndjson</code>, <code>audit.ndjson</code>) and the
+same tier&rarr;feature map, so a PowerShell deploy step and a Python scaffold step bill
+and audit consistently.</p>
+
+<h2>2. Interface</h2>
+<table>
+<tr><th>Concern</th><th>PowerShell</th><th>Python</th></tr>
+<tr><td>Gate (preflight)</td><td><code>Assert-CopilotEntitlement -Feature</code></td><td><code>assert_entitlement(feature)</code></td></tr>
+<tr><td>Capability check</td><td><code>Test-CopilotFeature -Feature</code></td><td><code>test_feature(feature)</code></td></tr>
+<tr><td>Connection profile</td><td><code>Get-CopilotProfile [-Name]</code></td><td><code>get_profile(name=None)</code></td></tr>
+<tr><td>Secret resolution</td><td><code>Resolve-CopilotSecret -Ref</code></td><td><code>resolve_secret(ref)</code></td></tr>
+<tr><td>Meter (billable)</td><td><code>Write-CopilotUsage -Event -ResourceUri</code></td><td><code>write_usage(event, uri)</code></td></tr>
+<tr><td>Audit</td><td><code>Write-CopilotAudit -Action -ResourceUri</code></td><td><code>write_audit(action, uri)</code></td></tr>
+<tr><td>Mutation wrapper</td><td><code>Invoke-CopilotMutation -Action -ResourceUri { … }</code></td><td>(wrap inline)</td></tr>
+</table>
+
+<h2>3. Tier &rarr; feature map</h2>
+<p>The license token carries the tier; the module maps tier to the operations a caller may perform.</p>
+<table>
+<tr><th>Tier</th><th>Features granted</th></tr>
+<tr><td><b>starter</b></td><td><code>report.scaffold</code>, <code>report.compile</code>, <code>report.deploy</code>, <code>report.verify</code></td></tr>
+<tr><td><b>pro</b></td><td><code>domain.create</code>, <code>dashboard.publish</code>, <code>theme.deploy</code>, <code>control.create</code>, <code>job.schedule</code>, <code>alert.create</code></td></tr>
+<tr><td><b>enterprise</b></td><td><code>resource.promote</code>, <code>admin.users</code>, <code>admin.roles</code>, <code>admin.orgs</code>, <code>dataplane.load</code>, <code>dataplane.sql.write</code>, <code>resource.delete</code></td></tr>
+</table>
+
+<h2>4. Billable events</h2>
+<p>Each event is already an API call the toolkit makes — metering is instrumentation at the existing chokepoint, not new product surface. Events are idempotent per <code>(resourceUri, event, day)</code> so a retried deploy does not double-bill.</p>
+<table>
+<tr><th>Event</th><th>Emitted from</th><th>Bill unit</th></tr>
+<tr><td><code>report.deployed</code></td><td><code>deploy_report.ps1</code></td><td>per report</td></tr>
+<tr><td><code>dashboard.published</code></td><td><code>compose_dashboard.ps1</code></td><td>per dashboard</td></tr>
+<tr><td><code>domain.created</code></td><td><code>create_domain.ps1</code></td><td>per semantic model</td></tr>
+<tr><td><code>job.scheduled</code> / <code>alert.created</code></td><td><code>schedule_job.ps1</code> / <code>manage_alert.ps1</code></td><td>per provision</td></tr>
+<tr><td><code>data.loaded</code></td><td>Admiral COPY/VWLOAD</td><td>per load / GB</td></tr>
+</table>
+
+<h2>5. Wiring an existing script</h2>
+<p>The four concerns added to a script in the order they execute:</p>
+<pre>Import-Module "$PSScriptRoot/../copilot/preflight/Entitlement.psm1"
+
+Assert-CopilotEntitlement -Feature 'report.deploy'          # 1. gate (throws if not entitled)
+$p = Get-CopilotProfile                                      # 2. profile (not hardcoded localhost:8081)
+
+Invoke-CopilotMutation -Action 'report.deploy' -ResourceUri $TargetUri {   # 4. dry-run + audit + confirm
+    # existing REST PUT, using $p.jrsUrl and Resolve-CopilotSecret $p.jrsSecretRef
+}
+
+Write-CopilotUsage -Event 'report.deployed' -ResourceUri $TargetUri        # 3. meter</pre>
+
+<h2>6. Implementation status</h2>
+<p><span class="ok">Real now:</span> config resolution with env overrides, profile lookup,
+<code>env:</code> secret refs, dry-run (<code>CLAUDE_COPILOT_DRYRUN=1</code>), local NDJSON
+usage/audit buffering with idempotency keys, the tier&rarr;feature map, and the mutation
+wrapper (dry-run + destructive-confirm + audit).</p>
+<p><span class="stub">Stubbed</span> (raises <code>NotImplementedError</code> / allow-all in stub mode):</p>
+<table>
+<tr><th>Stub</th><th>Behaviour today</th><th>Scope</th></tr>
+<tr><td>License signature verification</td><td><code>Get-CopilotEntitlement</code> throws; <code>Test-CopilotFeature</code> returns allow-all so dev isn't blocked</td><td>WS1 (P0)</td></tr>
+<tr><td><code>vault:</code> / <code>keychain:</code> secrets</td><td><code>NotImplementedError</code>; <code>env:</code> refs work</td><td>WS2 (P1)</td></tr>
+<tr><td>Metering transport</td><td>Events buffer to local NDJSON; batched POST + flush job pending</td><td>WS3 (P1)</td></tr>
+</table>
+<div class="note"><b>Ship blocker:</b> while license verification is stubbed, <code>Test-CopilotFeature</code>
+intentionally returns <b>allow-all</b> so development isn't blocked. This MUST flip to deny
+before any paid build ships.</div>
+
+<h2>7. Configuration</h2>
+<table>
+<tr><th>Setting</th><th>Source (env overrides file)</th></tr>
+<tr><td>Home dir</td><td><code>CLAUDE_COPILOT_HOME</code> &rarr; <code>~/.jaspersoft-copilot</code></td></tr>
+<tr><td>License token</td><td><code>CLAUDE_COPILOT_LICENSE</code> &rarr; <code>config.json: licenseToken</code></td></tr>
+<tr><td>Active profile</td><td><code>CLAUDE_COPILOT_PROFILE</code> &rarr; <code>config.json: activeProfile</code></td></tr>
+<tr><td>Dry-run</td><td><code>CLAUDE_COPILOT_DRYRUN=1</code></td></tr>
+</table>
+
+<h2>8. Next steps</h2>
+<ol>
+<li>Review &amp; lock this interface (it is the dependency for every script refactor).</li>
+<li>Implement WS1 license verification; flip stub-mode allow-all to deny.</li>
+<li>Refactor scripts onto the module — start with <code>deploy_report.ps1</code> and <code>create_domain.ps1</code> as the reference pair.</li>
+<li>Stand up the metering endpoint + reconciliation (WS3) once events flow locally.</li>
+</ol>
+
+</body>
+</html>

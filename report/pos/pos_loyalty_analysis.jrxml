@@ -1,0 +1,55 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="pos_loyalty_analysis" pageWidth="842" pageHeight="595" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+  <property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+  <parameter name="SQL_CLAUSE" class="java.lang.String"/>
+  <queryString language="SQL">
+    <![CDATA[-- Loyalty Customer Analysis (Ingres SQL)
+SELECT
+    is_loyalty_customer,
+    CASE WHEN is_loyalty_customer THEN 'Loyalty' ELSE 'Non-Loyalty' END AS customer_type,
+    CAST(COUNT(DISTINCT transaction_unique_id) AS INTEGER) AS transactions,
+    CAST(SUM(quantity) AS INTEGER) AS units_sold,
+    CAST(SUM(royalty_sales) AS DECIMAL(18,2)) AS total_sales,
+    CAST(COUNT(DISTINCT customer_number) AS INTEGER) AS unique_customers,
+    CAST(SUM(royalty_sales) / COUNT(DISTINCT transaction_unique_id) AS DECIMAL(18,2)) AS avg_transaction_value
+FROM pos_transactions
+WHERE transaction_type = 'Regular Sale'
+GROUP BY is_loyalty_customer
+ORDER BY total_sales DESC
+]]>
+  </queryString>
+  <background/>
+  <title>
+    <band height="50">
+      <staticText>
+        <reportElement x="0" y="0" width="802" height="30"/>
+        <textElement textAlignment="Center" verticalAlignment="Middle">
+          <font size="18" isBold="true"/>
+        </textElement>
+        <text><![CDATA[Loyalty vs Non-Loyalty Customers]]></text>
+      </staticText>
+      <staticText>
+        <reportElement x="0" y="30" width="802" height="15"/>
+        <textElement textAlignment="Center" verticalAlignment="Middle">
+          <font size="9" isItalic="true"/>
+        </textElement>
+        <text><![CDATA[POS Analytics Dashboard]]></text>
+      </staticText>
+    </band>
+  </title>
+  <columnHeader>
+    <band height="20"/>
+  </columnHeader>
+  <detail>
+    <band height="20"/>
+  </detail>
+  <pageFooter>
+    <band height="20">
+      <textField>
+        <reportElement x="700" y="0" width="102" height="20"/>
+        <textElement textAlignment="Right" verticalAlignment="Middle"/>
+        <textFieldExpression><![CDATA["Page " + $V{PAGE_NUMBER} + " of " + $V{PAGE_COUNT}]]></textFieldExpression>
+      </textField>
+    </band>
+  </pageFooter>
+</jasperReport>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport name="kpi_summary" language="java" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<query language="SQL"><![CDATA[
+SELECT 
+  COUNT(*) AS total_transactions,
+  COUNT(DISTINCT store_id) AS total_stores,
+  COUNT(DISTINCT customer_id) AS unique_customers,
+  COUNT(DISTINCT transaction_date) AS days_of_data
+FROM pos_transactions
+	]]></query>
+
+	<field name="total_transactions" class="java.lang.Long"/>
+	<field name="total_stores" class="java.lang.Integer"/>
+
+	<title height="44">
+		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true" hTextAlign="Center"><text><![CDATA[Sales Summary KPIs]]></text></element>
+	</title>
+
+	<columnHeader height="18">
+		<element kind="rectangle" x="0" y="0" width="555" height="18" mode="Opaque" backcolor="#34495E" forecolor="#34495E"/>
+		<element kind="staticText" x="0" y="0" width="277" height="18" fontSize="9.0" bold="true" vTextAlign="Middle"><text><![CDATA[Total Transactions]]></text></element>
+		<element kind="staticText" x="277" y="0" width="277" height="18" fontSize="9.0" bold="true" vTextAlign="Middle"><text><![CDATA[Total Stores]]></text></element>
+	</columnHeader>
+
+	<detail>
+		<band height="13">
+			<element kind="textField" x="0" y="0" width="277" height="13" fontSize="8.0" vTextAlign="Middle"><expression><![CDATA[$F{total_transactions}]]></expression></element>
+		<element kind="textField" x="277" y="0" width="277" height="13" fontSize="8.0" vTextAlign="Middle"><expression><![CDATA[$F{total_stores}]]></expression></element>
+			<element kind="line" x="0" y="12" width="555" height="1" forecolor="#EEEEEE"/>
+		</band>
+	</detail>
+
+	<pageFooter height="16">
+		<element kind="textField" x="400" y="2" width="120" height="12" forecolor="#666666" fontSize="8.0" hTextAlign="Right"><expression><![CDATA["Page " + $V{PAGE_NUMBER}]]></expression></element>
+	</pageFooter>
+
+</jasperReport>

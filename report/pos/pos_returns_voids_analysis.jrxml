@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="pos_returns_voids_analysis" pageWidth="842" pageHeight="595" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+  <property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+  <parameter name="SQL_CLAUSE" class="java.lang.String"/>
+  <queryString language="SQL">
+    <![CDATA[-- Returns and Voids Impact Analysis (Ingres SQL)
+SELECT
+    transaction_type,
+    CASE transaction_type
+        WHEN 'Regular Sale' THEN 'Regular Sale'
+        WHEN 'Regular Return' THEN 'Return'
+        WHEN 'Post Void TX' THEN 'Void'
+        ELSE 'Other'
+    END AS transaction_category,
+    CAST(COUNT(DISTINCT transaction_unique_id) AS INTEGER) AS transaction_count,
+    CAST(SUM(quantity) AS NUMERIC) AS units,
+    CAST(SUM(royalty_sales) AS DECIMAL(18,2)) AS impact,
+    CAST(CAST(SUM(royalty_sales) AS NUMERIC) /
+     (SELECT SUM(royalty_sales) FROM pos_transactions WHERE transaction_type = 'Regular Sale') * 100 AS DECIMAL(6,3)) AS pct_of_sales
+FROM pos_transactions
+WHERE transaction_type IN ('Regular Sale', 'Regular Return', 'Post Void TX')
+GROUP BY transaction_type
+ORDER BY CASE WHEN transaction_type = 'Regular Sale' THEN 0 ELSE 1 END, impact DESC
+]]>
+  </queryString>
+  <background/>
+  <title>
+    <band height="50">
+      <staticText>
+        <reportElement x="0" y="0" width="802" height="30"/>
+        <textElement textAlignment="Center" verticalAlignment="Middle">
+          <font size="18" isBold="true"/>
+        </textElement>
+        <text><![CDATA[Returns & Voids Impact]]></text>
+      </staticText>
+      <staticText>
+        <reportElement x="0" y="30" width="802" height="15"/>
+        <textElement textAlignment="Center" verticalAlignment="Middle">
+          <font size="9" isItalic="true"/>
+        </textElement>
+        <text><![CDATA[POS Analytics Dashboard]]></text>
+      </staticText>
+    </band>
+  </title>
+  <columnHeader>
+    <band height="20"/>
+  </columnHeader>
+  <detail>
+    <band height="20"/>
+  </detail>
+  <pageFooter>
+    <band height="20">
+      <textField>
+        <reportElement x="700" y="0" width="102" height="20"/>
+        <textElement textAlignment="Right" verticalAlignment="Middle"/>
+        <textFieldExpression><![CDATA["Page " + $V{PAGE_NUMBER} + " of " + $V{PAGE_COUNT}]]></textFieldExpression>
+      </textField>
+    </band>
+  </pageFooter>
+</jasperReport>

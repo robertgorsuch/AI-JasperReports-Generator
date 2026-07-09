@@ -1,281 +1,421 @@
-# Texas PostGIS Geocoder + Population Maps + JasperReports — Runbook
+# Runbook — Texas PostGIS Geocoder + Population Maps + JasperReports
 
-Cumulative knowledge from building a **statewide Texas address geocoder** on PostGIS, a set of
-**population density visualizations**, and a **JasperReports 7** report over the same data.
+Cumulative operational knowledge from building a statewide Texas address geocoder on PostGIS, population-density visualizations, and a JasperReports 7 report — plus the `jasper-deploy` skill and web wizard that automate the full JasperReports Server lifecycle.
 
-> Conventions: `psql`/PostgreSQL **14** at `C:\Program Files\PostgreSQL\14\bin`. Database
-> **`postgis_34_sample`** on `localhost:5432`, user/pw **`postgres` / `<your local password>` (set via $env:PGPASSWORD)**. Staging dir **`C:\gisdata`**.
+> **Path conventions:** This runbook was written against a specific Windows development machine. Wherever you see `C:\Users\rgorsuch\...` or `C:\Program Files\...`, substitute your own paths. Environment variables (`JAVA_HOME`, `PGPASSWORD`, `JR_LIB_DIR`) are the recommended way to avoid hard-coded paths in scripts.
+
+---
+
+## Contents
+
+1. [What exists](#1-what-exists)
+2. [Prerequisites and environment](#2-prerequisites-and-environment)
+3. [Gotchas](#3-gotchas)
+4. [Scripts (`scripts\`)](#4-scripts-scripts)
+5. [Reports (`report\`)](#5-reports-report)
+6. [Maps (`maps\`)](#6-maps-maps)
+7. [Rebuild order from scratch](#7-rebuild-order-from-scratch)
+8. [Useful geocode tests](#8-useful-geocode-tests)
+9. [jasper-deploy skill](#9-jasper-deploy-skill)
+10. [Self-service web wizard](#10-self-service-web-wizard)
+11. [Troubleshooting quick reference](#11-troubleshooting-quick-reference)
 
 ---
 
 ## 1. What exists
 
-- **Statewide TIGER geocoder** in `postgis_34_sample` — all **254 Texas counties** loaded
-  (edges 5,692,076 · featnames 5,060,971 · addr 2,664,841 · faces 1,924,566 · place 1,860),
-  plus nation state/county. `geocode('1100 Congress Ave, Austin, TX 78701')` → rating 0.
-- **Population data**: `tiger_data.tx_tabblock20` (668,757 2020 census blocks, statewide, with `pop`),
-  `tiger_data.tx_bg` (18,638 block groups), `tiger_data.tx_tract` (6,896 tracts). TX total pop 29,145,505.
-- **Maps** (in `maps\`, open in a browser): statewide heatmap (2 km grid), Houston heatmap (500 m),
-  full block-detail heatmap (449k blocks), tract choropleth, block-group choropleth, and two geocode-pin maps.
-- **JasperReports** (in `report\`): a block-group density report in both 6.x and native JR 7 form,
-  compiled (`.jasper`) and rendered (`output\tx_density_blockgroup_report.pdf`, 317 pages).
+**Geocoder** — Statewide TIGER geocoder in `postgis_34_sample`, all 254 Texas counties loaded:
 
-## 2. Prerequisites / environment (this machine)
+| Table | Rows |
+|---|---|
+| `tiger_data.tx_edges` | 5,692,076 |
+| `tiger_data.tx_featnames` | 5,060,971 |
+| `tiger_data.tx_addr` | 2,664,841 |
+| `tiger_data.tx_faces` | 1,924,566 |
+| `tiger_data.tx_place` | 1,860 |
 
-| Tool | Location | Notes |
-|------|----------|-------|
-| PostgreSQL + PostGIS 3.4 | `C:\Program Files\PostgreSQL\14\bin` | DB `postgis_34_sample`, the Tiger geocoder + address_standardizer extensions |
-| curl | `C:\WINDOWS\system32\curl.exe` | **used instead of wget** (see gotchas) |
-| 7-Zip | `C:\Program Files\7-Zip\7z.exe` | unzip + `7z t` integrity checks |
-| JDK | `C:\jdk-11.0.24+8` (set `JAVA_HOME`) | Java 11; runs JasperReports + javac |
-| Maven | `C:\apache-maven-3.9.9\bin\mvn.cmd` | built JasperReports from source |
-| JasperReports 7.0.6 runtime | `C:\Users\rgorsuch\jasperreports-lib\` | 37 jars (core, pdf, openpdf, PG JDBC driver, deps) |
-| JasperReports 7.0.6 source | `C:\Users\rgorsuch\jasperreports-7.0.6\` | Maven source project (extracted from the -project.zip) |
+`geocode('1100 Congress Ave, Austin, TX 78701')` → rating 0 (exact match).
 
-## 3. GOTCHAS (the expensive-to-rediscover lessons)
+**Population data:**
+- `tiger_data.tx_tabblock20` — 668,757 2020 census blocks (statewide, with `pop`). TX total: 29,145,505.
+- `tiger_data.tx_bg` — 18,638 block groups
+- `tiger_data.tx_tract` — 6,896 tracts
 
-1. **wget: use curl instead.** `winget install wget` fails — its source `eternallybored.org` is
-   not reachable from this environment. **Use the built-in `curl.exe`.** The TIGER loader scripts
-   were rewritten to use `curl --location --fail --retry 3 --create-dirs -o "<host\path>" "<url>"`
-   (rebuilds wget --mirror's directory tree).
-2. **Census downloads silently corrupt.** curl exits 0 (HTTP 200) but bytes can be truncated/bad
-   (this killed PLACE + TRACT on the first run). **Always validate every download with `7z t` and retry.**
-   `load_tiger_TX.bat` has a `:getverified` subroutine that does this; the PS1 loaders use a `Get-Verified` function.
-3. **Cloudflare can cache a WAF "Request Rejected" page** (247-byte HTML, HTTP 200, `cf-cache-status: HIT`)
-   for a specific census URL (hit on Nacogdoches `48347` edges). `--fail` won't catch it. **Fix: re-request with a
-   cache-buster query string (`?cb=<timestamp>`) + a browser `-A` User-Agent.**
-4. **PowerShell mangles Maven `-D` args.** `-Dmaven.test.skip=true` gets split into a bogus lifecycle phase.
-   **Pass Maven args after the `--%` stop-parsing token.**
-5. **JasperReports 7 has a NEW jrxml format**, NOT backward-compatible with 6.x (Jackson-based loader):
-   no XML namespace; root `<jasperReport name=".." language="java" ..>`; `<queryString>`→`<query>`;
-   `<reportElement>` removed (x/y/w/h flattened onto `<element kind="..">`); `textAlignment`→`hTextAlign`/`vTextAlign`;
-   `<variableExpression>`/`<groupExpression>`→`<expression>`. A 6.x jrxml fails JR7's CLI loader (open in
-   Jaspersoft Studio to auto-upgrade, or use the `_jr7` version here).
-6. **JR 7 PDF export is a separate module** (`jasperreports-pdf` / OpenPDF) — core alone throws
-   "Missing JasperReports PDF Extension". Build `ext/pdf` too.
-7. **`usa_states`** was SRID 0 (undefined) → fixed to **4269** (NAD83, matches TIGER). It and two other
-   former-`public` data tables now live in schema **`tiger`** (`tiger.usa_states` etc.). `public` holds only
-   PostGIS/extension objects — do NOT move those.
+**Maps** (in `maps\`, open in a browser): statewide heatmap (2 km grid), Houston heatmap (500 m), full block-detail heatmap (449k blocks), tract choropleth, block-group choropleth, and two geocode-pin maps.
+
+**JasperReports** (in `report\`): a block-group density report in both 6.x and native JR 7 format, compiled (`.jasper`) and rendered (`output\tx_density_blockgroup_report.pdf`, 317 pages).
+
+**jasper-deploy skill** (`.claude\skills\jasper-deploy\`): 30+ scripts automating the full JRS 10 lifecycle (reports, dashboards, data sources, domains, themes, admin, lineage, smoke testing).
+
+**Web wizard** (`webapp\jasper-wizard\`): Jakarta servlet WAR — a browser UI over the skill for business users.
+
+---
+
+## 2. Prerequisites and environment
+
+### Software versions
+
+| Tool | Version | Default location | Notes |
+|---|---|---|---|
+| PostgreSQL + PostGIS | 14 + 3.4 | `C:\Program Files\PostgreSQL\14\bin` | DB `postgis_34_sample`, user `postgres` |
+| curl | Built-in | `C:\WINDOWS\system32\curl.exe` | **Use instead of wget** (see §3) |
+| 7-Zip | Any | `C:\Program Files\7-Zip\7z.exe` | Unzip + `7z t` integrity checks |
+| JDK | 11 | Set via `JAVA_HOME` | Runs JasperReports + javac |
+| Maven | 3.9 | Set via `PATH` | Builds JasperReports from source |
+| JasperReports 7.0.6 runtime | 7.0.6 | Set via `JR_LIB_DIR` (or `C:\Users\<you>\jasperreports-lib\`) | 37 jars (core, pdf, openpdf, PG JDBC driver, deps) |
+| JasperReports 7.0.6 source | 7.0.6 | `C:\Users\<you>\jasperreports-7.0.6\` | Maven project extracted from `-project.zip` |
+| JasperReports Server | 10 Pro | `http://localhost:8081/jasperserver-pro` | HTTP Basic — `superuser`/`superuser` |
+
+### Environment variables
+
+```bat
+set JAVA_HOME=C:\path\to\jdk-11
+set PGPASSWORD=<your postgres password>
+set JR_LIB_DIR=C:\path\to\jasperreports-lib   :: used by jasper-deploy scripts; optional
+```
+
+### Data staging
+
+Census TIGER data downloads stage to `C:\gisdata` by default (configurable in the loader scripts).
+
+---
+
+## 3. Gotchas
+
+These are the expensive-to-rediscover lessons. Read this section before you start.
+
+**G1 — Use `curl.exe`, not `wget`.**
+`winget install wget` fails — its source (`eternallybored.org`) is unreachable in this environment. Use the built-in `curl.exe` with:
+```
+curl --location --fail --retry 3 --create-dirs -o "<host\path>" "<url>"
+```
+All loader scripts have been rewritten to use this pattern.
+
+**G2 — Census downloads silently corrupt.**
+`curl` exits 0 (HTTP 200) but bytes can be truncated or bad (killed PLACE + TRACT on first run). Always validate every download with `7z t` and retry. `load_tiger_TX.bat` has a `:getverified` subroutine; the PS1 loaders use a `Get-Verified` function.
+
+**G3 — Cloudflare WAF cache.**
+Cloudflare can cache a "Request Rejected" page (247-byte HTML, HTTP 200, `cf-cache-status: HIT`) for a specific Census URL. `--fail` won't catch it. Fix: re-request with a cache-buster (`?cb=<timestamp>`) and a browser User-Agent (`-A`).
+
+**G4 — PowerShell mangles Maven `-D` args.**
+`-Dmaven.test.skip=true` gets split into a bogus lifecycle phase. Pass Maven args after the `--%` stop-parsing token:
+```powershell
+mvn --% -f pom.xml -pl core,ext/pdf -am -Dmaven.test.skip=true -B install
+```
+
+**G5 — JasperReports 7 has a new `.jrxml` format** (Jackson-based, not backward-compatible with 6.x):
+- No XML namespace
+- Root element: `<jasperReport name=".." language="java" ..>`
+- `<queryString>` → `<query>`
+- `<reportElement>` removed — x/y/width/height are flattened onto `<element kind="..">`
+- `textAlignment` → `hTextAlign` / `vTextAlign`
+- `<variableExpression>` / `<groupExpression>` → `<expression>`
+
+A 6.x `.jrxml` fails JR7's CLI loader. Open it in Jaspersoft Studio to auto-upgrade, or use the `_jr7` file in this repo.
+
+**G6 — JR 7 PDF export is a separate module.**
+The `jasperreports-pdf` module (OpenPDF) must be built and included. Core alone throws "Missing JasperReports PDF Extension". Build `ext/pdf` too (see §5).
+
+**G7 — `usa_states` SRID.**
+`tiger.usa_states` was SRID 0 (undefined), fixed to 4269 (NAD83, matching TIGER). It and two other former-`public` tables now live in schema `tiger`. The `public` schema holds only PostGIS/extension objects — do not move those.
+
+**G8 — JRS SQL security validator.**
+Report queries must begin with `SELECT`. A leading `WITH` (CTE) compiles locally but is rejected at fill time (`JSSecurityException` → generic 400). `deploy_report.ps1` lints and blocks this before deploy (`-SkipSqlLint` to bypass). Fix by pushing each CTE into a `FROM` subquery.
+
+**G9 — Dashboards: import, don't PUT.**
+A hand-built dashboard PUT to `/rest_v2/resources` stores (201) but renders blank. `compose_dashboard.ps1` exports real dashlets, injects the synthesized model, and imports a re-zipped archive (forward-slash entries required — the Java importer ignores back-slash paths).
+
+**G10 — `resource.in.use` (403) on dashlet reports.**
+A report that is a dashlet is modification/delete-locked. `deploy_report.ps1` updates in place to avoid this; `teardown_dashboard.ps1` deletes the dashboard first to release the lock.
+
+**G11 — Input controls must be standalone repository resources.**
+Embedded input controls are rejected. The control's name must equal the `$P{param}` it drives.
+
+**G12 — PowerShell 5.1 URL and array quirks.**
+- `?` is a legal variable-name char: build URLs as `"${base}?name="` not `"$base?name="` (the latter produces a 405).
+- `ConvertTo-Json` unwraps single-element arrays to scalars (server 400s). Emit such arrays as hand-built JSON.
+
+**G13 — JR7 chart plot properties are per-class.**
+`line` uses `showLines`/`showShapes`; `bar`/`bar3d`/`stackedbar` use `showTickMarks`/`showTickLabels`; `area` (`JRDesignAreaPlot`) accepts neither pair (bare `<plot/>` only). The wrong pair throws `UnrecognizedPropertyException` at compile/fill. `scaffold_jrxml.py` emits the correct form; `lint_jrxml.ps1` catches the wrong form; `references/jr7-valid-elements.md` lists valid/rejected elements per construct.
+
+---
 
 ## 4. Scripts (`scripts\`)
 
-All use absolute paths; safe to run from anywhere. Run `.bat` from `cmd.exe`, `.ps1` via `powershell -File`.
+All scripts use absolute paths internally and are safe to run from any working directory. Run `.bat` files from `cmd.exe`; run `.ps1` files via `powershell -File`.
 
 | Script | Purpose |
-|--------|---------|
-| `load_tiger_nation.bat` | One-time: load national STATE + COUNTY lookup tables. Run first. |
-| `load_tiger_TX.bat` | Full statewide TX loader (all layers, all 254 counties). Has the `:getverified` CRC-verify+retry fix and curl. Long run. |
-| `load_geocode_travis.bat` | Loads PLACE (statewide) + EDGES/FEATNAMES/ADDR for Travis County only (fast demo). |
-| `load_geocode_faces_zip.bat` | Loads Travis FACES + builds the zip lookup tables (needed for geocoding). |
-| `load_metros.ps1` | Verified loader for 16 metro counties (faces/featnames/edges/addr), idempotent. |
-| `load_remaining.ps1` | Verified loader for ALL remaining counties; **idempotent** (skips counties already in `tx_edges`). |
+|---|---|
+| `load_tiger_nation.bat` | One-time: load national STATE + COUNTY lookup tables. **Run this first.** |
+| `load_tiger_TX.bat` | Full statewide TX loader (all layers, all 254 counties). Has the `:getverified` CRC-verify+retry fix. Long run. |
+| `load_geocode_travis.bat` | Loads PLACE (statewide) + EDGES/FEATNAMES/ADDR for Travis County only. Fast demo. |
+| `load_geocode_faces_zip.bat` | Loads Travis FACES + builds zip lookup tables (required for geocoding). |
+| `load_metros.ps1` | Verified loader for 16 metro counties (faces/featnames/edges/addr). Idempotent. |
+| `load_remaining.ps1` | Verified loader for all remaining counties. **Idempotent** — skips counties already in `tx_edges`. Recommended for a full statewide load. |
 | `test_verify.bat` | Standalone test of the download-verify-retry subroutine. |
+
+---
 
 ## 5. Reports (`report\`)
 
-- `tx_density_blockgroup_report.jrxml` — JasperReports **6.x** format (open in Jaspersoft Studio to auto-upgrade).
-- `tx_density_blockgroup_report_jr7.jrxml` — native **JR 7** format; compiles with the built library.
-- `tx_density_blockgroup_report_jr7.jasper` — compiled report.
-- `postgis_34_sample.xml` — Jaspersoft Studio JDBC data adapter (needs the PostgreSQL driver on its classpath).
-- `CompileReport.java` / `FillReport.java` — CLI compile + fill/export harnesses.
+### Files
 
-**Build the JasperReports library (once):**
-```
-set JAVA_HOME=C:\jdk-11.0.24+8
-mvn --% -f C:\Users\rgorsuch\jasperreports-7.0.6\pom.xml -pl core,ext/pdf -am -Dmaven.test.skip=true -Dmaven.javadoc.skip=true -B install
-mvn --% -f C:\Users\rgorsuch\jasperreports-7.0.6\core\pom.xml  dependency:copy-dependencies -DoutputDirectory=C:\Users\rgorsuch\jasperreports-lib -DincludeScope=runtime
-mvn --% -f C:\Users\rgorsuch\jasperreports-7.0.6\ext\pdf\pom.xml dependency:copy-dependencies -DoutputDirectory=C:\Users\rgorsuch\jasperreports-lib -DincludeScope=runtime
-copy core\target\jasperreports-7.0.6.jar + ext\pdf\target\jasperreports-pdf-7.0.6.jar into jasperreports-lib\
-:: PostgreSQL JDBC driver: curl https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar -> jasperreports-lib\
+| File | Description |
+|---|---|
+| `tx_density_blockgroup_report.jrxml` | JasperReports 6.x format. Open in Jaspersoft Studio to auto-upgrade. |
+| `tx_density_blockgroup_report_jr7.jrxml` | Native JR 7 format. Use this one. |
+| `tx_density_blockgroup_report_jr7.jasper` | Pre-compiled report binary. |
+| `postgis_34_sample.xml` | Jaspersoft Studio JDBC data adapter (requires the PostgreSQL driver on its classpath). |
+| `CompileReport.java` | CLI compile harness. |
+| `FillReport.java` | CLI fill/export harness. Reads `PGPASSWORD` from the environment. |
+| `foodmart/` | Deployable KPI reports + `dashboard.json` manifest for the jasper-deploy skill. |
+
+### Build the JasperReports 7.0.6 library (once)
+
+```bat
+set JAVA_HOME=C:\path\to\jdk-11
+
+:: Build core + PDF extension
+mvn --% -f C:\path\to\jasperreports-7.0.6\pom.xml -pl core,ext/pdf -am -Dmaven.test.skip=true -Dmaven.javadoc.skip=true -B install
+
+:: Copy runtime jars to your lib directory
+mvn --% -f C:\path\to\jasperreports-7.0.6\core\pom.xml dependency:copy-dependencies -DoutputDirectory=C:\path\to\jasperreports-lib -DincludeScope=runtime
+mvn --% -f C:\path\to\jasperreports-7.0.6\ext\pdf\pom.xml dependency:copy-dependencies -DoutputDirectory=C:\path\to\jasperreports-lib -DincludeScope=runtime
+
+:: Copy the built JARs into the lib directory
+copy C:\path\to\jasperreports-7.0.6\core\target\jasperreports-7.0.6.jar C:\path\to\jasperreports-lib\
+copy C:\path\to\jasperreports-7.0.6\ext\pdf\target\jasperreports-pdf-7.0.6.jar C:\path\to\jasperreports-lib\
+
+:: Add the PostgreSQL JDBC driver
+curl https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar -o C:\path\to\jasperreports-lib\postgresql-42.7.4.jar
 ```
 
-**Compile + render to PDF** (run from `report\`):
+### Compile and render to PDF
+
+Run from the `report\` directory:
+
+```bat
+set CP=C:\path\to\jasperreports-lib\*
+set PGPASSWORD=<your postgres password>
+
+:: Compile the Java harnesses
+"C:\path\to\jdk-11\bin\javac.exe" -cp "%CP%" CompileReport.java FillReport.java
+
+:: Compile the JRXML
+"C:\path\to\jdk-11\bin\java.exe" ^
+  -Dnet.sf.jasperreports.compiler.class=net.sf.jasperreports.engine.design.JRJavacCompiler ^
+  -cp "%CP%;." CompileReport tx_density_blockgroup_report_jr7.jrxml
+
+:: Fill and export to PDF
+"C:\path\to\jdk-11\bin\java.exe" -cp "%CP%;." FillReport ^
+  tx_density_blockgroup_report_jr7.jasper ^
+  ..\output\tx_density_blockgroup_report.pdf
 ```
-set CP=C:\Users\rgorsuch\jasperreports-lib\*
-set PGPASSWORD=<your local password>   :: FillReport reads PGPASSWORD from the environment
-"C:\jdk-11.0.24+8\bin\javac.exe" -cp "%CP%" CompileReport.java FillReport.java
-"C:\jdk-11.0.24+8\bin\java.exe" -Dnet.sf.jasperreports.compiler.class=net.sf.jasperreports.engine.design.JRJavacCompiler -cp "%CP%;." CompileReport tx_density_blockgroup_report_jr7.jrxml
-"C:\jdk-11.0.24+8\bin\java.exe" -cp "%CP%;." FillReport tx_density_blockgroup_report_jr7.jasper ..\output\tx_density_blockgroup_report.pdf
-```
+
+---
 
 ## 6. Maps (`maps\`)
 
-Self-contained HTML (Leaflet + CDN). Open directly in a browser.
+Self-contained HTML files using Leaflet + CDN resources. Open directly in any browser — no web server required.
 
 | File | Shows |
-|------|-------|
-| `tx_population_heatmap.html` | Statewide pop heatmap, 2 km grid (64,722 cells) |
-| `tx_population_heatmap_blocks.html` | Full block-detail heatmap (449k blocks; heavy) |
+|---|---|
+| `tx_population_heatmap.html` | Statewide population heatmap, 2 km grid (64,722 cells) |
+| `tx_population_heatmap_blocks.html` | Full block-detail heatmap (449k blocks; loads slowly) |
 | `houston_population_heatmap.html` | Houston metro, 500 m grid |
 | `tx_density_choropleth.html` | Density choropleth by census tract (6,896) |
 | `tx_density_choropleth_blockgroup.html` | Density choropleth by block group (18,638) |
-| `geocode_result.html` / `geocode_houston.html` | Single geocoded address pins |
+| `geocode_result.html` | Single geocoded address pin (Austin example) |
+| `geocode_houston.html` | Single geocoded address pin (Houston example) |
+
+---
 
 ## 7. Rebuild order from scratch
 
-1. `load_tiger_nation.bat` (national lookups).
-2. `load_remaining.ps1` (verified statewide county load; or `load_tiger_TX.bat`). Sweep the log for
-   `DOWNLOAD FAILED (skipped)` and repair those files with the cache-buster+UA trick.
-3. Build the JasperReports library (§5), compile + fill the report.
-4. Regenerate maps as needed (queries embedded in session history; data in `tiger_data.tx_*`).
+1. Run `scripts\load_tiger_nation.bat` (national STATE + COUNTY lookups — required first).
+2. Run `scripts\load_remaining.ps1` (verified statewide county load; or `load_tiger_TX.bat` for the original loader). Sweep the log for `DOWNLOAD FAILED (skipped)` and repair those files with the cache-buster + User-Agent trick (see G3).
+3. Build the JasperReports 7.0.6 library (§5), compile the report, and fill it to PDF.
+4. Regenerate maps as needed — queries are embedded in `report\` and data lives in `tiger_data.tx_*`.
+5. To stand up the jasper-deploy skill: see §9. To deploy the web wizard: see §10.
 
-## 8. Useful geocode test
+---
+
+## 8. Useful geocode tests
 
 ```sql
+-- Exact match (rating 0)
+SELECT g.rating, ST_X(g.geomout) lon, ST_Y(g.geomout) lat, pprint_addy(g.addy)
+FROM geocode('1100 Congress Ave, Austin, TX 78701', 1) AS g;
+
+-- Houston example
 SELECT g.rating, ST_X(g.geomout) lon, ST_Y(g.geomout) lat, pprint_addy(g.addy)
 FROM geocode('901 Bagby St, Houston, TX 77002', 1) AS g;
+
+-- Check what's loaded
+SELECT COUNT(*) FROM tiger_data.tx_edges;       -- ~5.7M
+SELECT COUNT(*) FROM tiger_data.tx_tabblock20;  -- ~668K
+SELECT SUM(pop) FROM tiger_data.tx_tabblock20;  -- 29,145,505
 ```
 
-## 9. JasperReports Server automation — the `jasper-deploy` skill
+---
 
-`.claude/skills/jasper-deploy/` scripts the full JasperReports lifecycle against a local
-**JasperReports Server 10** over REST v2. Everything is **JR 7.0.6-native**. `SKILL.md` is a lean
-**index** (capability map + happy path + cross-cutting gotchas); topic detail is split into
-`references/`: `reports.md`, `dashboards.md`, `data-and-semantic-layer.md`, `admin-and-scheduling.md`,
-plus `jr7-schema.md`, `jr7-valid-elements.md` (strict-Jackson valid/rejected element lists, source-cited),
-`gotchas.md` (50 issues indexed by symptom → fix), the JRS REST API map + `application.wadl` (a committed
-snapshot of this server's exact REST surface), the dashboard model, `security-and-config.md`
-(secrets/portability), `seed-data.md` / `smtp-testing.md` / `ci-smoke.md` / `visualize-embedding.md`, and
-the JSON schemas `manifest.schema.json` / `jrs.config.schema.json` / `environment.schema.json`.
-`fixtures/README.md` indexes known-good exemplars, `baselines/*.png` back `verify_report.ps1 -Baseline`,
-and `tests/` holds the server-less Pester unit suite (run in the smoke prechecks).
+## 9. jasper-deploy skill
 
-**Server / toolchain**
-- JRS PRO at **`http://localhost:8081/jasperserver-pro`** (HTTP Basic, `superuser`/`superuser`).
-  Port **8080** is an unrelated Bearer-gated service — not JRS.
-- JR 7.0.6 runtime jars at `C:\Users\rgorsuch\jasperreports-lib\` (resolved via `-LibDir` →
-  `$env:JR_LIB_DIR` → `jrs.config.json` `jrLibDir` → that default).
-- Credentials/URL resolve: script params → env `JRS_URL`/`JRS_USER`/`JRS_PASS` → `jrs.config.json`
-  (gitignored; copy `jrs.config.example.json`).
+`.claude/skills/jasper-deploy/` scripts the full JasperReports lifecycle against JRS 10 Pro at `http://localhost:8081/jasperserver-pro` over REST v2. All scripts are JR 7.0.6-native and verified end-to-end.
 
-**Scripts (`scripts\`)**
+### Configuration
+
+Credentials and server URL resolve in this order:
+1. Script parameters (`-Url`, `-User`, `-Pass`)
+2. Environment variables (`JRS_URL`, `JRS_USER`, `JRS_PASS`)
+3. `jrs.config.json` (gitignored; copy `jrs.config.example.json` to get started)
+
+Default: `http://localhost:8081/jasperserver-pro`, `superuser` / `superuser`.
+
+> ⚠️ Port 8080 is an unrelated Bearer-gated service — not JRS.
+
+JR 7.0.6 runtime jars resolve via: `-LibDir` parameter → `$env:JR_LIB_DIR` → `jrs.config.json` `jrLibDir` → `C:\Users\<you>\jasperreports-lib\`.
+
+### Script reference
 
 | Script | Purpose |
-|--------|---------|
-| `scaffold_jrxml.py` | Introspect a SQL query → emit a JR7 tabular report. Flags: `--chart`/`--chart-label-rotation`, `--param`, `--group-by`, `--highlight`, `--drill`, `--crosstab`, `--subreport`, `--style-template`. |
-| `compile_jrxml.ps1` | Compile `.jrxml` → `.jasper` (fast JR7 validity check; via shared `Invoke-JrCompile`). |
-| `create_datasource.ps1` | Create/update a datasource: JDBC plus `-Type jndi\|bean\|custom\|virtual\|aws` (`-Overwrite` updates in place). |
-| `deploy_report.ps1` | PUT a report unit. `-Overwrite` updates in place (works for in-use reports); SQL-lint guard; `-Control` attaches static input controls; `-QueryControl`/`-QueryMultiControl` attach query-backed + cascading controls. |
-| `verify_report.ps1` (+ `pdf_verify.py`) | Run a deployed report and assert HTTP + CSV row-count/contains + a visual baseline diff. |
-| `scaffold_style_template.py` | Emit a shared JR7 `.jrtx` style template from a palette (upload as a file resource; reference via `scaffold_jrxml.py --style-template`). |
-| `scaffold_domain_schema.py` / `create_domain.ps1` | Introspect a table → single-table Domain `schema.xml`; create the `semanticLayerDataSource` (schema embedded inline). |
-| `manage_adhoc.ps1` | Ad hoc views (`adhocDataView`): `list` / `get` (inspect JSON) / `export` / `import` / `delete`. |
-| `scaffold_theme.py` / `deploy_theme.ps1` | Emit an `overrides_custom.css` from a palette; deploy a CSS file or theme folder and `-Activate` it per organization. |
-| `create_mondrian.ps1` | OLAP: upload a Mondrian schema + create a `secureMondrianConnection` (and best-effort an MDX `olapUnit` view). |
-| `manage_permissions.ps1` / `manage_attributes.ps1` | Repository ACLs (get/set/clear) and server/org/user attributes (get/set/delete). |
-| `manage_users.ps1` / `manage_roles.ps1` / `manage_organizations.ps1` | Tenant/identity admin: user, role, and organization CRUD (server- or org-scoped). |
-| `run_report_async.ps1` | Run a report via the async `reportExecutions` service (submit→poll→download) — for large fills that time out synchronously. |
-| `manage_options.ps1` / `manage_cache.ps1` | Saved input-control value sets (create/list/run/delete) and clear a server cache (`DELETE /rest_v2/caches/{id}`). |
-| `build_dashlets.ps1` | Manifest-driven: scaffold→compile→deploy→verify each dashlet; `-Compose` then builds the dashboard. |
-| `gen_dashboard.py` / `compose_dashboard.ps1` | Synthesize a dashboard (report/text/image tiles, auto-grid, wiring) and import it so it renders. |
-| `export_resource.ps1` / `import_resource.ps1` | Export/import any resource (back up, version, restore). |
-| `promote.ps1` | Export from a source server, import into a target — dev→prod promotion. |
-| `teardown_dashboard.ps1` | Delete a dashboard then (optionally) its report tiles + `_controls`, in lock-safe order. |
-| `lint_jrxml.ps1` | Static pre-deploy linter for `.jrxml`/`.jrtx`/`.jrdax` — catches the strict-Jackson 400s a clean compile misses (isDefault, `.jrdax` non-CSV elements, pie `seriesColors`/`seriesOrder`, leading-`WITH` SQL, line/area plot props, title-band `evaluationTime`). Exit 1 on error; `-WarningsAsErrors` too. **Now a gate inside `deploy_report.ps1`** (`-SkipLint` to bypass) and in the smoke prechecks. |
-| `extract_lineage.py` | Read-only crawler → asset + **column-level** lineage graph (reports→datasources/domains/tables/columns via `sqlglot`, dashboards→reports); `--format openlineage` emits OpenLineage events. Stdlib + optional `sqlglot` (graceful regex fallback). Implements `JASPERSOFT_CATALOG_CONNECTOR_PDD.md`. |
-| `diff_resource.ps1` | Drift detector — diffs a live resource descriptor vs. a committed local `.json`; exits nonzero on drift. Pairs with `promote.ps1`. |
-| `reconcile.ps1` | Declarative "desired state" applier (Terraform-for-JRS): reads an environment manifest, diffs vs. live, prints a plan; `-Apply` creates/updates via the existing scripts. **Plan-only by default.** Schema: `references/environment.schema.json`. |
-| `doctor.ps1` | Environment preflight — server/DB reachable, jars + chart-customizer jar present, `jrs.config.json` valid, python/`sqlglot`/`pypdfium2` available. PASS/WARN/FAIL checklist; nonzero on FAIL. |
-| `check_docs.ps1` | Doc-consistency guard — every `references/` link + capability-map script resolves, no stale step counts. Runs in the smoke prechecks. |
-| `smoke_test.ps1` | 19-step end-to-end regression gate (scaffold→**lint**→compile→deploy→…→style template→domain→jndi/aws datasource→theme→cascading query controls→permissions→attributes→mondrian→teardown under `/reports/_smoke`). |
-| `upload_file.ps1`, `deploy_jr_samples.ps1`, `_jrs_common.ps1` | File upload, bulk sample deploy, shared helpers. |
+|---|---|
+| `scaffold_jrxml.py` | Introspect a SQL query → emit a JR7 tabular report. Flags: `--chart`, `--param`, `--group-by`, `--highlight`, `--drill`, `--crosstab`, `--subreport`, `--style-template`. |
+| `compile_jrxml.ps1` | Compile `.jrxml` → `.jasper`. Fast JR7 validity check. |
+| `lint_jrxml.ps1` | Static pre-deploy linter — catches strict-Jackson traps offline. **Run before every deploy.** Gate inside `deploy_report.ps1` (`-SkipLint` to bypass). |
+| `create_datasource.ps1` | Create/update a JDBC datasource or non-JDBC type (`-Type jndi\|bean\|custom\|virtual\|aws`). |
+| `deploy_report.ps1` | PUT a report unit. `-Overwrite` updates in place. SQL-lint guard. `-Control` / `-QueryControl` / `-QueryMultiControl` attach input controls. |
+| `verify_report.ps1` | Run a deployed report and assert HTTP + CSV row-count/contains + visual baseline diff. |
+| `scaffold_style_template.py` | Emit a shared JR7 `.jrtx` style template from a color palette. |
+| `scaffold_domain_schema.py` + `create_domain.ps1` | Introspect a table → single-table Domain for Ad Hoc reporting. |
+| `manage_adhoc.ps1` | Ad hoc views: list / get / export / import / delete. |
+| `scaffold_theme.py` + `deploy_theme.ps1` | Emit `overrides_custom.css` from a palette; deploy + activate per organization. |
+| `create_mondrian.ps1` | Upload a Mondrian schema + create a `secureMondrianConnection`. |
+| `manage_permissions.ps1` + `manage_attributes.ps1` | Repository ACLs and server/org/user attributes. |
+| `manage_users.ps1` + `manage_roles.ps1` + `manage_organizations.ps1` | Identity and tenant CRUD. |
+| `run_report_async.ps1` | Large fills via the async `reportExecutions` API. |
+| `manage_options.ps1` + `manage_cache.ps1` | Saved input-control value sets; clear server caches. |
+| `build_dashlets.ps1` + `compose_dashboard.ps1` | Manifest-driven: scaffold → lint → compile → deploy → verify dashlets, then compose and import the dashboard. |
+| `export_resource.ps1` + `import_resource.ps1` | Export/import any resource for backup or promotion. |
+| `promote.ps1` | Dev→prod promotion (export from source, import to target). |
+| `teardown_dashboard.ps1` | Delete a dashboard then its report tiles + `_controls`, in lock-safe order. |
+| `extract_lineage.py` | Column-level lineage graph (reports → datasources → tables → columns via `sqlglot`). `--format openlineage` emits OpenLineage events. |
+| `diff_resource.ps1` | Drift detection — diffs a live resource descriptor vs. committed local `.json`. |
+| `reconcile.ps1` | Declarative desired-state applier. Plan-only by default; `-Apply` to execute. Schema: `references/environment.schema.json`. |
+| `doctor.ps1` | Environment preflight — server/DB reachable, jars present, config valid, Python deps available. |
+| `check_docs.ps1` | Doc-consistency guard — every `references/` link and capability-map script resolves. |
+| `smoke_test.ps1` | **19-step end-to-end regression gate.** Run after any script change. |
 
-**Quick start**
+### Quick start
+
 ```powershell
-$skill = ".\.claude\skills\jasper-deploy\scripts"; $env:PGPASSWORD = "postgres"
-# build + deploy + verify all dashlets, then compose the dashboard:
+$skill = ".\.claude\skills\jasper-deploy\scripts"
+$env:PGPASSWORD = "postgres"
+
+# Preflight check
+& $skill\doctor.ps1
+
+# Build and deploy all Foodmart dashlets + compose the dashboard
 & $skill\build_dashlets.ps1 -Manifest report\foodmart\dashboard.json -Compose
-# regression gate after editing any script:
+
+# Regression gate (run after any script change)
 & $skill\smoke_test.ps1
 ```
 
-**GOTCHAS (skill-specific)**
-1. **JRS SQL security validator**: report queries must begin with `SELECT`. A leading `WITH` (CTE)
-   compiles locally but is rejected at fill time (`JSSecurityException` → generic `400`). `deploy_report.ps1`
-   now lints+blocks this before deploy (`-SkipSqlLint` to override); fix by pushing each CTE into a `FROM`
-   subquery. Window functions (`... over ()`) are fine.
-2. **Dashboards: import, don't PUT.** A hand-built dashboard model PUT to `/rest_v2/resources` stores
-   (201) but renders **blank**. `compose_dashboard.ps1` instead exports the real dashlets, injects the
-   synthesized model, and **imports** (re-zipped with forward-slash entries — the Java importer ignores
-   back-slash paths). See `references/dashboard-model.md`.
-3. **`resource.in.use` (403)**: a report that is a dashlet of a dashboard is modification/delete-locked.
-   `deploy_report.ps1` updates in place to dodge it; `build_dashlets.ps1` reports such reports as
-   "in-use (kept)"; `teardown_dashboard.ps1` deletes the dashboard first to release the lock.
-4. **Input controls** must be standalone repository resources referenced by the report (embedding is
-   rejected); the control's name must equal the `$P{param}` it drives.
-5. **Subreport** `--subreport` must reference a jrxml **file** resource (e.g. `…/rpt_files/Label_main_jrxml`),
-   not a report unit.
-6. **Domains & ad hoc views are scripted now.** Single-table Domains: `scaffold_domain_schema.py` +
-   `create_domain.ps1` (the schema.xml must be **embedded inline** in the descriptor — a pre-uploaded
-   `schemaFileReference` 500s `resource.does.not.exist`; and the schema's `datasourceId` must equal the
-   `-DataSourceUri` leaf). Ad hoc views: `manage_adhoc.ps1` lists/inspects/exports/imports them (a raw
-   JSON **PUT is rejected `500 "bytes is null"`** — move them via export/import, like dashboards). What's
-   still designer-only: an ad hoc view's interactive state, multi-table Domains (joins), and filter-group /
-   input-control dashboard tiles — author those in the web UI and promote with `export`/`import`/`promote.ps1`.
-7. **Style templates (`.jrtx`)**: the default-style attribute is **`default="true"`**, NOT the 6.x
-   `isDefault="true"` (JR7 parses the `.jrtx` with strict Jackson → `UnrecognizedPropertyException` as a
-   generic `400` at fill time, not a compile error). `scaffold_style_template.py` emits the correct form.
-8. **Non-JDBC datasources**: `create_datasource.ps1 -Type jndi|bean|custom|virtual|aws` validates the
-   **descriptor shape** and stores the resource; *connecting* still needs the server-side prerequisite
-   (JNDI resource / Spring bean / custom service / referenced sub-datasources / live AWS creds).
-   The AWS `-Region` value is the **endpoint host** (`us-east-1.amazonaws.com`), not the bare code.
-9. **OLAP `olapUnit` is best-effort**: the schema + `secureMondrianConnection` create reliably, but a
-   saved analysis view OPENS the connection and validates the MDX against the live cube, so it `500`s
-   unless the Mondrian schema parses against the backing DB. `create_mondrian.ps1` warns and keeps the
-   schema + connection.
-10. **PowerShell 5.1 quirks (in the new scripts)**: `?` is a legal variable-name char, so a URL built as
-    `"$base?name="` drops the base (→ `405`) — use `"${base}?name="`. And `ConvertTo-Json` unwraps a
-    single-element array property to a scalar (server `400`s `ArrayList from String`) — emit such arrays
-    as hand-built JSON. (`manage_attributes.ps1` / `deploy_report.ps1` handle both.)
-11. **JR7 chart plot properties are per-class.** `line` uses `showLines`/`showShapes`;
-   `bar`/`bar3d`/`stackedbar` use `showTickMarks`/`showTickLabels`; **`area` (`JRDesignAreaPlot`) accepts
-   NEITHER pair** — it gets a bare `<plot/>` (only `categoryAxisTickLabelRotation` is valid). The wrong
-   pair throws `UnrecognizedPropertyException` at compile/fill. `scaffold_jrxml.py` emits the correct plot
-   per type (a prior version emitted tick props for `--chart area`, which failed to compile — now fixed);
-   `lint_jrxml.ps1` catches the wrong form, and the per-class valid lists are in
-   `references/jr7-valid-elements.md`. The harmless SLF4J "no providers" line goes to stderr and can abort
-   a `$ErrorActionPreference=Stop` wrapper — `Invoke-JrCompile` absorbs it.
-12. **`compose_dashboard.ps1 -WorkDir` accepts an absolute path now.** It previously joined the work dir
-   with `Get-Location` unconditionally, so an absolute `-WorkDir` produced an invalid `C:\cwd\C:\abs`
-   path and `ExtractToDirectory` threw "the given path's format is not supported". Pass an absolute
-   `-WorkDir` when the caller's CWD isn't writable (the web wizard runs it from the Tomcat temp dir).
+### Skill-specific gotchas
+
+These are in addition to the general gotchas in §3 and are also indexed by symptom in `references/gotchas.md`.
+
+| # | Issue | Fix |
+|---|---|---|
+| S1 | Leading `WITH` (CTE) rejected at fill time | Push CTEs into `FROM` subqueries |
+| S2 | Dashboard PUT renders blank | Use `compose_dashboard.ps1` (export/import path) |
+| S3 | `resource.in.use` (403) on dashlet report | Delete the dashboard first; use `teardown_dashboard.ps1` |
+| S4 | Input controls rejected | Must be standalone repo resources; name must match `$P{param}` |
+| S5 | Subreport must reference a file resource | Use `…/rpt_files/Label_main_jrxml`, not a report unit |
+| S6 | Ad hoc view PUT fails (`500 "bytes is null"`) | Use `manage_adhoc.ps1` import (same export/import pattern as dashboards) |
+| S7 | `.jrtx` default style uses wrong attribute | Use `default="true"`, not 6.x `isDefault="true"` |
+| S8 | AWS datasource `-Region` | Use endpoint host (`us-east-1.amazonaws.com`), not the bare code |
+| S9 | `compose_dashboard.ps1 -WorkDir` | Pass absolute path; relative paths fail when CWD differs |
+| S10 | SLF4J "no providers" on stderr aborts PS | `Invoke-JrCompile` absorbs it; don't wrap in `$ErrorActionPreference=Stop` |
+
+### Reference files
+
+`references/` contains the authoritative detail behind `SKILL.md`:
+
+| File | Contents |
+|---|---|
+| `reports.md` | Report scaffolding, compilation, deployment patterns |
+| `dashboards.md` | Dashboard model, dashlet wiring, import/export |
+| `data-and-semantic-layer.md` | Datasources, Domains, Ad Hoc views |
+| `admin-and-scheduling.md` | Users, roles, orgs, scheduling, permissions |
+| `jr7-schema.md` | JR7 `.jrxml` schema reference |
+| `jr7-valid-elements.md` | Valid/rejected element names per construct (source-cited) |
+| `gotchas.md` | 50+ issues indexed by symptom → fix; JRS errors auto-print a pointer here |
+| `dashboard-model.md` | Dashboard JSON model internals |
+| `security-and-config.md` | Secrets management, env-only creds, `passwordCommand` |
+| `visualize-embedding.md` | Visualize.js embedding patterns |
+| `ci-smoke.md` | CI integration for `smoke_test.ps1` |
+| `manifest.schema.json` | Dashboard manifest JSON schema |
+| `jrs.config.schema.json` | Server config JSON schema |
+| `environment.schema.json` | Reconcile environment manifest schema |
+
+---
 
 ## 10. Self-service web wizard (`webapp\jasper-wizard\`)
 
-A **Jakarta servlet WAR** (Actian-branded) that puts the `jasper-deploy` skill behind a browser UI for
-business users — no JRXML or REST knowledge needed. It runs inside the JRS Tomcat at
-**`http://localhost:8081/jasper-wizard/`** and covers the full lifecycle: reports (SQL→chart/table with
-live query preview + interactive input controls), dashboards, data sources, domains, themes, run & export
-(PDF/XLSX/CSV/DOCX/PPTX + async), scheduling, repository browse, ad hoc list/export, permissions, and a
-**Server Summary** overview (repository inventory + runtime characteristics). `webapp/jasper-wizard/README.md`
-is the authoritative reference.
+A Jakarta servlet WAR (Actian-branded) that puts the `jasper-deploy` skill behind a browser UI for business users. No JRXML or REST knowledge needed.
 
-**Architecture.** Reads / preview / run are proxied straight to JRS REST by a small `JrsClient` (auth added
-server-side: no browser creds, no CORS). Create / deploy actions shell out to the verified skill scripts via
-`ScriptRunner` (`scaffold_jrxml.py`, `deploy_report.ps1`, `create_datasource.ps1`, `compose_dashboard.ps1`,
-`scaffold_domain_schema.py`+`create_domain.ps1`, `scaffold_theme.py`+`deploy_theme.ps1`, `schedule_job.ps1`,
-`manage_permissions.ps1`, `manage_adhoc.ps1`, `export_resource.ps1`, `run_report_async.ps1`). **So a change to
-a script's parameters or stdout shape can require updating the matching wizard handler.**
+**URL:** `http://localhost:8081/jasper-wizard/`
 
-**Build & deploy** (no Maven):
+**Capabilities:** reports (SQL → chart/table, live query preview, input controls), dashboards, data sources, domains, themes, run & export (PDF/XLSX/CSV/DOCX/PPTX + async), scheduling, repository browse, ad hoc list/export, permissions, and a **Server Summary** (repository inventory + runtime characteristics).
+
+### Architecture
+
+- Read/preview/run operations proxy directly to JRS REST via `JrsClient` (auth added server-side; no browser credentials, no CORS).
+- Create/deploy operations shell out to the verified skill scripts via `ScriptRunner`. Scripts are **bundled inside the WAR** (`WEB-INF/scripts`) because the Tomcat service runs as `NT AUTHORITY\LocalService` and cannot read the user profile.
+- Child processes run from the container temp directory (writable). This is why the wizard passes an absolute `-WorkDir` to `compose_dashboard.ps1`.
+
+> If you change a skill script's parameters or stdout shape, update the matching wizard handler.
+
+### Build and deploy
+
 ```powershell
 cd webapp\jasper-wizard
-.\build.ps1                 # compile + bundle scripts + WAR + hot-deploy to the JRS Tomcat
-# .\build.ps1 -NoDeploy     # just build target\jasper-wizard.war
+.\build.ps1               # compile + bundle scripts + WAR + hot-deploy to JRS Tomcat
+.\build.ps1 -NoDeploy     # build only — produces target\jasper-wizard.war
 ```
 
-**Environment realities the build accounts for**
-- **Tomcat is 10.1.x → Jakarta Servlet** (`jakarta.servlet.*`, not `javax.*`); compiles against Tomcat's
-  bundled `servlet-api.jar` with JDK 11.
-- **The Tomcat service runs as `NT AUTHORITY\LocalService`**, which can't read the user profile/repo — so the
-  skill scripts are **bundled inside the WAR** (`WEB-INF/scripts`) and child processes run from the **container
-  temp dir** (writable). This is why the wizard passes an absolute `-WorkDir` to `compose_dashboard.ps1`.
-- **No local jrxml compile** (drops the `jasperreports-lib` dependency); JRS compiles server-side on deploy
-  and `deploy_report.ps1` lints the SQL first.
-- **Config** is in `WEB-INF/web.xml` context-params (JRS URL/creds, PostgreSQL host/port/user/password,
-  python exe, script timeout) — edit and rebuild, or edit the exploded webapp and restart the app.
+The build compiles against Tomcat's bundled `servlet-api.jar` with JDK 11 (Jakarta Servlet `jakarta.servlet.*`, not `javax.*`). No Maven required.
 
-**Security note.** The wizard runs user-supplied SQL against the configured DB and publishes with stored admin
-credentials — it's an **internal, trusted-user tool**; keep it behind the JRS login / a network boundary.
-Command args are passed as an argv array (no shell-injection surface), but the SQL runs with the data source's
-privileges.
+### Configuration
+
+All configuration is in `WEB-INF/web.xml` context-params:
+- JRS URL, username, password
+- PostgreSQL host, port, user, password
+- Python executable path
+- Script execution timeout
+
+Edit `web.xml` and rebuild, or edit the exploded webapp in Tomcat's `webapps/` directory and restart the app.
+
+> ⚠️ Security note: the wizard runs user-supplied SQL against the configured DB and publishes using stored admin credentials. Keep it behind the JRS login and a network boundary. Command args are passed as an argv array (no shell-injection surface), but SQL runs with the data source's privileges.
+
+---
+
+## 11. Troubleshooting quick reference
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `DOWNLOAD FAILED` in loader log | Corrupt ZIP from Census CDN | Re-run with cache-buster (`?cb=<timestamp>`) + browser User-Agent (`-A`) |
+| `400` on report deploy | Strict-Jackson violation in `.jrxml` | Run `lint_jrxml.ps1`; check `references/jr7-valid-elements.md` |
+| `400` with "leading WITH" message | CTE at top of report query | Rewrite as `FROM (SELECT ...)` subquery |
+| `403 resource.in.use` | Report is a dashlet of a live dashboard | Delete the dashboard first; use `teardown_dashboard.ps1` |
+| Dashboard renders blank after PUT | Hand-built dashboard model | Use `compose_dashboard.ps1` (export/import path) |
+| `500 "bytes is null"` on ad hoc view PUT | Raw PUT not supported for adhocDataView | Use `manage_adhoc.ps1 import` |
+| `JSSecurityException` at fill time | JRS SQL validator rejection | Ensure query starts with `SELECT`; no leading `WITH` |
+| `Missing JasperReports PDF Extension` | Core jar without the `jasperreports-pdf` module | Build and include `ext/pdf` (see §5) |
+| SLF4J "no providers" aborts PowerShell | `$ErrorActionPreference=Stop` + JR stderr | Use `Invoke-JrCompile` helper which absorbs stderr |
+| `405` on JRS REST call | URL built with bare `$var?param=` | Use `${var}?param=` in PowerShell |
+| `400` on array property | `ConvertTo-Json` unwraps single-element array | Emit as hand-built JSON string |
+
+For deeper diagnosis, run `doctor.ps1` for environment preflight and check `references/gotchas.md` (indexed by symptom).

@@ -1,0 +1,101 @@
+{
+  "db": "db",
+  "dataSourceUri": "/datasources/actian_avalanche",
+  "folder": "/reports/sales_dashboard",
+  "name": "comprehensive_sales_dashboard",
+  "label": "Comprehensive Sales Dashboard",
+  "outDir": "report\\sales_dashboard",
+  "cols": 2,
+  "dashlets": [
+    {
+      "name": "kpi_summary",
+      "title": "Sales Summary KPIs",
+      "queryFile": "report\\sales_dashboard\\kpi_summary.sql",
+      "x": 0,
+      "y": 0,
+      "width": 40,
+      "height": 5
+    },
+    {
+      "name": "daily_sales_trend",
+      "title": "Daily Sales Trend",
+      "chart": "line",
+      "chartCategory": "date",
+      "chartValue": "transaction_count",
+      "chartHeight": 350,
+      "landscape": true,
+      "queryFile": "report\\sales_dashboard\\daily_sales_trend.sql",
+      "x": 0,
+      "y": 5,
+      "width": 40,
+      "height": 10
+    },
+    {
+      "name": "store_performance",
+      "title": "Top Store Locations",
+      "queryFile": "report\\sales_dashboard\\store_performance.sql",
+      "x": 0,
+      "y": 15,
+      "width": 20,
+      "height": 10
+    },
+    {
+      "name": "payment_breakdown",
+      "title": "Payment Methods",
+      "chart": "pie",
+      "chartCategory": "payment_method",
+      "chartValue": "transaction_count",
+      "chartHeight": 300,
+      "queryFile": "report\\sales_dashboard\\payment_breakdown.sql",
+      "x": 20,
+      "y": 15,
+      "width": 20,
+      "height": 10
+    },
+    {
+      "name": "hourly_pattern",
+      "title": "Hourly Sales Pattern",
+      "chart": "bar",
+      "chartCategory": "hour",
+      "chartValue": "transaction_count",
+      "chartHeight": 300,
+      "queryFile": "report\\sales_dashboard\\hourly_pattern.sql",
+      "x": 0,
+      "y": 25,
+      "width": 20,
+      "height": 8
+    },
+    {
+      "name": "top_locations",
+      "title": "Top 15 Locations by Volume",
+      "chart": "bar",
+      "chartCategory": "store_location",
+      "chartValue": "transaction_count",
+      "chartHeight": 350,
+      "landscape": true,
+      "queryFile": "report\\sales_dashboard\\top_locations.sql",
+      "x": 20,
+      "y": 25,
+      "width": 20,
+      "height": 8
+    },
+    {
+      "name": "product_performance",
+      "title": "Top 20 Products",
+      "queryFile": "report\\sales_dashboard\\product_performance.sql",
+      "x": 0,
+      "y": 33,
+      "width": 20,
+      "height": 10
+    },
+    {
+      "name": "customer_payment",
+      "title": "Customer Payment Methods",
+      "queryFile": "report\\sales_dashboard\\customer_payment.sql",
+      "x": 20,
+      "y": 33,
+      "width": 20,
+      "height": 10
+    }
+  ]
+}

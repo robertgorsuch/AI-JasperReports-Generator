@@ -65,7 +65,7 @@ and the end-to-end loading workflow are in [`references/commands.md`](references
 `sql.ps1` uses the helper `SqlRunner.java` (compiled on demand to `SqlRunner.class`) for the JDBC
 engine; the ODBC engine is pure PowerShell (`System.Data.Odbc`).
 
-Known stage resource: warehouse `RG_Claude` → `av-49jtc8yy9xi4` (Google, us-east1, 1 AU).
+Known stage resource: a warehouse ID like `av-xxxxxxxxxxxx` (see admiral.config.json, gitignored).
 
 ## Data management & loading — one engine, full SQL
 

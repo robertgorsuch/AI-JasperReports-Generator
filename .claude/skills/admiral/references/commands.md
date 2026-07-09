@@ -25,7 +25,7 @@ Works for both `-ResourceType warehouse` (default) and `-ResourceType database`.
 **List / inspect**
 ```powershell
 .\resource.ps1 -Action list   -ResourceType warehouse
-.\resource.ps1 -Action get    -ResourceType warehouse -ResourceId av-49jtc8yy9xi4
+.\resource.ps1 -Action get    -ResourceType warehouse -ResourceId av-xxxxx
 .\resource.ps1 -Action config -ResourceType warehouse   # platforms, regions, AU sizes
 .\resource.ps1 -Action last-request  -ResourceType warehouse -ResourceId av-xxxxx
 .\resource.ps1 -Action backups       -ResourceType warehouse -ResourceId av-xxxxx
@@ -335,13 +335,13 @@ Full options from the CreateNamedDbRequest schema:
 
 ```powershell
 # List named databases
-.\named_db.ps1 -Action list -ResourceType warehouse -ResourceId av-49jtc8yy9xi4
+.\named_db.ps1 -Action list -ResourceType warehouse -ResourceId av-xxxxx
 
 # Create a simple database
-.\named_db.ps1 -Action create -ResourceType warehouse -ResourceId av-49jtc8yy9xi4 -DbName analytics
+.\named_db.ps1 -Action create -ResourceType warehouse -ResourceId av-xxxxx -DbName analytics
 
 # Create with full options
-.\named_db.ps1 -Action create -ResourceType warehouse -ResourceId av-49jtc8yy9xi4 `
+.\named_db.ps1 -Action create -ResourceType warehouse -ResourceId av-xxxxx `
     -DbName secure_analytics `
     -PageSize 65536 `             # 64K pages for columnar (X100) workloads
     -Location data `              # store files in 'data' area vs 'work'
@@ -350,7 +350,7 @@ Full options from the CreateNamedDbRequest schema:
     -PrivateDb                    # restrict access to creating user
 
 # Drop a named database
-.\named_db.ps1 -Action drop -ResourceType warehouse -ResourceId av-49jtc8yy9xi4 -DbName analytics
+.\named_db.ps1 -Action drop -ResourceType warehouse -ResourceId av-xxxxx -DbName analytics
 ```
 
 **Page size guide:**
@@ -370,7 +370,7 @@ Full options from the CreateNamedDbRequest schema:
 $skill = ".\.claude\skills\admiral\scripts"
 . "$skill\_admiral_common.ps1"
 # Start the primary warehouse
-Invoke-AdmiralApi -Method PUT -Path "/resource/warehouse/av-49jtc8yy9xi4/start" -Body @{}
+Invoke-AdmiralApi -Method PUT -Path "/resource/warehouse/av-xxxxx/start" -Body @{}
 ```
 
 ### Check quota before creating a new warehouse
@@ -395,7 +395,7 @@ $r.resources | Where-Object { $_.status -eq "Running" } |
 
 ```powershell
 $skill = ".\.claude\skills\admiral\scripts"
-$wh    = "av-49jtc8yy9xi4"
+$wh    = "av-xxxxx"
 
 # 1. Ensure the warehouse is running (add -Wait to block until status = Running)
 & "$skill\resource.ps1" -Action start -ResourceType warehouse -ResourceId $wh -Wait

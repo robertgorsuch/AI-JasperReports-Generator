@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="pos_weekly_pattern" pageWidth="842" pageHeight="595" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+  <property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+  <parameter name="SQL_CLAUSE" class="java.lang.String"/>
+  <queryString language="SQL">
+    <![CDATA[-- Weekly Pattern Analysis - Sales by Day of Week (Ingres SQL)
+SELECT
+    EXTRACT(DOW FROM transaction_date) AS day_of_week,
+    CASE EXTRACT(DOW FROM transaction_date)
+        WHEN 1 THEN 'Monday'
+        WHEN 2 THEN 'Tuesday'
+        WHEN 3 THEN 'Wednesday'
+        WHEN 4 THEN 'Thursday'
+        WHEN 5 THEN 'Friday'
+        WHEN 6 THEN 'Saturday'
+        WHEN 7 THEN 'Sunday'
+    END AS day_name,
+    CAST(COUNT(DISTINCT transaction_unique_id) AS INTEGER) AS transactions,
+    CAST(SUM(quantity) AS INTEGER) AS units_sold,
+    CAST(SUM(royalty_sales) AS DECIMAL(18,2)) AS daily_sales,
+    CAST(SUM(royalty_sales) / COUNT(DISTINCT transaction_unique_id) AS DECIMAL(18,2)) AS avg_transaction_value
+FROM pos_transactions
+WHERE transaction_type = 'Regular Sale'
+GROUP BY EXTRACT(DOW FROM transaction_date)
+ORDER BY EXTRACT(DOW FROM transaction_date)
+]]>
+  </queryString>
+  <background/>
+  <title>
+    <band height="50">
+      <staticText>
+        <reportElement x="0" y="0" width="802" height="30"/>
+        <textElement textAlignment="Center" verticalAlignment="Middle">
+          <font size="18" isBold="true"/>
+        </textElement>
+        <text><![CDATA[Weekly Pattern (Day of Week)]]></text>
+      </staticText>
+      <staticText>
+        <reportElement x="0" y="30" width="802" height="15"/>
+        <textElement textAlignment="Center" verticalAlignment="Middle">
+          <font size="9" isItalic="true"/>
+        </textElement>
+        <text><![CDATA[POS Analytics Dashboard]]></text>
+      </staticText>
+    </band>
+  </title>
+  <columnHeader>
+    <band height="20"/>
+  </columnHeader>
+  <detail>
+    <band height="20"/>
+  </detail>
+  <pageFooter>
+    <band height="20">
+      <textField>
+        <reportElement x="700" y="0" width="102" height="20"/>
+        <textElement textAlignment="Right" verticalAlignment="Middle"/>
+        <textFieldExpression><![CDATA["Page " + $V{PAGE_NUMBER} + " of " + $V{PAGE_COUNT}]]></textFieldExpression>
+      </textField>
+    </band>
+  </pageFooter>
+</jasperReport>

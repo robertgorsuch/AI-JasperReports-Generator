@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport name="daily_sales_trend" language="java" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<query language="SQL"><![CDATA[
+SELECT 
+  transaction_date AS date,
+  transaction_count,
+  store_count,
+  customer_count
+FROM dashboard_daily_sales
+ORDER BY transaction_date
+	]]></query>
+
+	<field name="date" class="java.sql.Date"/>
+	<field name="transaction_count" class="java.lang.Long"/>
+
+	<title height="44">
+		<element kind="staticText" x="0" y="0" width="555" height="24" fontSize="16.0" bold="true" hTextAlign="Center"><text><![CDATA[Daily Sales Trend]]></text></element>
+	</title>
+
+	<columnHeader height="18">
+		<element kind="rectangle" x="0" y="0" width="555" height="18" mode="Opaque" backcolor="#34495E" forecolor="#34495E"/>
+		<element kind="staticText" x="0" y="0" width="277" height="18" fontSize="9.0" bold="true" vTextAlign="Middle"><text><![CDATA[Date]]></text></element>
+		<element kind="staticText" x="277" y="0" width="277" height="18" fontSize="9.0" bold="true" vTextAlign="Middle"><text><![CDATA[Transactions]]></text></element>
+	</columnHeader>
+
+	<detail>
+		<band height="13">
+			<element kind="textField" x="0" y="0" width="277" height="13" fontSize="8.0" vTextAlign="Middle"><expression><![CDATA[$F{date}]]></expression></element>
+		<element kind="textField" x="277" y="0" width="277" height="13" fontSize="8.0" vTextAlign="Middle"><expression><![CDATA[$F{transaction_count}]]></expression></element>
+			<element kind="line" x="0" y="12" width="555" height="1" forecolor="#EEEEEE"/>
+		</band>
+	</detail>
+
+	<pageFooter height="16">
+		<element kind="textField" x="400" y="2" width="120" height="12" forecolor="#666666" fontSize="8.0" hTextAlign="Right"><expression><![CDATA["Page " + $V{PAGE_NUMBER}]]></expression></element>
+	</pageFooter>
+
+</jasperReport>
