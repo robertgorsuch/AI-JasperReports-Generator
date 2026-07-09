@@ -10,11 +10,10 @@ Built and maintained by the Actian (HCLSoftware) SE team as a working reference 
 
 | Capability | Technology |
 |---|---|
-| Statewide address geocoding | PostgreSQL 14 + PostGIS 3.4 Tiger geocoder (all 254 TX counties) |
-| Population density visualization | Leaflet heatmaps and choropleths from 2020 census data |
-| Pixel-perfect PDF reporting | JasperReports 7 native `.jrxml` → 317-page statewide PDF |
 | Full JRS lifecycle automation | `jasper-deploy` Claude Code skill (REST v2 against JRS 10 Pro) |
+| Pixel-perfect PDF reporting | JasperReports 7 native `.jrxml` → 317-page statewide PDF |
 | Self-service report creation | Jakarta servlet web wizard (Actian-branded, no JRXML required) |
+| Demo sample data | PostgreSQL 14 + PostGIS 3.4 Tiger geocoder (TX census data the demo reports query) |
 
 This is a **working demo environment**, not a starter template. Every script, skill, and wizard endpoint has been verified end-to-end against a local JasperReports Server 10 Pro instance.
 
@@ -24,14 +23,12 @@ This is a **working demo environment**, not a starter template. Every script, sk
 
 | Path | Contents |
 |---|---|
-| `scripts/` | TIGER data loaders — `load_tiger_nation.bat`, `load_remaining.ps1`, etc. All use `curl` + `7z t` integrity checks with retry. |
+| `scripts/` | TIGER data loaders that build the PostGIS sample DB the demo reports query — `load_tiger_nation.bat`, `load_remaining.ps1`, etc. All use `curl` + `7z t` integrity checks with retry. |
 | `report/` | JasperReports templates (`*_jr7.jrxml` native JR7 + 6.x version), JDBC data adapter, compile/fill harnesses. `report/foodmart/` holds deployable KPI reports + `dashboard.json` manifest. |
 | `.claude/skills/jasper-deploy/` | The **jasper-deploy skill** — 30+ PowerShell/Python scripts covering the full JRS lifecycle. `SKILL.md` is the lean index; detail lives in `references/`. |
 | `webapp/jasper-wizard/` | Self-service browser UI over the skill. Business users create, run, and deliver Jaspersoft artifacts with no JRXML or REST knowledge. |
-| `maps/` | Self-contained Leaflet HTML visualizations (open directly in a browser). |
-| `backups/` | Versioned JRS export archives for restore and dev→prod promotion. |
 | `postman_collections/` | REST v2 Postman collections for manual API exploration. |
-| `output/` | Generated PDF / GeoJSON / CSV — not tracked; regenerate from the DB. |
+| `output/`, `maps/`, `backups/` | Generated artifacts (PDF / GeoJSON / CSV / Leaflet HTML / JRS export zips) — not tracked; regenerate from the DB and the skill's export scripts. |
 | `RUNBOOK.md` | Full operational reference: environment, exact commands, rebuild order, and gotchas. |
 | `ONBOARDING.md` | 5-minute orientation for a new contributor. |
 
@@ -69,11 +66,7 @@ FROM geocode('1100 Congress Ave, Austin, TX 78701', 1) AS g;
 -- Expected: rating 0 (exact match)
 ```
 
-### 2 — Maps
-
-Open any file in `maps/` directly in a browser. No server required.
-
-### 3 — Report → PDF
+### 2 — Report → PDF
 
 See RUNBOOK §5 for the full build sequence. At a glance:
 
@@ -85,7 +78,7 @@ java -cp "%CP%;report" CompileReport report\tx_density_blockgroup_report_jr7.jrx
 java -cp "%CP%;report" FillReport report\tx_density_blockgroup_report_jr7.jasper output\report.pdf
 ```
 
-### 4 — Deploy reports and dashboards (jasper-deploy skill)
+### 3 — Deploy reports and dashboards (jasper-deploy skill)
 
 ```powershell
 $skill = ".\.claude\skills\jasper-deploy\scripts"
@@ -98,7 +91,7 @@ $env:PGPASSWORD = "postgres"
 & $skill\smoke_test.ps1
 ```
 
-### 5 — Self-service web wizard
+### 4 — Self-service web wizard
 
 ```powershell
 cd webapp\jasper-wizard

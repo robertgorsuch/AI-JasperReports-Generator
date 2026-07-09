@@ -214,7 +214,9 @@ function Resolve-JrLib {
     $cfg = if (Test-Path $cfgPath) { Get-Content $cfgPath -Raw | ConvertFrom-Json } else { $null }
     if ([string]::IsNullOrEmpty($LibDir)) { $LibDir = [Environment]::GetEnvironmentVariable("JR_LIB_DIR") }
     if ([string]::IsNullOrEmpty($LibDir) -and $cfg -and ($cfg.PSObject.Properties.Name -contains "jrLibDir")) { $LibDir = $cfg.jrLibDir }
-    if ([string]::IsNullOrEmpty($LibDir)) { $LibDir = "C:\Users\rgorsuch\jasperreports-lib" }
+    if ([string]::IsNullOrEmpty($LibDir)) {
+        throw "JasperReports lib dir not configured. Set -LibDir, `$env:JR_LIB_DIR, or `"jrLibDir`" in jrs.config.json (a directory of JasperReports 7.0.6 runtime jars incl. the JDBC driver and jasperreports-pdf)."
+    }
     if (-not (Test-Path $LibDir)) {
         throw "JasperReports lib dir not found: $LibDir (set -LibDir, `$env:JR_LIB_DIR, or jrLibDir in jrs.config.json)"
     }

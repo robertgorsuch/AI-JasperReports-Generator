@@ -42,11 +42,12 @@ that area** — the deep detail lives there, not here.
   `$env:PGPASSWORD = "postgres"` before any `scaffold_*.py` (they introspect via
   psql).
 
-## Toolchain (already on this machine)
-- JR7 runtime jars: `C:\Users\rgorsuch\jasperreports-lib\` (incl. PostgreSQL driver
-  and the `jasperreports-pdf` export module). Resolves via `-LibDir` →
-  `$env:JR_LIB_DIR` → `jrs.config.json` `jrLibDir` → machine default.
-- JDK 11 (`C:\jdk-11.0.24+8`, on PATH) — single-file source launch, no `javac` step.
+## Toolchain (prerequisites)
+- JR7 runtime jars: a local directory of JasperReports 7.0.6 jars (incl. the
+  PostgreSQL JDBC driver and the `jasperreports-pdf` export module). Resolves via
+  `-LibDir` → `$env:JR_LIB_DIR` → `jrs.config.json` `jrLibDir` (required — scripts
+  error with guidance if unset).
+- JDK 11+ on PATH — single-file source launch, no `javac` step.
 - `psql` 14 and `curl` 8.x on PATH.
 
 ## Capability map (script → reference)
@@ -74,7 +75,7 @@ that area** — the deep detail lives there, not here.
 | REST v2 endpoint map (verified vs doc-only) | — | `references/jrs-rest-api.md` |
 | Dashboard model shapes (descriptor + companions) | — | `references/dashboard-model.md` |
 | Lint a jrxml/.jrtx/.jrdax before deploy | `lint_jrxml.ps1` | `references/jr7-valid-elements.md` |
-| Extract metadata + column-level lineage (read-only; OpenLineage out) | `extract_lineage.py` | `../../JASPERSOFT_CATALOG_CONNECTOR_PDD.md` |
+| Extract metadata + column-level lineage (read-only; OpenLineage out) | `extract_lineage.py` | `references/catalog-connector-pdd.md` |
 | Detect live-vs-committed resource drift | `diff_resource.ps1` | `references/admin-and-scheduling.md` |
 | Apply a whole environment from one manifest (plan by default, `-Apply`) | `reconcile.ps1` | `references/environment.schema.json` |
 | Preflight: is this environment ready to deploy? | `doctor.ps1` | `references/security-and-config.md` |

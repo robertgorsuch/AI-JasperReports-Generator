@@ -3,5 +3,5 @@
   "user": "superuser",
   "password": "CHANGE_ME",
   "dataSourceUri": "/datasources/postgis_34_sample",
-  "jrLibDir": "C:\\Users\\rgorsuch\\jasperreports-lib"
+  "jrLibDir": "C:\\path\\to\\jasperreports-lib"
 }

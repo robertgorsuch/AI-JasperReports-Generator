@@ -2,7 +2,7 @@
 
 Cumulative operational knowledge from building a statewide Texas address geocoder on PostGIS, population-density visualizations, and a JasperReports 7 report — plus the `jasper-deploy` skill and web wizard that automate the full JasperReports Server lifecycle.
 
-> **Path conventions:** This runbook was written against a specific Windows development machine. Wherever you see `C:\Users\rgorsuch\...` or `C:\Program Files\...`, substitute your own paths. Environment variables (`JAVA_HOME`, `PGPASSWORD`, `JR_LIB_DIR`) are the recommended way to avoid hard-coded paths in scripts.
+> **Path conventions:** This runbook was written against a specific Windows development machine. Wherever you see `C:\Users\<you>\...` or `C:\Program Files\...`, substitute your own paths. Environment variables (`JAVA_HOME`, `PGPASSWORD`, `JR_LIB_DIR`) are the recommended way to avoid hard-coded paths in scripts.
 
 ---
 
@@ -41,7 +41,7 @@ Cumulative operational knowledge from building a statewide Texas address geocode
 - `tiger_data.tx_bg` — 18,638 block groups
 - `tiger_data.tx_tract` — 6,896 tracts
 
-**Maps** (in `maps\`, open in a browser): statewide heatmap (2 km grid), Houston heatmap (500 m), full block-detail heatmap (449k blocks), tract choropleth, block-group choropleth, and two geocode-pin maps.
+**Maps** (generated locally into `maps\`, open in a browser; not tracked in the repo): statewide heatmap (2 km grid), Houston heatmap (500 m), full block-detail heatmap (449k blocks), tract choropleth, block-group choropleth, and two geocode-pin maps.
 
 **JasperReports** (in `report\`): a block-group density report in both 6.x and native JR 7 format, compiled (`.jasper`) and rendered (`output\tx_density_blockgroup_report.pdf`, 317 pages).
 
@@ -214,9 +214,9 @@ set PGPASSWORD=<your postgres password>
 
 ---
 
-## 6. Maps (`maps\`)
+## 6. Maps (`maps\`, local-only)
 
-Self-contained HTML files using Leaflet + CDN resources. Open directly in any browser — no web server required.
+Self-contained HTML files using Leaflet + CDN resources, generated from the PostGIS database. Open directly in any browser — no web server required. **Not tracked in the repo** (generated output, ~23 MB); regenerate from the DB.
 
 | File | Shows |
 |---|---|

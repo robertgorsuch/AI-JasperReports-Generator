@@ -165,7 +165,7 @@ done
 **Preview locally as an image** (handy for charts) — fill + render a page to PNG:
 ```powershell
 $env:PGPASSWORD = "postgres"
-java --class-path "C:\Users\rgorsuch\jasperreports-lib\*" `
+java --class-path "$env:JR_LIB_DIR\*" `
     report\RenderPng.java report\my_report.jasper out.png   # optional 3rd arg = page index
 ```
 
@@ -194,7 +194,7 @@ to verify (writes a results CSV). A report with no `<query>` is "standalone"
 (deploys + runs on an empty data source); reports WITH a query are skipped unless
 you pass `-DataSourceUri`.
 ```powershell
-& $skill\deploy_jr_samples.ps1 -SamplesDir C:\Users\rgorsuch\jasperreports-7.0.6\demo\samples
+& $skill\deploy_jr_samples.ps1 -SamplesDir <jr-src>\demo\samples
 & $skill\deploy_jr_samples.ps1 -SamplesDir ...\demo\samples\charts -DataSourceUri /datasources/postgis_34_sample
 ```
 The JR Library `charts` samples query an HSQLDB demo DB (`SELECT * FROM Orders`).
@@ -277,7 +277,7 @@ even on a clean exit 0 — invoke the `java` compiler/renderer directly, or chec
 the `.jasper`/`.png` output rather than trusting the pipeline's error state.)
 
 ### Community (local + deploy)
-Extra jars in `C:\Users\rgorsuch\jasperreports-lib` (outside this repo — rebuild
+Extra jars in the `JR_LIB_DIR` jar directory (outside this repo — rebuild
 on a fresh clone, see below): `jasperreports-charts-7.0.6.jar`,
 `jfreechart-1.5.6.jar`, `jasperreports-barcode4j-7.0.6.jar`, `barcode4j-2.1.jar`,
 `zxing-core-3.4.0.jar`.
@@ -294,8 +294,8 @@ or it produces 0 pages. QR specifically needs `zxing-core` on the classpath.
 
 **Rebuild the community jars** from the JR7 source (machine-local, not in repo):
 ```powershell
-$env:JAVA_HOME = "C:\jdk-11.0.24+8"
-& "C:\apache-maven-3.9.9\bin\mvn.cmd" -f "C:\Users\rgorsuch\jasperreports-7.0.6\pom.xml" `
+$env:JAVA_HOME = "C:\path\to\jdk-11"
+mvn -f "<jr-src>\pom.xml" `
     -pl ext/charts,ext/barcode4j -am --% -Dmaven.test.skip=true package
 ```
 Copy the built `ext\charts\target\jasperreports-charts-7.0.6.jar` and
@@ -303,7 +303,7 @@ Copy the built `ext\charts\target\jasperreports-charts-7.0.6.jar` and
 `org\jfree\jfreechart\1.5.6\jfreechart-1.5.6.jar`,
 `net\sf\barcode4j\barcode4j\2.1\barcode4j-2.1.jar`,
 `com\google\zxing\core\3.4.0\core-3.4.0.jar` (→ `zxing-core-3.4.0.jar`), into
-`C:\Users\rgorsuch\jasperreports-lib`. (JFreeChart 1.5.x bundles jcommon.)
+your `JR_LIB_DIR` jar directory. (JFreeChart 1.5.x bundles jcommon.)
 
 ### Pro (server-rendered only; deploy → run to validate)
 Authored in legacy 6.x jrxml

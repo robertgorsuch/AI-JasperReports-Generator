@@ -20,10 +20,12 @@
     <param-name>jrsPass</param-name>
     <param-value>superuser</param-value>
   </context-param>
-  <!-- Repo checkout that holds .claude/skills/jasper-deploy/scripts -->
+  <!-- Repo checkout that holds .claude/skills/jasper-deploy/scripts. Only used
+       as a fallback when the WAR-bundled WEB-INF/scripts is absent. Leave empty
+       to fall back to the JASPER_WIZARD_REPO_ROOT env var, then the working dir. -->
   <context-param>
     <param-name>repoRoot</param-name>
-    <param-value>C:\Users\rgorsuch\tx-geocoder</param-value>
+    <param-value></param-value>
   </context-param>
   <!-- Local PostgreSQL password used by scaffold_jrxml.py for column introspection -->
   <context-param>

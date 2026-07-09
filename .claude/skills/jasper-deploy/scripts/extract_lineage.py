@@ -5,7 +5,7 @@ extract_lineage.py -- Jaspersoft metadata & lineage extractor (read-only).
 Crawls a JasperReports Server (JRS) repository over the REST v2 API and emits a
 catalog-style asset inventory plus asset-level lineage edges. This is the
 Phase-1 MVP slice of the connector spec'd in
-JASPERSOFT_CATALOG_CONNECTOR_PDD.md: inventory + asset-level lineage with a
+references/catalog-connector-pdd.md: inventory + asset-level lineage with a
 best-effort SQL source-table parse.
 
 Standard library plus the OPTIONAL sqlglot package (the only non-stdlib

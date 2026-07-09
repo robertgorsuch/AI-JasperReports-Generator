@@ -44,8 +44,8 @@ inner command sets the env var, cd's to the repo, and tees output to a per-run
 log; the task's own exit code is the test's pass/fail.
 
 ```powershell
-# adjust REPO if the checkout lives elsewhere
-$repo = "C:\Users\rgorsuch\tx-geocoder"
+# set to your checkout location
+$repo = "C:\path\to\your\checkout"
 $logDir = "$repo\out\smoke-logs"
 New-Item -ItemType Directory -Force $logDir | Out-Null
 

@@ -25,8 +25,8 @@ Three things in one repo:
 **1. A statewide Texas address geocoder**
 Built on PostgreSQL 14 + PostGIS 3.4. All 254 Texas counties are loaded via the TIGER geocoder — 5.7M edges, 5M feature names, 2.7M address ranges. The geocoder is the data foundation for everything else.
 
-**2. A JasperReports 7 report and population visualizations**
-A 317-page block-group density report compiled from the same PostGIS database, plus six Leaflet HTML map visualizations (heatmaps, choropleths, geocode pins) that open directly in a browser.
+**2. A JasperReports 7 report suite**
+A 317-page block-group density report compiled from the same PostGIS database, plus chart, crosstab, drill-down, and dashboard samples under `report/`. (Leaflet map visualizations can also be generated locally into `maps/` — generated HTML is not tracked in the repo.)
 
 **3. A full JRS automation toolkit**
 The `jasper-deploy` Claude Code skill (30+ PowerShell/Python scripts) and a self-service web wizard (Jakarta servlet WAR) that together automate the entire JasperReports Server lifecycle — design, compile, lint, deploy, verify, dashboard composition, admin, governance, and promotion.
@@ -71,8 +71,7 @@ Auth: superuser / superuser  (HTTP Basic)
 | `report/` | JasperReports templates, compile/fill harnesses, Foodmart KPI reports |
 | `.claude/skills/jasper-deploy/` | The automation skill — read `SKILL.md` first, then `references/` for detail |
 | `webapp/jasper-wizard/` | Self-service web wizard — see its `README.md` |
-| `maps/` | Leaflet HTML visualizations (open in browser) |
-| `backups/` | Versioned JRS export archives |
+| `maps/`, `backups/` | Generated artifacts (Leaflet HTML, JRS export zips) — local-only, not tracked |
 | `RUNBOOK.md` | **Full reference** — read this before running anything in production |
 
 ### Jaspersoft editions covered

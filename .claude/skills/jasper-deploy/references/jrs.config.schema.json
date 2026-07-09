@@ -32,7 +32,7 @@
     },
     "jrLibDir": {
       "type": "string",
-      "description": "Optional path to the JasperReports 7 runtime jar directory used for local compile/render, e.g. C:\\Users\\rgorsuch\\jasperreports-lib. Overridden by -LibDir or $env:JR_LIB_DIR; defaults to that path if unset."
+      "description": "Path to the JasperReports 7 runtime jar directory used for local compile/render, e.g. C:\\path\\to\\jasperreports-lib. Overridden by -LibDir or $env:JR_LIB_DIR; scripts error with guidance if no source supplies a value."
     }
   }
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generate a Word (.docx) summary of the jasper-deploy skill's capabilities."""
+import os
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -151,7 +152,7 @@ bullets([
     "JasperReports Server PRO/Enterprise 10.0.0 at http://localhost:8081/"
     "jasperserver-pro (REST v2, HTTP Basic). Note: port 8080 is an unrelated "
     "Bearer-gated service — not JRS.",
-    "JasperReports 7.0.6 runtime in C:\\Users\\rgorsuch\\jasperreports-lib "
+    "JasperReports 7.0.6 runtime jar directory (JR_LIB_DIR) "
     "(+ charts, barcode4j, JFreeChart, ZXing jars).",
     "JDK 11 (single-file source launch), psql 14, curl 8.x, Python 3.14.",
     "Database: PostgreSQL/PostGIS postgis_34_sample (TIGER geocoder data).",
@@ -173,6 +174,6 @@ bullets([
     "pypdfium2.",
 ])
 
-out = r"C:\Users\rgorsuch\tx-geocoder\jasper-deploy-capabilities.docx"
+out = os.path.join(os.getcwd(), "jasper-deploy-capabilities.docx")
 doc.save(out)
 print("saved", out)

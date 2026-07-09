@@ -21,9 +21,10 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$SamplesDir = "C:\Users\rgorsuch\jasperreports-7.0.6\demo\samples",
+    # Path to the JasperReports 7.0.6 source distribution's demo\samples directory
+    [Parameter(Mandatory)][string]$SamplesDir,
     [string]$TargetRoot = "/reports/jr_samples",
-    [string]$CsvOut = "C:\Users\rgorsuch\tx-geocoder\output\jr_samples_results.csv",
+    [string]$CsvOut = (Join-Path (Get-Location) "output\jr_samples_results.csv"),
     [switch]$IncludeQueryReports,   # also deploy (but not expect to run) query-based reports
     [string]$DataSourceUri,         # attach to query-based reports so they can run
     [int]$Limit = 0,                # 0 = no limit

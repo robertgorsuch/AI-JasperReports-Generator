@@ -33,10 +33,29 @@ sa.json
 *.sa.json
 *-sa.json
 
+# --- Out of public-repo scope (local-only tooling; repo is Jaspersoft-focused) ---
+# Actian Avalanche skill + POS data-loading utilities (not Jaspersoft)
+.claude/skills/admiral/
+.claude/worktrees/
+/*.java
+/load*.sql
+/create_pos_transactions.sql
+/pos_sample*.csv
+
+# Geocoder-heritage generated map outputs (Leaflet HTML, ~23 MB, regenerable)
+maps/
+
+# Report run artifacts (regenerate by running the reports via the skill;
+# report/data/ CSV adapter sources stay tracked)
+report/**/*.pdf
+report/foodmart/*.png
+report/foodmart/*.csv
+backups/
+
 # Load / job logs (regenerated on each run)
 *.log
 
 # Notes:
-#  - JasperReports runtime (C:\Users\rgorsuch\jasperreports-lib) and source
-#    (C:\Users\rgorsuch\jasperreports-7.0.6) live outside this repo by design.
+#  - The JasperReports runtime jar dir (JR_LIB_DIR) and 7.0.6 source tree
+#    live outside this repo by design.
 #  - TIGER staging data lives in C:\gisdata (not tracked).

@@ -7,10 +7,14 @@ Reads the charts sample jrxml, adds defaults to self-closing <parameter> tags
 that lack one, and writes copies under output/charts_defaulted/charts/reports/
 (a regenerable work dir) for deploy_jr_samples.ps1 to deploy.
 """
-import os, re, glob
+import os, re, glob, sys
 
-SRC = r"C:\Users\rgorsuch\jasperreports-7.0.6\demo\samples\charts\reports"
-OUT = r"C:\Users\rgorsuch\tx-geocoder\output\charts_defaulted\charts\reports"
+# JR_SRC = root of the JasperReports 7.0.6 source distribution
+JR_SRC = os.environ.get("JR_SRC")
+if not JR_SRC:
+    sys.exit("Set JR_SRC to the JasperReports 7.0.6 source tree root")
+SRC = os.path.join(JR_SRC, "demo", "samples", "charts", "reports")
+OUT = os.path.join(os.getcwd(), "output", "charts_defaulted", "charts", "reports")
 os.makedirs(OUT, exist_ok=True)
 
 # literal default value expressions (Java) per parameter name

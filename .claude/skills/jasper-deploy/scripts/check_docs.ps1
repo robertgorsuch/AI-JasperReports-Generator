@@ -43,7 +43,7 @@
   # check the skill this script lives in
 
 .EXAMPLE
-  & check_docs.ps1 -SkillDir C:\Users\rgorsuch\tx-geocoder\.claude\skills\jasper-deploy
+  & check_docs.ps1 -SkillDir <repo>\.claude\skills\jasper-deploy
   if ($LASTEXITCODE) { throw "skill docs are stale" }
 
 .NOTES

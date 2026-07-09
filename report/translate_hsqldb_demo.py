@@ -7,10 +7,14 @@ SQL) samples can run against the existing /datasources/postgis_34_sample.
 Handles the two HSQLDB-isms that PostgreSQL rejects: CREATE MEMORY TABLE and
 \\uXXXX unicode escapes inside string literals.
 """
-import re, sys
+import os, re, sys
 
-SRC = r"C:\Users\rgorsuch\jasperreports-7.0.6\demo\hsqldb\test.script"
-OUT = r"C:\Users\rgorsuch\tx-geocoder\report\jrdemo.sql"
+# JR_SRC = root of the JasperReports 7.0.6 source distribution
+JR_SRC = os.environ.get("JR_SRC")
+if not JR_SRC:
+    sys.exit("Set JR_SRC to the JasperReports 7.0.6 source tree root")
+SRC = os.path.join(JR_SRC, "demo", "hsqldb", "test.script")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jrdemo.sql")
 TABLES = ["ADDRESS", "PRODUCT", "DOCUMENT", "POSITIONS", "ORDERS", "TASKS"]
 
 uesc = re.compile(r'\\u([0-9a-fA-F]{4})')

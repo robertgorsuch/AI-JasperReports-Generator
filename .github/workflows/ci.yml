@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # scan full history, not just the tip
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  skill-checks:
+    name: jasper-deploy offline checks
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Doc/link consistency (check_docs.ps1)
+        shell: powershell
+        run: |
+          & .\.claude\skills\jasper-deploy\scripts\check_docs.ps1
+          if ($LASTEXITCODE) { throw "skill docs are stale (broken link / missing script / stale count)" }
+      - name: Pester unit tests
+        shell: powershell
+        run: |
+          $tests = ".\.claude\skills\jasper-deploy\tests"
+          if (Test-Path $tests) {
+            Invoke-Pester -Path $tests -EnableExit
+          } else {
+            Write-Host "no tests directory - skipping"
+          }

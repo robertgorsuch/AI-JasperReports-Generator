@@ -76,7 +76,7 @@ http://localhost:8081/jasperserver-pro/dashboard/viewer.html#%2Freports%2Fpos%2F
 **Datasource URI:** `/datasources/pos_actian`
 
 **Database:** Actian Avalanche (`db` database)
-- Host: `<actian-warehouse-host>.avstage.actiandatacloud.com` (see admiral.config.json — gitignored)
+- Host: `<your-warehouse-host>` (configure in the JRS datasource; not stored in this repo)
 - Port: 27839
 - Table: `pos_transactions` (28 dimensions)
 

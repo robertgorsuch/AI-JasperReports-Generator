@@ -43,7 +43,10 @@ public class WizardServlet extends HttpServlet {
         jrsUrl     = ctx("jrsUrl", "http://localhost:8081/jasperserver-pro");
         jrsUser    = ctx("jrsUser", "superuser");
         jrsPass    = ctx("jrsPass", "superuser");
-        repoRoot   = ctx("repoRoot", "C:\\Users\\rgorsuch\\tx-geocoder");
+        // repoRoot is only a fallback when the WAR-bundled WEB-INF/scripts is absent:
+        // web.xml context-param -> JASPER_WIZARD_REPO_ROOT env var -> working dir
+        String repoEnv = System.getenv("JASPER_WIZARD_REPO_ROOT");
+        repoRoot   = ctx("repoRoot", (repoEnv != null && !repoEnv.isEmpty()) ? repoEnv : System.getProperty("user.dir"));
         pgPassword = ctx("pgPassword", "postgres");
         pgHost     = ctx("pgHost", "localhost");
         pgPort     = ctx("pgPort", "5432");

@@ -6,10 +6,14 @@ at the uploaded repo CSVs, and rewrites the report so each subdataset uses its
 adapter via a net.sf.jasperreports.data.adapter property (removing the
 $P{...JRCsvDataSource} dataSourceExpressions the Java harness used to supply).
 """
-import os, re
+import os, re, sys
 
-SRC = r"C:\Users\rgorsuch\jasperreports-7.0.6\demo\samples\chartthemes\reports\AllChartsReport.jrxml"
-OUTDIR = r"C:\Users\rgorsuch\tx-geocoder\output\chartthemes_wired"
+# JR_SRC = root of the JasperReports 7.0.6 source distribution
+JR_SRC = os.environ.get("JR_SRC")
+if not JR_SRC:
+    sys.exit("Set JR_SRC to the JasperReports 7.0.6 source tree root")
+SRC = os.path.join(JR_SRC, "demo", "samples", "chartthemes", "reports", "AllChartsReport.jrxml")
+OUTDIR = os.path.join(os.getcwd(), "output", "chartthemes_wired")
 os.makedirs(OUTDIR, exist_ok=True)
 
 # subDataset name -> (adapter resource name, csv resource name)

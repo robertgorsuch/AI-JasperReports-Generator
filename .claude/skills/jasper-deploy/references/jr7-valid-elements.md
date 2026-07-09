@@ -10,8 +10,8 @@ JR7 parses jrxml / `.jrtx` / `.jrdax` with a STRICT Jackson XML deserializer
 `UnrecognizedPropertyException` at fill time, which JasperReports Server surfaces
 as an opaque HTTP `400` (often with an XML `errorDescriptor` body), NOT a clean
 compile error. There are NO XSDs in JR7 -- the valid names come entirely from
-Jackson annotations on the model classes in the source tree at
-`C:\Users\rgorsuch\jasperreports-7.0.6`.
+Jackson annotations on the model classes in the JasperReports 7.0.6 source tree
+(download from the jasperreports GitHub releases; referred to below as `<jr-src>`).
 
 How a name is derived (precedence):
 - `@JacksonXmlProperty(localName = "...")` or `@JsonProperty("...")` -> that exact name.
@@ -33,11 +33,11 @@ name is the one that parses (the `isDefault` vs `default` trap below is exactly 
 Root element `<csvDataAdapter>` (`@JsonRootName("csvDataAdapter")`).
 
 Source files:
-- `C:\Users\rgorsuch\jasperreports-7.0.6\ext\data-adapters\src\main\java\net\sf\jasperreports\data\csv\CsvDataAdapterImpl.java`
-- `C:\Users\rgorsuch\jasperreports-7.0.6\ext\data-adapters\src\main\java\net\sf\jasperreports\data\csv\CsvDataAdapter.java`
-- `C:\Users\rgorsuch\jasperreports-7.0.6\ext\data-adapters\src\main\java\net\sf\jasperreports\dataadapters\AbstractDataAdapter.java`
-- `C:\Users\rgorsuch\jasperreports-7.0.6\ext\data-adapters\src\main\java\net\sf\jasperreports\dataadapters\DataAdapter.java`
-- `C:\Users\rgorsuch\jasperreports-7.0.6\ext\data-adapters\src\main\java\net\sf\jasperreports\dataadapters\AbstractClasspathAwareDataAdapter.java`
+- `<jr-src>\ext\data-adapters\src\main\java\net\sf\jasperreports\data\csv\CsvDataAdapterImpl.java`
+- `<jr-src>\ext\data-adapters\src\main\java\net\sf\jasperreports\data\csv\CsvDataAdapter.java`
+- `<jr-src>\ext\data-adapters\src\main\java\net\sf\jasperreports\dataadapters\AbstractDataAdapter.java`
+- `<jr-src>\ext\data-adapters\src\main\java\net\sf\jasperreports\dataadapters\DataAdapter.java`
+- `<jr-src>\ext\data-adapters\src\main\java\net\sf\jasperreports\dataadapters\AbstractClasspathAwareDataAdapter.java`
 
 `CsvDataAdapterImpl` carries no per-getter Jackson annotations, so property names
 are Jackson bean names of its getters/setters. Valid child elements:
@@ -81,9 +81,9 @@ CONFIRMED against source, with the added nuance that `fileName` is deprecated
 Root element `<jasperTemplate>` (`@JsonRootName("jasperTemplate")`).
 
 Source files:
-- `C:\Users\rgorsuch\jasperreports-7.0.6\core\src\main\java\net\sf\jasperreports\engine\JRTemplate.java`
-- `C:\Users\rgorsuch\jasperreports-7.0.6\core\src\main\java\net\sf\jasperreports\engine\JRStyle.java`
-- `C:\Users\rgorsuch\jasperreports-7.0.6\core\src\main\java\net\sf\jasperreports\engine\xml\JRXmlConstants.java`
+- `<jr-src>\core\src\main\java\net\sf\jasperreports\engine\JRTemplate.java`
+- `<jr-src>\core\src\main\java\net\sf\jasperreports\engine\JRStyle.java`
+- `<jr-src>\core\src\main\java\net\sf\jasperreports\engine\xml\JRXmlConstants.java`
 
 `<jasperTemplate>` children (JRTemplate.java):
 | Element | Notes | Source |
@@ -114,7 +114,7 @@ Other `<style>` attributes are bean/localName-named on `JRStyle` getters, e.g.
 ## 3. Charts (plots)
 
 Source files (all under
-`C:\Users\rgorsuch\jasperreports-7.0.6\ext\charts\src\main\java\net\sf\jasperreports\charts\`):
+`<jr-src>\ext\charts\src\main\java\net\sf\jasperreports\charts\`):
 - `JRChartPlot.java`, `base\JRBaseChartPlot.java` (series colors, common plot attrs)
 - `JRPiePlot.java`
 - `JRBarPlot.java`
