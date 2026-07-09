@@ -186,3 +186,7 @@ Demos and artifacts for BI pipeline automation using **Jaspersoft** and **Claude
 - Topics: `jaspersoft` `claude-code` `claude-skills` `postgis` `jasperreports`
 - No credentials are stored in this repo. Set `PGPASSWORD` in your environment before running scripts.
 - See `RUNBOOK.md` for full environment details, rebuild order, and exact commands.
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE). Jaspersoft®, JasperReports®, and related marks are trademarks of Cloud Software Group, Inc.; this is an independent demo/reference project and is not endorsed by or affiliated with the trademark holders.
