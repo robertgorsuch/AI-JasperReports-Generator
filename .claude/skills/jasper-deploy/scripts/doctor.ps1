@@ -21,12 +21,19 @@
        jiaccessevent rows. WARN -- usage reporting is optional -- when
        unreachable, and also when the count is 0, which usually means the
        stale :5432 decoy DB rather than the live bundled PostgreSQL on :5433.
-    5. JR runtime jars: Resolve-JrLib + a jasperreports-*.jar and the PostgreSQL
+    5. JRS->DB connection (contexts): POST a jdbc descriptor built from the
+       -Db* params + PGPASSWORD to /rest_v2/contexts, which OPENS the
+       connection server-side -- proves the JRS JVM (not just this shell) can
+       reach the database. WARN on failure with the driver's real error.
+    6. Server settings REST (/rest_v2/settings/globalConfiguration -> 200);
+       also reports the domainWhitelist SERVER ATTRIBUTE (the Visualize.js
+       cross-origin gate -- unset means cross-origin embeds 403).
+    7. JR runtime jars: Resolve-JrLib + a jasperreports-*.jar and the PostgreSQL
        driver jar in that dir.
-    6. Chart-customizer jar on the live JRS classpath (WARN if absent -- only
+    8. Chart-customizer jar on the live JRS classpath (WARN if absent -- only
        bar-gradient reports need it).
-    7. Python on PATH; sqlglot + pypdfium2 importable (WARN if missing).
-    8. Key scripts present in scripts\.
+    9. Python on PATH; sqlglot + pypdfium2 importable (WARN if missing).
+   10. Key scripts present in scripts\.
 
 .EXAMPLE
   .\doctor.ps1
@@ -185,6 +192,58 @@ Run-Check "repo metadata DB" {
         return @{ Status = "WARN"; Detail = "${rHost}:${rPort}/$rDb reachable but 0 access events -- likely the stale :5432 decoy DB; point repoDb at the bundled PostgreSQL on :5433" }
     }
     return @{ Status = "PASS"; Detail = "${rHost}:${rPort}/$rDb -- $n access events" }
+}
+
+# --- 3c. JRS->DB connection via the contexts service ---------------------------
+Run-Check "JRS->DB connection (contexts)" {
+    if (-not $jrs) { return @{ Status = "WARN"; Detail = "no JRS credentials resolved; skipping" } }
+    # psql (check 3) proves THIS SHELL can reach the DB; this proves the JRS JVM
+    # can -- different network/user/driver path, and the one report fills use.
+    $pw = if ($env:PGPASSWORD) { $env:PGPASSWORD } else { "postgres" }
+    $desc = [ordered]@{
+        label = "doctor-conn-test"
+        driverClass = "org.postgresql.Driver"
+        connectionUrl = "jdbc:postgresql://${DbHost}:5432/${Database}"
+        username = $DbUser; password = $pw
+    }
+    $tf = [IO.Path]::GetTempFileName()
+    ($desc | ConvertTo-Json) | Set-Content $tf -Encoding utf8
+    try { $t = Invoke-JrsConnectionTest -Jrs $jrs -JsonFile $tf -Type jdbc }
+    finally { Remove-Item $tf -ErrorAction SilentlyContinue }
+    if ($t.Code -match '^2\d\d$') {
+        return @{ Status = "PASS"; Detail = "JRS JVM connected to $DbUser@${DbHost}:5432/$Database (HTTP $($t.Code))" }
+    }
+    $snippet = "$($t.Body)" -replace '\s+', ' '
+    if ($snippet.Length -gt 140) { $snippet = $snippet.Substring(0, 140) + "..." }
+    return @{ Status = "WARN"; Detail = "contexts test failed (HTTP $($t.Code)): $snippet" }
+}
+
+# --- 3d. Server settings REST + Visualize.js domainWhitelist -------------------
+Run-Check "server settings (REST)" {
+    if (-not $jrs) { return @{ Status = "WARN"; Detail = "no JRS credentials resolved; skipping" } }
+    $s = Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/settings/globalConfiguration"
+    if ($s.Code -ne "200") {
+        return @{ Status = "WARN"; Detail = "GET /settings/globalConfiguration -> HTTP $($s.Code)" }
+    }
+    $detail = "globalConfiguration readable"
+    try {
+        $g = $s.Body | ConvertFrom-Json
+        $detail += " (maxFileSize=$($g.maxFileSize))"
+    } catch {}
+    # Visualize.js cross-origin embeds are gated by the domainWhitelist SERVER
+    # ATTRIBUTE (JSCorsConfiguration -> DomainWhitelistProviderImpl reads the
+    # 'domainWhitelist' profile attribute) -- report it so an embed 403 is
+    # diagnosable from the preflight.
+    $a = Invoke-JrsRest -Jrs $jrs -Method GET -Path "/rest_v2/attributes?name=domainWhitelist"
+    if ($a.Code -eq "200") {
+        try {
+            $attr = ($a.Body | ConvertFrom-Json).attribute | Select-Object -First 1
+            if ($attr) { $detail += "; domainWhitelist=$($attr.value) (Visualize.js cross-origin gate)" }
+        } catch {}
+    } elseif ($a.Code -eq "204") {
+        $detail += "; domainWhitelist attribute unset (Visualize.js cross-origin embeds will 403)"
+    }
+    return @{ Status = "PASS"; Detail = $detail }
 }
 
 # --- 4. JR runtime jars --------------------------------------------------------

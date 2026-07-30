@@ -45,7 +45,7 @@ Cumulative operational knowledge from building a statewide Texas address geocode
 
 **JasperReports** (in `report\`): a block-group density report in both 6.x and native JR 7 format, compiled (`.jasper`) and rendered (`output\tx_density_blockgroup_report.pdf`, 317 pages).
 
-**jasper-deploy skill** (`.claude\skills\jasper-deploy\`): 30+ scripts automating the full JRS 10 lifecycle (reports, dashboards, data sources, domains, themes, admin, lineage, smoke testing).
+**jasper-deploy skill** (`.claude\skills\jasper-deploy\`): 45+ scripts automating the full JRS 10 lifecycle (reports, dashboards, data sources with live connection tests, single- and multi-table domains, themes, admin, environment promotion, usage reporting, diagnostics, lineage, embedding, smoke testing).
 
 **Web wizard** (`webapp\jasper-wizard\`): Jakarta servlet WAR — a browser UI over the skill for business users.
 
@@ -270,7 +270,9 @@ Credentials and server URL resolve in this order:
 2. Environment variables (`JRS_URL`, `JRS_USER`, `JRS_PASS`)
 3. `jrs.config.json` (gitignored; copy `jrs.config.example.json` to get started)
 
-Default: `http://localhost:8081/jasperserver-pro`, `superuser` / `superuser`.
+Named **environment profiles** live under `"environments"` in `jrs.config.json` and are selected with a script's `-Env` parameter or `$env:JRS_ENV` (e.g. `stage` / `prod`); profile keys shadow the top level and, while a profile is active, stale `JRS_URL`-style shell exports are ignored. `promote.ps1 -FromEnv stage -ToEnv prod` promotes between two profiles.
+
+Default: `http://localhost:8081/jasperserver-pro`, `superuser` (password from `jrs.config.json`).
 
 > ⚠️ Port 8080 is an unrelated Bearer-gated service — not JRS.
 
@@ -283,11 +285,11 @@ JR 7.0.6 runtime jars resolve via: `-LibDir` parameter → `$env:JR_LIB_DIR` →
 | `scaffold_jrxml.py` | Introspect a SQL query → emit a JR7 tabular report. Flags: `--chart`, `--param`, `--group-by`, `--highlight`, `--drill`, `--crosstab`, `--subreport`, `--style-template`. |
 | `compile_jrxml.ps1` | Compile `.jrxml` → `.jasper`. Fast JR7 validity check. |
 | `lint_jrxml.ps1` | Static pre-deploy linter — catches strict-Jackson traps offline. **Run before every deploy.** Gate inside `deploy_report.ps1` (`-SkipLint` to bypass). |
-| `create_datasource.ps1` | Create/update a JDBC datasource or non-JDBC type (`-Type jndi\|bean\|custom\|virtual\|aws`). |
+| `create_datasource.ps1` | Create/update a JDBC datasource or non-JDBC type (`-Type jndi\|bean\|custom\|virtual\|aws`). `-Test` makes the JRS JVM open the live connection first (`/rest_v2/contexts`) and aborts with the driver's real error on failure. |
 | `deploy_report.ps1` | PUT a report unit. `-Overwrite` updates in place. SQL-lint guard. `-Control` / `-QueryControl` / `-QueryMultiControl` attach input controls. |
 | `verify_report.ps1` | Run a deployed report and assert HTTP + CSV row-count/contains + visual baseline diff. |
 | `scaffold_style_template.py` | Emit a shared JR7 `.jrtx` style template from a color palette. |
-| `scaffold_domain_schema.py` + `create_domain.ps1` | Introspect a table → single-table Domain for Ad Hoc reporting. |
+| `scaffold_domain_schema.py` + `create_domain.ps1` | Introspect tables → Domain for Ad Hoc reporting: single-table, or multi-table with joins (repeat `--table`, wire with `--join`; emits the JRS 10 join-tree schema). |
 | `manage_adhoc.ps1` | Ad hoc views: list / get / export / import / delete. |
 | `scaffold_theme.py` + `deploy_theme.ps1` | Emit `overrides_custom.css` from a palette; deploy + activate per organization. |
 | `create_mondrian.ps1` | Upload a Mondrian schema + create a `secureMondrianConnection`. |
@@ -297,14 +299,18 @@ JR 7.0.6 runtime jars resolve via: `-LibDir` parameter → `$env:JR_LIB_DIR` →
 | `manage_options.ps1` + `manage_cache.ps1` | Saved input-control value sets; clear server caches. |
 | `build_dashlets.ps1` + `compose_dashboard.ps1` | Manifest-driven: scaffold → lint → compile → deploy → verify dashlets, then compose and import the dashboard. |
 | `export_resource.ps1` + `import_resource.ps1` | Export/import any resource for backup or promotion. |
-| `promote.ps1` | Dev→prod promotion (export from source, import to target). |
+| `promote.ps1` | Dev→prod promotion (export from source, import to target) between named environment profiles (`-FromEnv`/`-ToEnv`) or explicit `-To*` credentials. |
 | `teardown_dashboard.ps1` | Delete a dashboard then its report tiles + `_controls`, in lock-safe order. |
 | `extract_lineage.py` | Column-level lineage graph (reports → datasources → tables → columns via `sqlglot`). `--format openlineage` emits OpenLineage events. |
 | `diff_resource.ps1` | Drift detection — diffs a live resource descriptor vs. committed local `.json`. |
 | `reconcile.ps1` | Declarative desired-state applier. Plan-only by default; `-Apply` to execute. Schema: `references/environment.schema.json`. |
-| `doctor.ps1` | Environment preflight — server/DB reachable, jars present, config valid, Python deps available. |
+| `report_usage.ps1` | Usage/access-event reporting from the repository metadata DB (`:5433`): top resources, per-user, recent, per-resource; `-Csv`. |
+| `get_thumbnail.ps1` | Fetch a report's server-side thumbnail image — the cheapest visual check. |
+| `manage_diagnostic.ps1` | Diagnostic log collectors: start/stop/download-zip/delete a scoped server-log capture (support bundle). |
+| `scaffold_visualize_embed.py` | Generate a ready-to-open Visualize.js embed page for a report or dashboard. |
+| `doctor.ps1` | 10-point environment preflight — server/DB reachable, repo metadata DB, JRS→DB connectivity via `/contexts`, server settings + Visualize.js `domainWhitelist`, jars, config, Python deps. |
 | `check_docs.ps1` | Doc-consistency guard — every `references/` link and capability-map script resolves. |
-| `smoke_test.ps1` | **19-step end-to-end regression gate.** Run after any script change. |
+| `smoke_test.ps1` | **24-step end-to-end regression gate** (+ a `wizard-api` step when the web wizard is deployed). Run after any script change. |
 
 ### Quick start
 
@@ -351,9 +357,9 @@ These are in addition to the general gotchas in §3 and are also indexed by symp
 | `admin-and-scheduling.md` | Users, roles, orgs, scheduling, permissions |
 | `jr7-schema.md` | JR7 `.jrxml` schema reference |
 | `jr7-valid-elements.md` | Valid/rejected element names per construct (source-cited) |
-| `gotchas.md` | 50+ issues indexed by symptom → fix; JRS errors auto-print a pointer here |
+| `gotchas.md` | 60+ issues indexed by symptom → fix; JRS errors auto-print a pointer here |
 | `dashboard-model.md` | Dashboard JSON model internals |
-| `security-and-config.md` | Secrets management, env-only creds, `passwordCommand` |
+| `security-and-config.md` | Secrets management, env-only creds, `passwordCommand`, named environment profiles |
 | `visualize-embedding.md` | Visualize.js embedding patterns |
 | `ci-smoke.md` | CI integration for `smoke_test.ps1` |
 | `manifest.schema.json` | Dashboard manifest JSON schema |

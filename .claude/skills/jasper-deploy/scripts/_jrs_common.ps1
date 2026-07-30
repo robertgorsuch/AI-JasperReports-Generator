@@ -261,6 +261,28 @@ function Invoke-JrsRest {
     return [pscustomobject]@{ Code = $code; Body = $body }
 }
 
+function Invoke-JrsConnectionTest {
+    # Validate a datasource connection WITHOUT creating any repository resource:
+    # POST the descriptor to /rest_v2/contexts, which actually opens the
+    # connection server-side. 201 = connect OK; 400 connection.failed carries
+    # the real driver error (bad password, unknown host, ...). The Content-Type
+    # must be the descriptor's own repository.<type>+json media type -- the
+    # generic application/connections.jdbc+json guess 415s (gotchas.md G52).
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Jrs,
+        [Parameter(Mandatory)][string]$JsonFile,     # datasource descriptor body
+        [ValidateSet("jdbc", "jndi", "custom")][string]$Type = "jdbc"
+    )
+    $mime = switch ($Type) {
+        "jdbc"   { "application/repository.jdbcDataSource+json" }
+        "jndi"   { "application/repository.jndiJdbcDataSource+json" }
+        "custom" { "application/repository.customDataSource+json" }
+    }
+    return Invoke-JrsRest -Jrs $Jrs -Method POST -Path "/rest_v2/contexts" `
+        -ContentType $mime -JsonFile $JsonFile
+}
+
 function Resolve-JrLib {
     [CmdletBinding()]
     param([string]$LibDir)

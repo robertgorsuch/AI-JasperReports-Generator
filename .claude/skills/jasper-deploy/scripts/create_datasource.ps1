@@ -15,6 +15,12 @@
   (a JNDI resource in the app server, a Spring bean on the classpath, a custom
   data-source service, or -- for virtual -- the referenced sub-datasources).
 
+  -Test closes that gap for jdbc/jndi/custom: before storing anything it POSTs
+  the descriptor to /rest_v2/contexts, which OPENS the connection server-side --
+  201 proves JRS can actually reach the DB with these settings; 400
+  connection.failed carries the real driver error (bad password, unknown host).
+  The script then proceeds to create only when the test passes.
+
   Server URL and credentials resolve the same way as deploy_report.ps1:
     1. -ServerUrl / -User / -Password parameters
     2. environment variables JRS_URL / JRS_USER / JRS_PASS
@@ -91,6 +97,7 @@ param(
     [string]$DbInstanceIdentifier,
     [string]$DbService = "postgresql",
     [switch]$Overwrite,
+    [switch]$Test,               # validate the LIVE connection via /contexts before creating
     [string]$ServerUrl,
     [string]$User,
     [string]$Password
@@ -164,6 +171,26 @@ switch ($Type) {
             dbService = $DbService
         }
         Write-Host "(aws region=$Region dbService=$DbService)"
+    }
+}
+
+# --- optional: live connection test via /contexts (no resource created) ---
+if ($Test) {
+    $testable = @{ "jdbc" = "jdbc"; "jndi" = "jndi"; "custom" = "custom" }
+    if (-not $testable.ContainsKey($Type)) {
+        Write-Warning "-Test supports jdbc/jndi/custom (the contexts service has no $Type media type); skipping the connection test."
+    } else {
+        $tf = [IO.Path]::GetTempFileName()
+        ($desc | ConvertTo-Json -Depth 6) | Set-Content -Path $tf -Encoding utf8
+        try {
+            $t = Invoke-JrsConnectionTest -Jrs $jrs -JsonFile $tf -Type $testable[$Type]
+        } finally { Remove-Item $tf -ErrorAction SilentlyContinue }
+        if ($t.Code -match '^2\d\d$') {
+            Write-Host "TEST OK: server-side connection succeeded ($($t.Code))"
+        } else {
+            Write-Host "TEST FAILED ($($t.Code)): $($t.Body)"
+            throw "connection test failed -- datasource NOT created. Fix the connection settings (the body above carries the driver's real error) or drop -Test to store the descriptor anyway."
+        }
     }
 }
 

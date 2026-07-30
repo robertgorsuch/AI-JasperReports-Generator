@@ -17,6 +17,16 @@ Defaults target PostgreSQL `localhost:5432`; override with `-DbHost -DbPort
 another engine. NOTE: PowerShell reserves `-Db` (alias of `-Debug`), so the
 database-name parameter is `-Database`.
 
+**`-Test` — validate the LIVE connection before creating.** A plain create only
+stores the descriptor (it 201s with a wrong password!). `-Test` first POSTs the
+descriptor to `/rest_v2/contexts`, which makes the **JRS JVM actually open the
+connection**: 201 = good, and creation proceeds; a failure throws with the
+driver's real error (e.g. `FATAL: password authentication failed`, SQL state
+28P01) and nothing is stored. Supported for `jdbc`/`jndi`/`custom` (the media
+type must be the descriptor's own `repository.<type>+json` — G52); other types
+warn and skip the test. `doctor.ps1` runs the same check as
+"JRS->DB connection (contexts)".
+
 **List existing datasources** — use **`type=jdbcDataSource`** (the generic
 `type=dataSource` returns `204`/empty on this server and looks like "no
 datasources"):

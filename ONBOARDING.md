@@ -29,7 +29,7 @@ Built on PostgreSQL 14 + PostGIS 3.4. All 254 Texas counties are loaded via the 
 A 317-page block-group density report compiled from the same PostGIS database, plus chart, crosstab, drill-down, and dashboard samples under `report/`. (Leaflet map visualizations can also be generated locally into `maps/` — generated HTML is not tracked in the repo.)
 
 **3. A full JRS automation toolkit**
-The `jasper-deploy` Claude Code skill (30+ PowerShell/Python scripts) and a self-service web wizard (Jakarta servlet WAR) that together automate the entire JasperReports Server lifecycle — design, compile, lint, deploy, verify, dashboard composition, admin, governance, and promotion.
+The `jasper-deploy` Claude Code skill (45+ PowerShell/Python scripts) and a self-service web wizard (Jakarta servlet WAR) that together automate the entire JasperReports Server lifecycle — design, compile, lint, deploy, verify, dashboard composition, single- and multi-table Domains, live datasource connection tests, usage reporting, diagnostics, Visualize.js embedding, admin, governance, and STAGE→PROD promotion via named environment profiles.
 
 ---
 
@@ -102,7 +102,7 @@ Run the environment preflight before your first deploy:
 .\.claude\skills\jasper-deploy\scripts\doctor.ps1
 ```
 
-This checks server reachability, jar availability, config validity, and Python deps, and prints a PASS/WARN/FAIL checklist.
+This 10-point preflight checks server reachability, both databases (reporting + repo metadata on :5433), JRS→DB connectivity via the `/contexts` service, server settings (including the Visualize.js `domainWhitelist`), jar availability, config validity, and Python deps, and prints a PASS/WARN/FAIL checklist.
 
 ---
 
@@ -151,7 +151,7 @@ $env:PGPASSWORD = "postgres"
 After editing any skill script, run the regression gate:
 
 ```powershell
-& $skill\smoke_test.ps1   # 19-step end-to-end check
+& $skill\smoke_test.ps1   # 24-step end-to-end check (+ wizard-api when the wizard is deployed)
 ```
 
 ### Use the self-service web wizard
@@ -195,6 +195,23 @@ Exits nonzero if the live resource differs from the committed local descriptor.
 
 # Apply the changes
 .\.claude\skills\jasper-deploy\scripts\reconcile.ps1 -Manifest env.json -Apply
+```
+
+### See who's actually using what
+
+```powershell
+$env:PGPASSWORD = "postgres"
+.\.claude\skills\jasper-deploy\scripts\report_usage.ps1                       # top resources, 30 days
+.\.claude\skills\jasper-deploy\scripts\report_usage.ps1 -Action users -Days 7
+```
+
+Reads the repository metadata DB's access events (live DB is on **:5433**).
+
+### Promote a resource from STAGE to PROD
+
+```powershell
+# Profiles are defined once under "environments" in jrs.config.json
+.\.claude\skills\jasper-deploy\scripts\promote.ps1 -Uri /reports/geocoder/sales_dashboard -FromEnv stage -ToEnv prod
 ```
 
 ---

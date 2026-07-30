@@ -114,6 +114,57 @@ A populated result needs a Domain whose backing datasource is live — the audit
 domains were empty here and the sample foodmart Domain `400`s ("Review the Domain
 settings", its DB isn't connected on this box).
 
+## contexts — live datasource connection test  **[verified]** (no resource created)
+The gap-closer for "descriptor stored but will not connect" (G29): POST a
+datasource descriptor to `/contexts` and the server OPENS the connection.
+- `POST /contexts` with `Content-Type: application/repository.jdbcDataSource+json`
+  (or `…jndiJdbcDataSource+json` / `…customDataSource+json` — the generic
+  `application/connections.jdbc+json` guess **415s**, G52), body = the ordinary
+  descriptor (label/driverClass/connectionUrl/username/password).
+- `201` = connected (body echoes the descriptor, password stripped);
+  `400 connection.failed` = real driver error in `parameters[]` + a
+  `sql.exception` detail (verified: bad password → `FATAL: password
+  authentication failed`, SQL state 28P01). Nothing is stored either way.
+- Wrapped by `Invoke-JrsConnectionTest` (`_jrs_common.ps1`),
+  `create_datasource.ps1 -Test`, and doctor's "JRS->DB connection" check.
+
+## thumbnails — report preview images  **[verified]**
+- `GET /thumbnails{reportUri}?defaultAllowed=true|false` → `200` + image bytes
+  (**JPEG** on this install, not PNG) from the report's last **UI** execution;
+  REST-only runs do not refresh it. `defaultAllowed=true` substitutes the
+  generic placeholder; with `false` a never-UI-run report → `204`.
+- Send **no `Accept: image/*` header** — an explicit image ask `406`s; the
+  unadorned GET returns the bytes. Batch form: `POST /thumbnails` with
+  form-encoded `uri=` params. Wrapped by `get_thumbnail.ps1`.
+
+## settings — read-only server configuration  **[verified]**
+- `GET /settings/{group}` → `200` JSON. Groups verified live: `request`,
+  `dataSourcePatterns`, `userTimeZones`, `awsSettings`, `decimalFormatSymbols`,
+  `dateTimeSettings`, `globalConfiguration`, `inputControls` (unknown group →
+  `404`). `globalConfiguration` carries ~47 keys (maxFileSize, defaultRole,
+  passwordMask, …). Anonymous-relevant groups need no auth in the UI path, but
+  authenticated GET works for all.
+- NOTE: the Visualize.js cross-origin gate is **not** here — `domainWhitelist`
+  is a server ATTRIBUTE (`GET /attributes?name=domainWhitelist`; bean chain
+  `JSCorsConfiguration` → `DomainWhitelistProviderImpl`). Doctor's
+  "server settings (REST)" check reports both.
+
+## diagnostic — log collectors (support bundles)  **[verified]** (start→stop→download→delete)
+- `POST /diagnostic/collectors` `{"name":"x","verbosity":"LOW|MEDIUM|HIGH"}` →
+  `200` `{id, status:RUNNING}`; optional `filterBy` `{userId, sessionId,
+  resourceAndSnapshotFilter:{resourceUri}}`. Names must be unique (dup →
+  `400` validateName, G53). **Use `LOW`: starting a `HIGH` collector breaks
+  every type-filtered repository search (`ClassCastException`, healed only by
+  a Tomcat restart) on JRS 10.0.0 — bisected live, G54.**
+- `PUT /diagnostic/collectors/{id}` with `status:"STOPPED"` → `200`
+  `SHUTTING_DOWN` (finishes async; wait a beat before download).
+- `GET /diagnostic/collectors/{id}/content` (`Accept: application/zip`) → zip of
+  `collectorSettings.xml` + `diagnostic.log.jsEncrypted` (encrypted with the
+  server key — a support bundle, not casual reading).
+- `GET /diagnostic/collectors` (list; `204` when none);
+  `DELETE /diagnostic/collectors/{id}` — **a bare collection DELETE removes ALL
+  collectors** (G53). Wrapped by `manage_diagnostic.ps1`.
+
 ## alerts — data-threshold notifications  **[verified]** (create→list→get→delete; ref p.235)
 The data-driven sibling of `jobs`: fire when a watched report element's value
 crosses a threshold. Verified full CRUD against `county_summary`:

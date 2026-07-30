@@ -87,6 +87,9 @@ Collateral docs (Word COM)
 Environment
 - [G50 Everything 401s (wrong port 8080)](#g50)
 - [G51 401 with the RIGHT password (account lockout via stale client creds)](#g51)
+- [G52 Connection test POST /contexts 415 (wrong media type)](#g52)
+- [G53 Diagnostic collectors: bare DELETE wipes all / encrypted log / dup name](#g53)
+- [G54 Type-filtered searches 500 after a HIGH-verbosity collector](#g54)
 
 ---
 
@@ -535,3 +538,45 @@ Environment
   build time, so a rebuilt wizard always matches the local server creds; the
   smoke test's `wizard-api` step catches the drift before it can lock the
   account.
+
+### G52
+- Symptom: `POST /rest_v2/contexts` (datasource connection test) fails `415
+  Unsupported Media Type`.
+- Cause: guessing a `application/connections.jdbc+json` content type. The
+  contexts service wants the descriptor's OWN repository media type.
+- Fix: `Content-Type: application/repository.jdbcDataSource+json` (or
+  `...jndiJdbcDataSource+json` / `...customDataSource+json`). Then 201 = the
+  server-side connection actually opened; 400 `connection.failed` carries the
+  driver's real error.
+- Handled-by: `Invoke-JrsConnectionTest` (`_jrs_common.ps1`) /
+  `create_datasource.ps1 -Test` / doctor's "JRS->DB connection" check.
+
+### G53
+- Symptom: diagnostic collectors vanish after a "delete one" call; or the
+  downloaded collector zip's log will not open; or creating a collector 400s
+  with a `validateName` stack trace.
+- Cause: three sharp edges of `/rest_v2/diagnostic/collectors`: (1) a DELETE on
+  the bare collection (no id) deletes ALL collectors (same family as G36's
+  PUT-/attributes wipe); (2) the zip's `diagnostic.log.jsEncrypted` is
+  encrypted with the server key -- intended for Jaspersoft support, only
+  `collectorSettings.xml` is plaintext; (3) collector names must be unique
+  among live collectors.
+- Fix: always delete by id (`-Id`); treat the zip as a support bundle; use a
+  fresh name per run.
+- Handled-by: `manage_diagnostic.ps1` (requires `-Id` unless `-All`; notes the
+  encryption; documents the name rule).
+
+### G54
+- Symptom: every type-filtered repository search
+  (`resources?type=jdbcDataSource`, `jndiJdbcDataSource`, ...) suddenly `500`s
+  with `ClassCastException: Cannot cast RepoJdbcDataSource to
+  RepoResourceItemBase` -- single GETs and `q=` text search still work, the
+  wizard's datasource list breaks, and clearing caches via
+  `DELETE /caches/{id}` does nothing.
+- Cause: a diagnostic collector started at **verbosity HIGH** (JRS 10.0.0
+  server bug). Bisected live: the search breaks the moment the HIGH collector
+  STARTS and stays broken after stop/delete; a full LOW-verbosity lifecycle
+  (start->stop->download->delete) is clean.
+- Fix: restart Tomcat (only cure), and use `LOW` verbosity for collectors.
+- Handled-by: `manage_diagnostic.ps1` defaults to `LOW` and warns on `HIGH`;
+  the smoke's `diagnostic` step runs the LOW lifecycle.

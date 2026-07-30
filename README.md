@@ -25,7 +25,7 @@ This is a **working demo environment**, not a starter template. Every script, sk
 |---|---|
 | `scripts/` | TIGER data loaders that build the PostGIS sample DB the demo reports query — `load_tiger_nation.bat`, `load_remaining.ps1`, etc. All use `curl` + `7z t` integrity checks with retry. |
 | `report/` | JasperReports templates (`*_jr7.jrxml` native JR7 + 6.x version), JDBC data adapter, compile/fill harnesses. `report/foodmart/` holds deployable KPI reports + `dashboard.json` manifest. |
-| `.claude/skills/jasper-deploy/` | The **jasper-deploy skill** — 30+ PowerShell/Python scripts covering the full JRS lifecycle. `SKILL.md` is the lean index; detail lives in `references/`. |
+| `.claude/skills/jasper-deploy/` | The **jasper-deploy skill** — 45+ PowerShell/Python scripts covering the full JRS lifecycle. `SKILL.md` is the lean index; detail lives in `references/`. |
 | `webapp/jasper-wizard/` | Self-service browser UI over the skill. Business users create, run, and deliver Jaspersoft artifacts with no JRXML or REST knowledge. |
 | `postman_collections/` | REST v2 Postman collections for manual API exploration. |
 | `output/`, `maps/`, `backups/` | Generated artifacts (PDF / GeoJSON / CSV / Leaflet HTML / JRS export zips) — not tracked; regenerate from the DB and the skill's export scripts. |
@@ -87,7 +87,7 @@ $env:PGPASSWORD = "postgres"
 # Build all Foodmart KPI dashlets and compose the dashboard
 & $skill\build_dashlets.ps1 -Manifest report\foodmart\dashboard.json -Compose
 
-# Run the full 19-step regression gate after any script change
+# Run the full 24-step regression gate after any script change
 & $skill\smoke_test.ps1
 ```
 
@@ -116,8 +116,8 @@ Access at `http://localhost:8081/jasper-wizard/`.
 - `verify_report.ps1` — assert HTTP status, CSV row counts, contained text, and visual baseline diff against a deployed report
 
 **Data layer**
-- `create_datasource.ps1` — JDBC plus JNDI, bean, custom, virtual, and AWS datasource types
-- `scaffold_domain_schema.py` + `create_domain.ps1` — introspect a table into a single-table Domain for Ad Hoc reporting
+- `create_datasource.ps1` — JDBC plus JNDI, bean, custom, virtual, and AWS datasource types; `-Test` makes the server open the live connection (`/contexts`) before anything is stored
+- `scaffold_domain_schema.py` + `create_domain.ps1` — introspect tables into a Domain for Ad Hoc reporting: single-table, or multi-table with joins (`--table` × N + `--join`, emitting the JRS 10 join-tree schema)
 - `manage_adhoc.ps1` — list, inspect, export, and import Ad Hoc views
 
 **Dashboards**
@@ -127,14 +127,20 @@ Access at `http://localhost:8081/jasper-wizard/`.
 - `extract_lineage.py` — asset + column-level lineage graph (reports → datasources → tables → columns via `sqlglot`); supports OpenLineage output
 - `diff_resource.ps1` — drift detection between live JRS and committed source
 - `reconcile.ps1` — declarative desired-state applier (plan-only by default; `-Apply` to execute)
-- `doctor.ps1` — environment preflight checklist
-- `smoke_test.ps1` — 19-step end-to-end regression gate
+- `report_usage.ps1` — who-ran-what usage reporting from the repository metadata DB's access events (top resources / per-user / recent / per-resource, CSV output)
+- `manage_diagnostic.ps1` — diagnostic log collectors: capture server logs around a repro and download the support bundle
+- `doctor.ps1` — 10-point environment preflight (server, DBs, JRS→DB connectivity via `/contexts`, server settings + Visualize.js domainWhitelist, jars, Python)
+- `smoke_test.ps1` — 24-step end-to-end regression gate (+ a wizard-api step when the web wizard is deployed)
 
 **Admin**
 - `manage_users.ps1`, `manage_roles.ps1`, `manage_organizations.ps1` — identity and tenant CRUD
 - `manage_permissions.ps1`, `manage_attributes.ps1` — repository ACLs and server/org/user attributes
-- `promote.ps1` — dev→prod promotion (export from source, import to target)
+- `promote.ps1` — dev→prod promotion between named environment profiles (`-FromEnv stage -ToEnv prod`, defined once in `jrs.config.json` "environments") or explicit URLs
 - `run_report_async.ps1` — large fills via the async `reportExecutions` API
+
+**Delivery & embedding**
+- `scaffold_visualize_embed.py` — generate a ready-to-open Visualize.js embed page for a deployed report or dashboard (credential placeholder by default)
+- `get_thumbnail.ps1` — fetch a report's server-side thumbnail image, the cheapest visual sanity check
 
 Full reference: `.claude/skills/jasper-deploy/SKILL.md` and `RUNBOOK.md` §9.
 

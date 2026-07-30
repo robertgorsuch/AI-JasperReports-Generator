@@ -12,7 +12,8 @@ description: >-
   themes (CSS), query-based and cascading input controls, repository permissions
   and attributes, OLAP/Mondrian (schema + secure connection), named STAGE/PROD
   environment profiles with cross-server promotion, usage/access-event
-  reporting, and Visualize.js embed page generation.
+  reporting, live datasource connection testing, report thumbnails, diagnostic
+  log collectors (support bundles), and Visualize.js embed page generation.
   Covers the full design-compile-deploy pipeline against a local PostgreSQL
   database and a JasperReports Server REST v2 endpoint.
 ---
@@ -75,7 +76,9 @@ that area** — the deep detail lives there, not here.
 | Charts / spider / barcodes / HTML5 / FusionMaps | (jrxml + jars) | `references/reports.md` |
 | KPI dial (gauge) tile — the reliable JFreeChart meter form | `scaffold_kpi_dial.py` | `references/fusion-pro-gotchas.md`, `references/dashboard-model.md` |
 | Visual-regression check of a report PDF (baseline PNG diff) | `pdf_verify.py` (called by `verify_report.ps1`) | `references/reports.md` |
-| Create a datasource (JDBC or jndi/bean/custom/virtual/aws) | `create_datasource.ps1` | `references/data-and-semantic-layer.md` |
+| Create a datasource (JDBC or jndi/bean/custom/virtual/aws; `-Test` opens the live connection first) | `create_datasource.ps1` | `references/data-and-semantic-layer.md` |
+| Report thumbnail image (cheap visual check, no export) | `get_thumbnail.ps1` | `references/reports.md` |
+| Diagnostic log collector (support bundle for a failing report) | `manage_diagnostic.ps1` | `references/admin-and-scheduling.md` |
 | Compose a dashboard from a manifest | `build_dashlets.ps1 -Compose` (descriptor synthesis: `gen_dashboard.py`) | `references/dashboards.md` |
 | Re-sync a manifest from a designer-edited live dashboard | `sync_manifest_from_dashboard.ps1` (+ `sync_manifest.py`) | `references/dashboard-model.md` |
 | Export/import/promote/teardown a dashboard or resource | `export_resource.ps1`, `import_resource.ps1`, `promote.ps1`, `teardown_dashboard.ps1` | `references/dashboards.md` |
@@ -188,15 +191,16 @@ $env:PGPASSWORD = "postgres"
 & $skill\smoke_test.ps1
 ```
 First runs **offline prechecks** (`check_docs.ps1` doc-consistency + the `tests/`
-Pester unit suite), then the full 21-step server lifecycle under a throwaway
+Pester unit suite), then the full 24-step server lifecycle under a throwaway
 `/reports/_smoke` (+ `/themes`):
 scaffold → **lint** → compile → deploy (+input control) → verify → run-to-PDF → schedule job
 (CRUD) → alert (CRUD) → compose dashboard (report + text tile) → style template →
 single-table Domain → multi-table Domain (join) → jndi datasource → UI theme →
 AWS datasource → cascading query input controls → permissions set/clear → server
 attribute CRUD → Mondrian schema + connection → Visualize.js embed scaffold →
-teardown, asserting each step (+ a `wizard-api` step that joins in only when the
-jasper-wizard WAR is deployed next to JRS). **If you change a script's params or
+datasource `-Test` (live `/contexts` connection) → report thumbnail → diagnostic
+collector lifecycle → teardown, asserting each step (+ a `wizard-api` step that
+joins in only when the jasper-wizard WAR is deployed next to JRS). **If you change a script's params or
 stdout shape, also check the web wizard handler** that calls it
 (`references/admin-and-scheduling.md` → Web wizard).
 

@@ -13,9 +13,11 @@
     -> non-JDBC (jndi) datasource -> UI theme deploy -> AWS datasource
     -> cascading query input controls -> permissions set/clear -> server
     attribute CRUD -> Mondrian schema+connection -> Visualize.js embed scaffold
-    -> teardown. That is the 21-step server lifecycle; one extra step
-    (wizard-api) joins in when the jasper-wizard WAR is deployed next to JRS,
-    and is skipped (not failed) when it is not.
+    -> datasource with -Test (live /contexts connection check) -> report
+    thumbnail -> diagnostic collector lifecycle -> teardown. That is the
+    24-step server lifecycle; one extra step (wizard-api) joins in when the
+    jasper-wizard WAR is deployed next to JRS, and is skipped (not failed)
+    when it is not.
   Prints PASS/FAIL per step and throws if any step fails. Leaves nothing behind
   unless -KeepArtifacts.
 
@@ -49,7 +51,7 @@ function step($name, $ok) {
 
 try {
     # --- offline prechecks (fail fast before touching the server): doc consistency
-    #     + server-less unit tests. Not counted in the 21-step server lifecycle.
+    #     + server-less unit tests. Not counted in the 24-step server lifecycle.
     & "$skill/check_docs.ps1" *> $null
     if ($LASTEXITCODE -ne 0) { & "$skill/check_docs.ps1"; throw "precheck: check_docs.ps1 found doc issues" }
     Write-Host "PRECHECK  doc-check OK"
@@ -269,7 +271,38 @@ GROUP BY 1 ORDER BY 2 DESC
     } catch { $embOk = $false }
     step "visualize-embed" $embOk
 
-    # 6m. web wizard API -- only when the jasper-wizard WAR is deployed next to
+    # 6m. datasource with -Test: /contexts opens the LIVE connection first
+    $dstOk = $false
+    try {
+        $dbpw = if ($env:PGPASSWORD) { $env:PGPASSWORD } else { "postgres" }
+        & "$skill/create_datasource.ps1" -Uri "$Folder/smoke_jdbc_tested" -Label "Smoke Tested DS" `
+            -Database $Database -DbUser postgres -DbPassword $dbpw -Test -Overwrite @cred *>$null
+        $dstOk = (Invoke-JrsGet -Jrs $jrs -Uri "$Folder/smoke_jdbc_tested").Code -match '^2\d\d$'
+    } catch { $dstOk = $false }
+    step "datasource-test" $dstOk
+
+    # 6n. report thumbnail (placeholder is fine -- smoke_rpt never ran in the UI)
+    $thOk = $false
+    try {
+        & "$skill/get_thumbnail.ps1" -Uri $rptUri -Out "$work/smoke_thumb.jpg" @cred *>$null
+        $thOk = ($LASTEXITCODE -eq 0 -and (Test-Path "$work/smoke_thumb.jpg"))
+    } catch { $thOk = $false }
+    step "thumbnail" $thOk
+
+    # 6o. diagnostic collector lifecycle (start -> stop -> download zip -> delete)
+    $dgOk = $false
+    try {
+        $dgName = "jd_smoke_$([guid]::NewGuid().ToString('N').Substring(0,8))"   # names must be unique (G53)
+        $dg = (& "$skill/manage_diagnostic.ps1" -Action start -Name $dgName @cred) | ConvertFrom-Json
+        & "$skill/manage_diagnostic.ps1" -Action stop -Id $dg.id @cred *>$null
+        Start-Sleep 3
+        & "$skill/manage_diagnostic.ps1" -Action download -Id $dg.id -Out "$work/smoke_diag.zip" @cred *>$null
+        & "$skill/manage_diagnostic.ps1" -Action delete -Id $dg.id @cred *>$null
+        $dgOk = ((Test-Path "$work/smoke_diag.zip") -and (Get-Item "$work/smoke_diag.zip").Length -gt 0)
+    } catch { $dgOk = $false }
+    step "diagnostic" $dgOk
+
+    # 6p. web wizard API -- only when the jasper-wizard WAR is deployed next to
     #     JRS (same Tomcat, context /jasper-wizard). Skipped, not failed, when
     #     absent so the smoke stays green on script-only machines; when present,
     #     a broken /api/health|summary|datasources IS a failure (the wizard

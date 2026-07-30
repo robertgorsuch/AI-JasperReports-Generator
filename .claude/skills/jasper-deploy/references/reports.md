@@ -147,6 +147,17 @@ and page 1 rasterized matches a committed `-Baseline` PNG within `-MaxPixelDiff`
     -MinRows 10 -Contains "Vegetables","Snack Foods" -Baseline baselines\top_categories.png
 ```
 
+**Thumbnail — the cheapest visual check** — `get_thumbnail.ps1` fetches the
+server's stored preview image (**JPEG** on this install) of a report's last
+**UI** execution via `GET /rest_v2/thumbnails{uri}`; REST-only runs do not
+refresh it. By default the generic placeholder is returned for a never-UI-run
+report; `-NoDefault` instead exits 2 on the 204 so you can tell them apart.
+Send no `Accept: image/*` header (it `406`s — the script handles this).
+```powershell
+& $skill\get_thumbnail.ps1 -Uri /reports/foodmart/foodmart_sales_by_region
+& $skill\get_thumbnail.ps1 -Uri /reports/geocoder/county_summary -Out county.jpg -NoDefault
+```
+
 **Verify a whole folder** — run each to PDF and check HTTP code + `%PDF-` magic +
 non-trivial byte size. (Do NOT count `/Type /Page` objects — the page tree is
 usually compressed, so the grep reads 0 on a perfectly good PDF.) A `400` with an

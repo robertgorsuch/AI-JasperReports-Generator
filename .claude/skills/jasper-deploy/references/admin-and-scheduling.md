@@ -185,6 +185,26 @@ on **:5433**; a stale decoy `jasperserver` DB on :5432 has an EMPTY
 `jiaccessevent`. 0-row results trigger a warning pointing at `repoDb`;
 `doctor.ps1` checks the same thing.
 
+## Diagnostic log collectors — `manage_diagnostic.ps1`
+The supported way to capture server-side logs around a failing report without
+trawling catalina.out: start a collector, reproduce, stop, download the bundle.
+Full lifecycle **verified** (`/rest_v2/diagnostic/collectors`):
+```powershell
+$c = & $skill\manage_diagnostic.ps1 -Action start -Name repro_bug | ConvertFrom-Json
+# ... reproduce the failure (optionally scope with -UserId / -ResourceUri) ...
+& $skill\manage_diagnostic.ps1 -Action stop -Id $c.id          # -> SHUTTING_DOWN (async)
+& $skill\manage_diagnostic.ps1 -Action download -Id $c.id -Out bug.zip
+& $skill\manage_diagnostic.ps1 -Action delete -Id $c.id
+```
+**Sharp edges the script guards (gotchas.md G53/G54):** a bare collection
+DELETE wipes ALL collectors (delete requires `-Id` unless `-All`); the zip's
+`diagnostic.log.jsEncrypted` is encrypted with the server key (a support
+bundle — only `collectorSettings.xml` is plaintext); collector names must be
+unique among live collectors (duplicate → `400` validateName); and **verbosity
+stays at the `LOW` default** — starting a `HIGH` collector breaks every
+type-filtered repository search on JRS 10.0.0 until Tomcat restarts (G54; the
+script warns if you insist on `-Verbosity HIGH`).
+
 ## Users, roles & organizations (admin)
 Tenant/identity administration over the REST v2 `users`, `roles`, and
 `organizations` services. All resolve credentials the same way as the other scripts

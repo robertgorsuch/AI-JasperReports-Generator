@@ -15,9 +15,12 @@ a multi-table **Domain with a join** -> creates a non-JDBC (**jndi**) datasource
 with **cascading query input controls** (asserts the child option count changes
 per parent) -> sets + clears **permissions** -> server **attribute** CRUD ->
 creates a **Mondrian** schema + connection -> scaffolds a **Visualize.js embed**
-page (offline content check) -> tears down. It asserts each of the **21 steps**
-under a throwaway `/reports/_smoke` folder (the theme lives under `/themes`),
-and cleans everything up at the end. When the **jasper-wizard** WAR is deployed
+page (offline content check) -> creates a datasource with **`-Test`** (the
+`/contexts` service opens the live connection first) -> fetches a report
+**thumbnail** -> runs a **diagnostic collector** lifecycle (start/stop/download
+zip/delete) -> tears down. It asserts each of the **24 steps** under a throwaway
+`/reports/_smoke` folder (the theme lives under `/themes`), and cleans
+everything up at the end. When the **jasper-wizard** WAR is deployed
 next to JRS an extra `wizard-api` step also runs (GET `/jasper-wizard/api/health`,
 `/api/summary`, `/api/datasources` must all return 200); on machines without the
 wizard it is skipped, not failed.

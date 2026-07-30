@@ -27,9 +27,9 @@
     2. Capability-map scripts. Every .ps1/.py named in the backticked "Script(s)"
        column of SKILL.md's Capability map table must exist in scripts\.
 
-    3. Stale step counts. The smoke gate is now 21 steps; any leftover
-       "18/19-step" / "18/19 steps" / "each of the 18/19" prose is flagged
-       (file + line).
+    3. Stale step counts. The smoke gate is now 24 steps; any leftover
+       "18/19/21-step" / "18/19/21 steps" / "each of the 18/19/21" prose is
+       flagged (file + line).
 
     4. Script coverage. The inverse of check 2: every *.ps1 / *.py that exists
        in scripts\ must be MENTIONED somewhere in SKILL.md (capability map or
@@ -225,7 +225,7 @@ if ($capStart -ge 0) {
 foreach ($file in $docFiles) {
     $lines = Get-Content -LiteralPath $file
     for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match '(?i)(18|19)-step|(18|19) steps|each of the (18|19)') {
+        if ($lines[$i] -match '(?i)(18|19|21)-step|(18|19|21) steps|each of the (18|19|21)') {
             $stale += [pscustomobject]@{ File = $file; Line = ($i + 1); Text = $lines[$i].Trim() }
         }
     }
@@ -271,7 +271,7 @@ if ($missing) {
 }
 if ($stale) {
     Write-Host ""
-    Write-Host "Stale step-count prose (smoke gate is now 21 steps):" -ForegroundColor Red
+    Write-Host "Stale step-count prose (smoke gate is now 24 steps):" -ForegroundColor Red
     foreach ($s in $stale) {
         Write-Host ("  {0}:{1}  {2}" -f (Rel $s.File), $s.Line, $s.Text) -ForegroundColor Red
     }
