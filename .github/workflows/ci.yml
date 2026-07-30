@@ -17,22 +17,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  skill-checks:
-    name: jasper-deploy offline checks
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Doc/link consistency (check_docs.ps1)
-        shell: powershell
-        run: |
-          & .\.claude\skills\jasper-deploy\scripts\check_docs.ps1
-          if ($LASTEXITCODE) { throw "skill docs are stale (broken link / missing script / stale count)" }
-      - name: Pester unit tests
-        shell: powershell
-        run: |
-          $tests = ".\.claude\skills\jasper-deploy\tests"
-          if (Test-Path $tests) {
-            Invoke-Pester -Path $tests -EnableExit
-          } else {
-            Write-Host "no tests directory - skipping"
-          }
+  # DISABLED 2026-07-30: jasper-deploy offline checks (check_docs.ps1 + Pester).
+  # The same gate runs locally as the first phase of scripts/smoke_test.ps1, so
+  # every commit already passes it before push. Re-enable by uncommenting.
+  # skill-checks:
+  #   name: jasper-deploy offline checks
+  #   runs-on: windows-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Doc/link consistency (check_docs.ps1)
+  #       shell: powershell
+  #       run: |
+  #         & .\.claude\skills\jasper-deploy\scripts\check_docs.ps1
+  #         if ($LASTEXITCODE) { throw "skill docs are stale (broken link / missing script / stale count)" }
+  #     - name: Pester unit tests
+  #       shell: powershell
+  #       run: |
+  #         $tests = ".\.claude\skills\jasper-deploy\tests"
+  #         if (Test-Path $tests) {
+  #           Invoke-Pester -Path $tests -EnableExit
+  #         } else {
+  #           Write-Host "no tests directory - skipping"
+  #         }
