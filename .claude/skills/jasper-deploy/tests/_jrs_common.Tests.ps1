@@ -2,7 +2,7 @@
 # scripts\_jrs_common.ps1. NO live server is contacted -- only Get-GotchaHint,
 # Resolve-JrsConfig (env-var path) and Assert-JrsOk are exercised.
 
-. "$PSScriptRoot\..\scripts\_jrs_common.ps1"
+. "$PSScriptRoot/../scripts/_jrs_common.ps1"
 
 Describe "Get-GotchaHint" {
     It "returns the strict-Jackson hint for UnrecognizedPropertyException" {
@@ -46,6 +46,32 @@ Describe "Resolve-JrsConfig env-var precedence" {
         $env:JRS_PASS = 'envpass'
         $cfg = Resolve-JrsConfig -ServerUrl 'http://from-param:9090'
         $cfg.ServerUrl | Should Be 'http://from-param:9090'
+    }
+}
+
+Describe "Resolve-JrsConfig named environment profiles" {
+    # These tests only run meaningfully when the local (gitignored)
+    # jrs.config.json defines an "environments" block; the unknown-name test
+    # works either way.
+    AfterEach {
+        Remove-Item Env:JRS_ENV -ErrorAction SilentlyContinue
+        Remove-Item Env:JRS_URL -ErrorAction SilentlyContinue
+    }
+
+    It "throws (listing defined names) for an unknown profile" {
+        { Resolve-JrsConfig -Env definitely_not_a_real_env } | Should Throw
+    }
+
+    It "honors `$env:JRS_ENV and ignores a stale JRS_URL while a profile is active" {
+        $cfgPath = "$PSScriptRoot/../jrs.config.json"
+        if (-not (Test-Path $cfgPath)) { return }   # config-less machine: skip
+        $names = (Get-Content $cfgPath -Raw | ConvertFrom-Json).environments.PSObject.Properties.Name
+        if (-not $names) { return }                 # no profiles defined: skip
+        $env:JRS_ENV = $names[0]
+        $env:JRS_URL = 'http://stale-export:9/x'
+        $cfg = Resolve-JrsConfig
+        $cfg.ServerUrl | Should Not Be 'http://stale-export:9/x'
+        $cfg.Env       | Should Be $names[0]
     }
 }
 

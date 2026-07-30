@@ -155,7 +155,7 @@ if ($ResourceFiles) {
 if ($Backup -and $Overwrite) {
     if ((Invoke-JrsGet -Jrs $jrs -Uri $TargetUri).Code -match '^2\d\d$') {
         $exporter = Join-Path $PSScriptRoot "export_resource.ps1"
-        if (-not $BackupDir) { $BackupDir = Join-Path $PSScriptRoot "..\out\backups" }
+        if (-not $BackupDir) { $BackupDir = Join-Path $PSScriptRoot "../out/backups" }
         New-Item -ItemType Directory -Force $BackupDir | Out-Null
         $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
         $bkName = ($TargetUri.TrimStart("/") -replace "[^0-9A-Za-z]", "_") + "-$stamp.zip"

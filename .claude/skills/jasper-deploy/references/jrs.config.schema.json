@@ -23,7 +23,7 @@
     },
     "passwordCommand": {
       "type": "string",
-      "description": "Alternative to `password`: a PowerShell command whose stdout is the password (used only if password/env are not set), so the secret can live in Windows Credential Manager or a vault instead of this file. Example: \"(cmdkey /list); (Get-StoredCredential -Target jrs).GetNetworkCredential().Password\" or any command that prints the secret."
+      "description": "Alternative to `password`: a PowerShell command whose stdout is the password (used only if password/env are not set), so the secret can live in a vault/keychain instead of this file. Windows example: \"(Get-StoredCredential -Target jrs).GetNetworkCredential().Password\". macOS example: \"security find-generic-password -s jrs -w\". Any command that prints the secret works."
     },
     "dataSourceUri": {
       "type": "string",
@@ -32,7 +32,37 @@
     },
     "jrLibDir": {
       "type": "string",
-      "description": "Path to the JasperReports 7 runtime jar directory used for local compile/render, e.g. C:\\path\\to\\jasperreports-lib. Overridden by -LibDir or $env:JR_LIB_DIR; scripts error with guidance if no source supplies a value."
+      "description": "Path to the JasperReports 7 runtime jar directory used for local compile/render. Windows: C:\\path\\to\\jasperreports-lib; macOS/Linux: /absolute/path/to/jasperreports-lib. Overridden by -LibDir or $env:JR_LIB_DIR; scripts error with guidance if no source supplies a value."
+    },
+    "chartCustomizerJar": {
+      "type": "string",
+      "description": "Optional. Absolute path to actian-chart-customizers.jar inside your JRS webapp's WEB-INF/lib, used only by doctor.ps1 to confirm the bar-gradient chart customizer is on the live classpath. Install-/OS-specific; on Windows doctor.ps1 falls back to the standard C:\\Jaspersoft install path when this is unset."
+    },
+    "environments": {
+      "type": "object",
+      "description": "Optional named environment profiles, selected with a script's -Env parameter or $env:JRS_ENV (e.g. -Env prod, or promote.ps1 -FromEnv stage -ToEnv prod). Each profile may carry any of the top-level connection keys (serverUrl, user, password, passwordCommand, dataSourceUri); keys a profile omits fall through to the top level. While a profile is active the JRS_URL/JRS_USER/JRS_PASS process env vars are ignored so a stale shell export cannot silently retarget a named environment; explicit script params still override.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "serverUrl": { "type": "string", "format": "uri" },
+          "user": { "type": "string" },
+          "password": { "type": "string" },
+          "passwordCommand": { "type": "string" },
+          "dataSourceUri": { "type": "string", "pattern": "^/" }
+        }
+      }
+    },
+    "repoDb": {
+      "type": "object",
+      "description": "Optional. The JRS repository *metadata* PostgreSQL database (the bundled instance, NOT the reporting datasource), used read-only by report_usage.ps1 for access-event/usage reporting and checked by doctor.ps1. On this install the live metadata DB listens on port 5433; a stale decoy jasperserver DB exists on :5432 -- do not point this at it. Password comes from $env:PGPASSWORD or a .pgpass entry, never this file.",
+      "additionalProperties": true,
+      "properties": {
+        "host": { "type": "string", "description": "Default localhost." },
+        "port": { "type": "integer", "description": "Default 5433 (the JRS-bundled PostgreSQL)." },
+        "database": { "type": "string", "description": "Default jasperserver." },
+        "user": { "type": "string", "description": "Default postgres." }
+      }
     }
   }
 }

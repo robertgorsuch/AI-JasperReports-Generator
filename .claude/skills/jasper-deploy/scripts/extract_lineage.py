@@ -53,6 +53,8 @@ CREDENTIAL / SERVER RESOLUTION (first match wins)
   2. Environment        JRS_URL / JRS_USER / JRS_PASS
   3. Skill config       ../jrs.config.json  (serverUrl / user / password)
   4. Defaults           http://localhost:8081/jasperserver-pro, superuser/superuser
+                        (last-resort fallback only -- the real password lives in
+                        jrs.config.json and is not the default)
   HTTP Basic auth on every call. All operations are GET (read-only).
 
 USAGE
@@ -62,7 +64,7 @@ USAGE
 
   # Crawl the whole repository with explicit credentials:
   python extract_lineage.py --server http://localhost:8081/jasperserver-pro \
-         --user superuser --password superuser --folder / --out lineage.json
+         --user superuser --password <password> --folder / --out lineage.json
 
   # Use env vars:
   set JRS_URL=http://host:8081/jasperserver-pro & set JRS_USER=svc & set JRS_PASS=secret

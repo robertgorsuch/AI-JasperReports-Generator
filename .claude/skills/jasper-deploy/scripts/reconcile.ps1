@@ -111,7 +111,8 @@ param(
     [switch]$Apply,
     [string]$ServerUrl,
     [string]$User,
-    [string]$Password
+    [string]$Password,
+    [string]$Env                 # named profile in jrs.config.json "environments"
 )
 
 $ErrorActionPreference = "Stop"
@@ -122,7 +123,7 @@ $manifestFull = (Resolve-Path $Manifest).Path
 $manifestDir  = Split-Path -Parent $manifestFull
 
 # --- resolve config (param -> env -> jrs.config.json, validated) ----------
-$jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password
+$jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password -Env $Env
 
 # --- load + validate-shape the manifest -----------------------------------
 $envManifest = (Get-Content $manifestFull -Raw) -replace "^\xEF\xBB\xBF", "" | ConvertFrom-Json
@@ -284,7 +285,7 @@ foreach ($p in $plan) {
                 $outDir = if ($s.outDir) { Resolve-RelPath "$($s.outDir)" } else { Join-Path $manifestDir "report" }
                 New-Item -ItemType Directory -Force $outDir | Out-Null
                 $jrxml = Join-Path $outDir "$($s.name).jrxml"
-                $sa = @("$PSScriptRoot\scaffold_jrxml.py", "--name", "$($s.name)", "--out", $jrxml)
+                $sa = @("$PSScriptRoot/scaffold_jrxml.py", "--name", "$($s.name)", "--out", $jrxml)
                 if ($s.db)       { $sa += @("--db", "$($s.db)") }
                 if ($s.host)     { $sa += @("--host", "$($s.host)") }
                 if ($s.port)     { $sa += @("--port", "$($s.port)") }
@@ -295,7 +296,7 @@ foreach ($p in $plan) {
                 if ($s.queryFile) { $sa += @("--query-file", (Resolve-RelPath "$($s.queryFile)")) }
                 elseif ($s.query) { $sa += @("--query", "$($s.query)") }
                 else { throw "report $uri scaffold spec needs 'query' or 'queryFile'" }
-                & python @sa | Out-Null
+                & (Get-JrsPython) @sa | Out-Null
                 if ($LASTEXITCODE -ne 0) { throw "scaffold failed for report $uri" }
             } else {
                 throw "report $uri needs 'jrxml' (a path) or 'scaffold' (a spec)"

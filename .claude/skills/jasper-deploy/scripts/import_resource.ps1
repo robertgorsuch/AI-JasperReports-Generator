@@ -32,20 +32,21 @@ param(
     [int]$TimeoutSec = 120,
     [string]$ServerUrl,
     [string]$User,
-    [string]$Password
+    [string]$Password,
+    [string]$Env                 # named profile in jrs.config.json "environments"
 )
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "_jrs_common.ps1")
 if (-not (Test-Path $Zip)) { throw "archive not found: $Zip" }
 $zipFull = (Resolve-Path $Zip).Path
-$jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password
+$jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password -Env $Env
 $auth = "$($jrs.User):$($jrs.Password)"
 $base = "$($jrs.ServerUrl)/rest_v2/import"
 $q = "?update=$($Update.ToString().ToLower())"
 
 # --- post the archive (multipart) ---------------------------------------------
-$resp = & curl.exe -s -S -u $auth -X POST -H "Accept: application/json" `
+$resp = & (Get-JrsCurl) -s -S -u $auth -X POST -H "Accept: application/json" `
     -F "file=@$zipFull;type=application/zip" "$base$q"
 $id = ($resp | ConvertFrom-Json).id
 if (-not $id) { throw "import request failed: $resp" }
@@ -55,7 +56,7 @@ Write-Host "import id: $id"
 $deadline = (Get-Date).AddSeconds($TimeoutSec)
 do {
     Start-Sleep -Milliseconds 800
-    $state = & curl.exe -s -u $auth -H "Accept: application/json" "$base/$id/state"
+    $state = & (Get-JrsCurl) -s -u $auth -H "Accept: application/json" "$base/$id/state"
     $phase = ($state | ConvertFrom-Json).phase
     if ($phase -eq "failed") { throw "import failed: $state" }
 } while ($phase -ne "finished" -and (Get-Date) -lt $deadline)

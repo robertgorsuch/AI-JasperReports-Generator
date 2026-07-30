@@ -45,7 +45,9 @@ JRS reads its mail host from the report scheduler / Quartz mail settings under t
 deployed webapp:
 
 ```
+# Windows install:
 C:\Jaspersoft\jasperreports-server-10.0.0\apache-tomcat\webapps\jasperserver-pro\WEB-INF\js.quartz.properties
+# macOS/Linux install (path varies): <JRS_HOME>/apache-tomcat/webapps/jasperserver-pro/WEB-INF/js.quartz.properties
 ```
 
 Set the host/port to the catcher and disable auth/TLS (catchers want none):

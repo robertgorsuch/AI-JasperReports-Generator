@@ -35,7 +35,7 @@ param(
     [string]$Baseline,
     [double]$MaxPixelDiff = 2.0,
     [switch]$UpdateBaseline,
-    [string]$OutDir = "out\verify",
+    [string]$OutDir = "out/verify",
     [string]$ServerUrl,
     [string]$User,
     [string]$Password
@@ -97,12 +97,12 @@ if ($Baseline) {
         Invoke-JrsDownload -Jrs $jrs -Url "$base.pdf$qs" -OutFile $pdf | Out-Null
     }
     $png = Join-Path $OutDir "$rname.page1.png"
-    $args = @("$PSScriptRoot\pdf_verify.py", "--pdf", $pdf, "--png", $png,
+    $args = @("$PSScriptRoot/pdf_verify.py", "--pdf", $pdf, "--png", $png,
               "--baseline", $Baseline, "--max-diff", "$MaxPixelDiff")
     if ($UpdateBaseline) { $args += "--update" }
     # run under Continue: a stray Python warning on stderr would otherwise abort
     # this Stop-mode script even on a clean exit. Judge by the exit code.
-    & { $ErrorActionPreference = "Continue"; $script:vout = (& python @args 2>&1 | Out-String).Trim() }
+    & { $ErrorActionPreference = "Continue"; $script:vout = (& (Get-JrsPython) @args 2>&1 | Out-String).Trim() }
     $vcode = $LASTEXITCODE
     if ($vcode -eq 0) { Write-Host "PASS visual   $vout" }
     else { Write-Host "FAIL visual   $vout"; $fails += "visual" }

@@ -77,7 +77,7 @@ foreach ($d in $m.dashlets) {
     $row = [ordered]@{ name = $rname; compile = "-"; deploy = "-"; verify = "-" }
 
     # --- scaffold ---
-    $sa = @("$PSScriptRoot\scaffold_jrxml.py", "--name", $rname, "--out", $jrxml,
+    $sa = @("$PSScriptRoot/scaffold_jrxml.py", "--name", $rname, "--out", $jrxml,
             "--db", $m.db)
     if ($m.host) { $sa += @("--host", $m.host) }
     if ($m.port) { $sa += @("--port", "$($m.port)") }
@@ -94,7 +94,7 @@ foreach ($d in $m.dashlets) {
     if ($d.queryFile) { $sa += @("--query-file", $d.queryFile) }
     elseif ($d.query) { $sa += @("--query", $d.query) }
     else { throw "dashlet $rname needs query or queryFile" }
-    & python @sa | Out-Null
+    & (Get-JrsPython) @sa | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "scaffold failed for $rname" }
 
     # --- compile (fast local JR7 validity check; shared helper handles the
@@ -124,10 +124,10 @@ foreach ($d in $m.dashlets) {
 
     # --- verify (run to PDF; written to a scratch dir, not the source folder) ---
     if (-not $SkipVerify -and $row.deploy -in @("OK", "in-use (kept)")) {
-        $verifyDir = "out\dashlet_verify"
+        $verifyDir = "out/dashlet_verify"
         New-Item -ItemType Directory -Force $verifyDir | Out-Null
         $pdf = Join-Path $verifyDir "$rname.pdf"
-        $code = & curl.exe -s -o $pdf -w "%{http_code}" -u $auth "$($jrs.ServerUrl)/rest_v2/reports$uri.pdf"
+        $code = & (Get-JrsCurl) -s -o $pdf -w "%{http_code}" -u $auth "$($jrs.ServerUrl)/rest_v2/reports$uri.pdf"
         $isPdf = (Test-Path $pdf) -and ((Get-Content $pdf -Raw -ErrorAction SilentlyContinue) -like "%PDF-*")
         $sz = if (Test-Path $pdf) { (Get-Item $pdf).Length } else { 0 }
         $row.verify = if ("$code".Trim() -eq "200" -and $isPdf -and $sz -gt 800) { "OK ($sz b)" } else { "FAIL (http=$code sz=$sz)" }

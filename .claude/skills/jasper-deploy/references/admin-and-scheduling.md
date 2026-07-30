@@ -161,6 +161,30 @@ server scope is **always `?name=`-scoped**; (2) PowerShell 5.1 treats `?` as a
 variable-name char, so the path is built with `${base}` braces (else `"$base?name"`
 silently drops the base and `405`s).
 
+## Usage / access events — `report_usage.ps1`
+Read-only "who ran what" reporting straight from the repository *metadata*
+PostgreSQL (table `jiaccessevent`; access-event auditing is ON on this install).
+No REST surface exists for these events, so the script queries via `psql`.
+Connection resolves: params → `repoDb` in `jrs.config.json` → defaults
+`localhost:5433/jasperserver/postgres`; password from `$env:PGPASSWORD`/.pgpass.
+```powershell
+$env:PGPASSWORD = "postgres"
+& $skill\report_usage.ps1                                    # top resources, 30 days
+& $skill\report_usage.ps1 -Action users -Days 7              # per-user activity
+& $skill\report_usage.ps1 -Action top -Type ReportUnit -Days 0 -Limit 10
+& $skill\report_usage.ps1 -Action recent -Limit 25           # latest raw events
+& $skill\report_usage.ps1 -Action resource -Uri /reports/geocoder/county_summary
+& $skill\report_usage.ps1 -Csv > usage.csv                   # machine-readable
+```
+Reads-only by default (`updating = false`); add `-IncludeUpdates` to count
+writes/deploys too. `-Type` matches the stored Java class's simple name
+(`ReportUnit`, `DashboardModelResource`, `AdhocDataView`, ...). **Verified:**
+`top`/`users`/CSV against the live :5433 metadata DB.
+**Gotcha (this install):** the live metadata DB is the JRS-**bundled** PostgreSQL
+on **:5433**; a stale decoy `jasperserver` DB on :5432 has an EMPTY
+`jiaccessevent`. 0-row results trigger a warning pointing at `repoDb`;
+`doctor.ps1` checks the same thing.
+
 ## Users, roles & organizations (admin)
 Tenant/identity administration over the REST v2 `users`, `roles`, and
 `organizations` services. All resolve credentials the same way as the other scripts

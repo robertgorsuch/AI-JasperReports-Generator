@@ -73,8 +73,35 @@ Domains. **Two gotchas the script handles:**
    `schemaFileReference` fails `500 resource.does.not.exist` because the `_files`
    child is orphaned until the parent exists.
 
-**Multi-table** Domains (joins/`joinInfo`) are authored in the Domain Designer
-and promoted with `export_resource.ps1`/`import_resource.ps1`.
+**Multi-table** Domains (joins) are now fully scripted too — repeat `--table`
+and wire the tables with `--join` (`left_table.col=right_table.col[:inner|left|
+right|full]`; inner is the default and the verified type; N tables need ≥ N-1
+joins):
+```powershell
+python $skill\scaffold_domain_schema.py --name product_join `
+    --table product --table product_class `
+    --join "product.product_class_id=product_class.product_class_id" `
+    --db foodmart --datasource-id FoodmartDataSource --out out\product_join_schema.xml
+& $skill\create_domain.ps1 -Uri /domains/product_join -SchemaFile out\product_join_schema.xml `
+    -DataSourceUri /public/Samples/Data_Sources/FoodmartDataSource -Label "Product Join" -Overwrite
+```
+This emits the JRS 10 Domain-Designer **v1.3 join-tree ("data island") shape**
+(reverse-engineered from a live designer-authored export): per-table `jdbcTable`
+resources (`datasourceTableName` + `schemaAlias`, not `tableName`), plus one
+join-tree `jdbcTable` named after the Domain carrying every table's fields
+(`table.col` ids), `joinInfo` anchored on the LEFT table of the first join, a
+`joinList` of `expr="a.x == b.y"` entries, and a `tableRefList`; `dataIslands`
+declares the tree and every `itemGroup` resolves its items THROUGH it
+(`resourceId="name.table.col"`). **Verified end-to-end:** create `201`, both
+tables' items surface in `GET /rest_v2/domains{uri}/metadata`, and a
+`queryExecutor` query selecting fields from BOTH tables returns joined rows.
+**Gotcha the script handles:** item ids must be **globally unique across all
+itemGroups** — a repeated column name (the join key, typically) fails
+`400 domain.schema.presentation.element.name.not.unique`; the scaffolder
+dedupes designer-style (`col`, `col_1`, …) while keeping the plain column name
+as the label. Domains too complex to describe as one join list (multiple
+islands, calculated fields, filters) are still Designer territory — promote
+those with `export_resource.ps1`/`import_resource.ps1`.
 
 ## Ad hoc views — `manage_adhoc.ps1`
 An **Ad Hoc view** (`adhocDataView`) is authored interactively in the Ad Hoc

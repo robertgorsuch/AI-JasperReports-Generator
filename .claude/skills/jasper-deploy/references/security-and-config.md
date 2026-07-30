@@ -8,12 +8,46 @@ what is / is not portable off this Windows + PowerShell 5.1 machine.
 user, and password independently, first match wins:
 
 1. Script parameter (`-ServerUrl` / `-User` / `-Password`)
-2. Environment variable (`JRS_URL` / `JRS_USER` / `JRS_PASS`)
-3. `jrs.config.json` in the skill root (`serverUrl` / `user` / `password`)
-4. (password only) `passwordCommand` in `jrs.config.json` -- see below
+2. Named environment profile, when one is active via `-Env` / `$env:JRS_ENV`
+   (profile keys shadow the top level; process env vars are then skipped --
+   see "Named environment profiles" below)
+3. Environment variable (`JRS_URL` / `JRS_USER` / `JRS_PASS`)
+4. `jrs.config.json` in the skill root (`serverUrl` / `user` / `password`)
+5. (password only) `passwordCommand` in the profile or `jrs.config.json` -- see below
 
 `jrLibDir` (local compile/render jar dir) follows the same idea:
 `-LibDir` -> `$env:JR_LIB_DIR` -> `jrs.config.json` `jrLibDir` -> machine default.
+
+## Named environment profiles (STAGE / PROD)
+`jrs.config.json` may define an `environments` object of named profiles; select
+one with a script's `-Env <name>` parameter or `$env:JRS_ENV` (which works for
+**every** script, since resolution happens inside `Resolve-JrsConfig`):
+
+```jsonc
+{
+  "serverUrl": "http://localhost:8081/jasperserver-pro",   // default = stage
+  "user": "superuser",
+  "passwordCommand": "...",
+  "environments": {
+    "stage": { "serverUrl": "http://localhost:8081/jasperserver-pro" },
+    "prod":  { "serverUrl": "http://prod-host:8080/jasperserver-pro",
+               "passwordCommand": "(Get-StoredCredential -Target jrs-prod).GetNetworkCredential().Password" }
+  }
+}
+```
+
+Rules:
+- A profile may carry any connection key (`serverUrl`, `user`, `password`,
+  `passwordCommand`, `dataSourceUri`); keys it omits fall through to the
+  top level, so a shared `user` need not be repeated.
+- While a profile is active the `JRS_URL`/`JRS_USER`/`JRS_PASS` env vars are
+  **ignored** -- a stale shell export cannot silently retarget a named
+  environment. Explicit script params (`-ServerUrl` etc.) still override.
+- Cross-server scripts take profile pairs: `promote.ps1 -Uri /reports/x
+  -FromEnv stage -ToEnv prod` (the target must come from `-ToEnv` or the full
+  `-To*` triple). `export_resource.ps1`, `import_resource.ps1`,
+  `diff_resource.ps1`, and `reconcile.ps1` take a single `-Env`.
+- An unknown profile name throws, listing the defined names.
 
 ## Avoiding a plaintext secret on disk
 Pick whichever fits your environment:

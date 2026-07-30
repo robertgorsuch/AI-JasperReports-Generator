@@ -114,7 +114,7 @@ $exportId = try { ($d.Body | ConvertFrom-Json).exports[0].id } catch { $exportId
 $dir = Split-Path -Parent $OutFile
 if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 $url = "$($jrs.ServerUrl)/rest_v2/reportExecutions/$rid/exports/$exportId/outputResource"
-$code = & curl.exe -s -o $OutFile -w "%{http_code}" -u "$($jrs.User):$($jrs.Password)" $url
+$code = & (Get-JrsCurl) -s -o $OutFile -w "%{http_code}" -u "$($jrs.User):$($jrs.Password)" $url
 if ("$code".Trim() -notmatch '^2\d\d$') { throw "download failed HTTP $code" }
 $size = (Get-Item $OutFile).Length
 Write-Host "OK: $ReportUri -> $OutFile ($size bytes, status $status)"

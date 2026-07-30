@@ -50,6 +50,26 @@ New-Item -ItemType Directory -Path $target  -Force | Out-Null
 # --- 1. assemble static webapp into build/ (incl. WEB-INF/web.xml) --------
 Copy-Item (Join-Path $webDir "*") $build -Recurse -Force
 
+# The tracked web.xml carries only the harmless factory defaults
+# (superuser/superuser). Patch the ASSEMBLED copy from the skill's gitignored
+# jrs.config.json so the deployed wizard always matches the local server creds
+# -- otherwise its JRS proxy calls 401 after a password change (the smoke
+# test's wizard-api step catches exactly that drift).
+$jrsCfgPath = Join-Path $root "..\..\.claude\skills\jasper-deploy\jrs.config.json"
+if (Test-Path $jrsCfgPath) {
+    $jrsCfg = Get-Content $jrsCfgPath -Raw | ConvertFrom-Json
+    $webXml = Join-Path $build "WEB-INF\web.xml"
+    $xmlText = Get-Content $webXml -Raw
+    foreach ($pair in @(@("jrsUrl", $jrsCfg.serverUrl), @("jrsUser", $jrsCfg.user), @("jrsPass", $jrsCfg.password))) {
+        $name, $value = $pair
+        if ($value) {
+            $xmlText = $xmlText -replace "(?s)(<param-name>$name</param-name>\s*<param-value>)[^<]*(</param-value>)", "`${1}$value`${2}"
+        }
+    }
+    Set-Content $webXml $xmlText -Encoding utf8
+    Write-Host "Patched web.xml JRS connection from jrs.config.json (creds stay out of git)"
+}
+
 # bundle the verified jasper-deploy scripts INSIDE the WAR (WEB-INF/scripts) so
 # the Tomcat service account (LocalService) can read+execute them from its own
 # webapps dir -- no access to the user profile/repo is needed at runtime.

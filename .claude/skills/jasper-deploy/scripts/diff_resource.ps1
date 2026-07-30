@@ -50,12 +50,13 @@ param(
     [string[]]$IgnoreFields,
     [string]$ServerUrl,
     [string]$User,
-    [string]$Password
+    [string]$Password,
+    [string]$Env                 # named profile in jrs.config.json "environments"
 )
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "_jrs_common.ps1")
-$jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password
+$jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password -Env $Env
 if (-not $Uri.StartsWith("/")) { $Uri = "/$Uri" }
 if (-not (Test-Path $Against)) { throw "local descriptor not found: $Against" }
 

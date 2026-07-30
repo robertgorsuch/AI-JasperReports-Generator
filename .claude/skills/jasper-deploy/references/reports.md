@@ -294,8 +294,10 @@ or it produces 0 pages. QR specifically needs `zxing-core` on the classpath.
 
 **Rebuild the community jars** from the JR7 source (machine-local, not in repo):
 ```powershell
+# Windows: $env:JAVA_HOME = "C:\path\to\jdk-11"
+# macOS:   $env:JAVA_HOME = "/opt/homebrew/opt/openjdk@11"  (or $(/usr/libexec/java_home -v 11))
 $env:JAVA_HOME = "C:\path\to\jdk-11"
-mvn -f "<jr-src>\pom.xml" `
+mvn -f "<jr-src>/pom.xml" `
     -pl ext/charts,ext/barcode4j -am --% -Dmaven.test.skip=true package
 ```
 Copy the built `ext\charts\target\jasperreports-charts-7.0.6.jar` and

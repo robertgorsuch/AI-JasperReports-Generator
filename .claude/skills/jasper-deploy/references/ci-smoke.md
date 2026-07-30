@@ -10,12 +10,17 @@ Per `SKILL.md`, the test scaffolds -> **lints** (`lint_jrxml.ps1`) -> compiles -
 verifies content -> runs to PDF -> schedules a job (CRUD) -> sets an alert (CRUD)
 -> composes a dashboard (report + text tile) -> deploys a **style template** and
 runs a report that references it -> creates a single-table **Domain** -> creates
-a non-JDBC (**jndi**) datasource -> deploys a UI **theme** -> creates an **AWS**
-datasource -> deploys a report with **cascading query input controls** (asserts
-the child option count changes per parent) -> sets + clears **permissions** ->
-server **attribute** CRUD -> creates a **Mondrian** schema + connection -> tears
-down. It asserts each of the **19 steps** under a throwaway `/reports/_smoke`
-folder (the theme lives under `/themes`), and cleans everything up at the end.
+a multi-table **Domain with a join** -> creates a non-JDBC (**jndi**) datasource
+-> deploys a UI **theme** -> creates an **AWS** datasource -> deploys a report
+with **cascading query input controls** (asserts the child option count changes
+per parent) -> sets + clears **permissions** -> server **attribute** CRUD ->
+creates a **Mondrian** schema + connection -> scaffolds a **Visualize.js embed**
+page (offline content check) -> tears down. It asserts each of the **21 steps**
+under a throwaway `/reports/_smoke` folder (the theme lives under `/themes`),
+and cleans everything up at the end. When the **jasper-wizard** WAR is deployed
+next to JRS an extra `wizard-api` step also runs (GET `/jasper-wizard/api/health`,
+`/api/summary`, `/api/datasources` must all return 200); on machines without the
+wizard it is skipped, not failed.
 
 ## Prerequisites for a fresh clone
 Before the test can pass on a freshly cloned machine, two things must already be
@@ -74,6 +79,18 @@ Notes:
   jar reinstall) may require elevation; the JRS service must be running.
 - Store the DB password in the task command (above) or, more safely, as a
   machine env var the task inherits, rather than committing it.
+
+## macOS / Linux (recurring local CI via cron)
+On macOS/Linux run the same smoke test under `pwsh` from `cron` (or a `launchd`
+agent). Add a crontab line (`crontab -e`) that sets the DB password, cd's to the
+repo, and tees a timestamped log:
+```sh
+30 6 * * *  PGPASSWORD=postgres /usr/local/bin/pwsh -NoProfile \
+  -File "$HOME/tx-geocoder/.claude/skills/jasper-deploy/scripts/smoke_test.ps1" \
+  > "$HOME/tx-geocoder/out/smoke-logs/smoke_$(date +\%Y\%m\%d_\%H\%M\%S).log" 2>&1
+```
+(`brew install powershell` provides `pwsh`; use `which pwsh` for its path. The JRS
+server and PostgreSQL must be running on this host.)
 
 ## Claude Code drivers (cloud + interval)
 The same test can be driven by Claude Code's scheduling primitives instead of (or

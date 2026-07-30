@@ -17,14 +17,14 @@
 
 .EXAMPLE
   .\deploy_jr_samples.ps1
-  .\deploy_jr_samples.ps1 -SamplesDir C:\path\to\samples -IncludeQueryReports
+  ./deploy_jr_samples.ps1 -SamplesDir /path/to/samples -IncludeQueryReports
 #>
 [CmdletBinding()]
 param(
     # Path to the JasperReports 7.0.6 source distribution's demo\samples directory
     [Parameter(Mandatory)][string]$SamplesDir,
     [string]$TargetRoot = "/reports/jr_samples",
-    [string]$CsvOut = (Join-Path (Get-Location) "output\jr_samples_results.csv"),
+    [string]$CsvOut = (Join-Path (Get-Location) "output/jr_samples_results.csv"),
     [switch]$IncludeQueryReports,   # also deploy (but not expect to run) query-based reports
     [string]$DataSourceUri,         # attach to query-based reports so they can run
     [int]$Limit = 0,                # 0 = no limit
@@ -82,7 +82,7 @@ foreach ($f in $jrxmls) {
 
     # run to PDF
     $tmp = [IO.Path]::GetTempFileName()
-    $code = & curl.exe -s -o $tmp -w "%{http_code}" -u $cred "$($jrs.ServerUrl)/rest_v2/reports$uri.pdf"
+    $code = & (Get-JrsCurl) -s -o $tmp -w "%{http_code}" -u $cred "$($jrs.ServerUrl)/rest_v2/reports$uri.pdf"
     $sig = ""
     if (Test-Path $tmp) { $sig = [IO.File]::ReadAllBytes($tmp)[0..4] -join ','; Remove-Item $tmp -ErrorAction SilentlyContinue }
     $row.run = if ($code -eq "200" -and $sig -match '^37,80,68,70') { "ok" } else { "FAIL($code)" }

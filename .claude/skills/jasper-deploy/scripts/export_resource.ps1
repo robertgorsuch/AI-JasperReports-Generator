@@ -38,12 +38,13 @@ param(
     [int]$TimeoutSec = 120,
     [string]$ServerUrl,
     [string]$User,
-    [string]$Password
+    [string]$Password,
+    [string]$Env                 # named profile in jrs.config.json "environments"
 )
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "_jrs_common.ps1")
-$jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password
+$jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password -Env $Env
 $auth = "$($jrs.User):$($jrs.Password)"
 $base = "$($jrs.ServerUrl)/rest_v2/export"
 if (-not $Uri.StartsWith("/")) { $Uri = "/$Uri" }
@@ -53,7 +54,7 @@ $body = @{ uris = @($Uri); parameters = $Parameters } | ConvertTo-Json -Compress
 $reqFile = [IO.Path]::GetTempFileName()
 $body | Set-Content -Path $reqFile -Encoding utf8
 try {
-    $resp = & curl.exe -s -S -u $auth -X POST -H "Content-Type: application/json" `
+    $resp = & (Get-JrsCurl) -s -S -u $auth -X POST -H "Content-Type: application/json" `
         -H "Accept: application/json" --data-binary "@$reqFile" $base
 } finally { Remove-Item $reqFile -ErrorAction SilentlyContinue }
 $id = ($resp | ConvertFrom-Json).id
@@ -64,7 +65,7 @@ Write-Host "export id: $id"
 $deadline = (Get-Date).AddSeconds($TimeoutSec)
 do {
     Start-Sleep -Milliseconds 800
-    $state = & curl.exe -s -u $auth -H "Accept: application/json" "$base/$id/state"
+    $state = & (Get-JrsCurl) -s -u $auth -H "Accept: application/json" "$base/$id/state"
     $phase = ($state | ConvertFrom-Json).phase
     if ($phase -eq "failed") { throw "export failed: $state" }
 } while ($phase -ne "finished" -and (Get-Date) -lt $deadline)
@@ -73,7 +74,7 @@ if ($phase -ne "finished") { throw "export timed out after ${TimeoutSec}s (phase
 # --- download the archive -----------------------------------------------------
 $outDir = Split-Path -Parent $Out
 if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Force $outDir | Out-Null }
-$code = & curl.exe -s -o $Out -w "%{http_code}" -u $auth -H "Accept: application/zip" "$base/$id/exportFile"
+$code = & (Get-JrsCurl) -s -o $Out -w "%{http_code}" -u $auth -H "Accept: application/zip" "$base/$id/exportFile"
 if ("$code".Trim() -ne "200") { throw "download failed (HTTP $code)" }
 $size = (Get-Item $Out).Length
 Write-Host "OK: exported $Uri -> $Out ($size bytes)"

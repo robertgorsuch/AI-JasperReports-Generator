@@ -12,9 +12,10 @@
   Domain Designer uses) as an application/repository.file+json (type xml), then
   PUTs the semanticLayerDataSource descriptor referencing both.
 
-  Generate a single-table schema.xml with scaffold_domain_schema.py. For a
-  multi-table Domain, author it in the Domain Designer and promote the export
-  with import_resource.ps1 -- this script still works to redeploy any schema.xml.
+  Generate the schema.xml with scaffold_domain_schema.py -- one --table for the
+  single-table shape, several --table + --join for a multi-table (join tree)
+  Domain. This script deploys either shape unchanged (it is schema-agnostic);
+  Designer-authored Domains promoted via import_resource.ps1 also still work.
 
   IMPORTANT: the schema's <jdbcTable datasourceId="..."> must match a logical id
   JRS resolves to -DataSourceUri. scaffold_domain_schema.py defaults datasourceId

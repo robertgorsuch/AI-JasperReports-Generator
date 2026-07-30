@@ -42,6 +42,14 @@ sa.json
 /create_pos_transactions.sql
 /pos_sample*.csv
 
+# Internal collateral (product-design specs, PM decks, sales plays, UI mockups)
+# -- authored here for convenience but not part of the public skill repo
+/JasperReports_Server_*PDS*
+/JasperReports_Server_*PM_Overview*
+/JasperReports_Server_*Product_Design_Specification*
+/SALES_PLAY_*
+ui_mockups/
+
 # Geocoder-heritage generated map outputs (Leaflet HTML, ~23 MB, regenerable)
 maps/
 

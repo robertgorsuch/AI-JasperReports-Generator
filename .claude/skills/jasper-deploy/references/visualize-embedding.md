@@ -6,6 +6,19 @@ report is deployed: instead of linking users to the JRS UI, you render the
 artifact inside your own app's DOM. **Verified end-to-end on this server** (see
 the recipe in `references/jrs-rest-api.md`, "Embedding -- Visualize.js").
 
+## One-command scaffold
+`scaffold_visualize_embed.py` emits the verified host page below, ready to open:
+```powershell
+python $skill\scaffold_visualize_embed.py --uri /reports/geocoder/county_summary --out embed.html
+python $skill\scaffold_visualize_embed.py --uri /reports/foodmart/dash --type dashboard --out d.html
+# then serve it from OUTSIDE the JRS webapp:  python -m http.server 8000
+```
+Server + user default from `jrs.config.json`; the password is deliberately the
+`CHANGE_ME` placeholder (the auth block is clear text in the page -- pass
+`--password` only for throwaway demos, never commit a page with a real secret).
+The page sets `window.__embedOk = true` in the `success` callback, matching the
+headless-verification recipe at the bottom of this file.
+
 ## The script include
 Load the library from the running server (it serves **anonymously**, ~126 KB --
 do NOT send it HTTP Basic creds or the form-auth filter will `302` it to login):

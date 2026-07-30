@@ -5,9 +5,11 @@
 
 .DESCRIPTION
   This is the verified, repeatable pattern used to produce the Jaspersoft_* feature and
-  comparison documents in this repo (e.g. Jaspersoft_Commercial_Edition.docx). It drives a
-  hidden Microsoft Word instance to convert HTML with full CSS/table styling fidelity, so no
-  pandoc/LibreOffice is required. Word must be installed (Word COM is available on this machine).
+  comparison documents in this repo (e.g. Jaspersoft_Commercial_Edition.docx). On Windows it
+  drives a hidden Microsoft Word instance to convert HTML with full CSS/table styling fidelity
+  (Word must be installed). On macOS/Linux it falls back to LibreOffice headless
+  (`soffice --convert-to`) or pandoc — install one of those (`brew install --cask libreoffice`
+  or `brew install pandoc`).
 
   Two input modes:
     -Html <file>       a COMPLETE .html document is converted as-is.
@@ -97,17 +99,46 @@ $docxAbs = if ($Out) { [System.IO.Path]::GetFullPath($Out) }
            else { [System.IO.Path]::ChangeExtension([System.IO.Path]::GetFullPath($inputForName), '.docx') }
 $pdfAbs  = [System.IO.Path]::ChangeExtension($docxAbs, '.pdf')
 
-# --- convert via Word COM ---------------------------------------------------------------------
-$word = New-Object -ComObject Word.Application
-$word.Visible = $false
-try {
-  $d = $word.Documents.Open($srcAbs)
-  $d.SaveAs([ref]$docxAbs, [ref]16)          # wdFormatDocumentDefault (.docx)
-  if ($Pdf) { $d.SaveAs([ref]$pdfAbs, [ref]17) }  # wdFormatPDF (.pdf)
-  $d.Close()
-} finally {
-  $word.Quit()
-  [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($word)
+# --- convert HTML -> DOCX (+ optional PDF) -----------------------------------------------------
+# $IsWindows is $null under Windows PowerShell 5.1; `-eq $false` is true ONLY on
+# pwsh for macOS/Linux (see _jrs_common.ps1 Test-JrsWindows for the same idiom).
+$onWindows = -not ($IsWindows -eq $false)
+
+if ($onWindows) {
+  # Word COM: highest CSS/table fidelity. Word must be installed.
+  $word = New-Object -ComObject Word.Application
+  $word.Visible = $false
+  try {
+    $d = $word.Documents.Open($srcAbs)
+    $d.SaveAs([ref]$docxAbs, [ref]16)          # wdFormatDocumentDefault (.docx)
+    if ($Pdf) { $d.SaveAs([ref]$pdfAbs, [ref]17) }  # wdFormatPDF (.pdf)
+    $d.Close()
+  } finally {
+    $word.Quit()
+    [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($word)
+  }
+} else {
+  # macOS/Linux: no Word COM. Prefer LibreOffice headless (good CSS/table
+  # fidelity), then pandoc. LibreOffice writes <srcbase>.<ext> into --outdir, so
+  # rename to the requested $Out when they differ.
+  $outDir  = [System.IO.Path]::GetDirectoryName($docxAbs)
+  $srcBase = [System.IO.Path]::GetFileNameWithoutExtension($srcAbs)
+  $soffice = foreach ($c in @('soffice', 'libreoffice')) { if (Get-Command $c -ErrorAction SilentlyContinue) { $c; break } }
+  if ($soffice) {
+    & $soffice --headless --convert-to docx --outdir $outDir $srcAbs | Out-Null
+    $loDocx = Join-Path $outDir "$srcBase.docx"
+    if ($loDocx -ne $docxAbs -and (Test-Path $loDocx)) { Move-Item -Force $loDocx $docxAbs }
+    if ($Pdf) {
+      & $soffice --headless --convert-to pdf --outdir $outDir $srcAbs | Out-Null
+      $loPdf = Join-Path $outDir "$srcBase.pdf"
+      if ($loPdf -ne $pdfAbs -and (Test-Path $loPdf)) { Move-Item -Force $loPdf $pdfAbs }
+    }
+  } elseif (Get-Command pandoc -ErrorAction SilentlyContinue) {
+    & pandoc $srcAbs -o $docxAbs | Out-Null
+    if ($Pdf) { & pandoc $srcAbs -o $pdfAbs | Out-Null }   # PDF needs a pandoc PDF engine (e.g. weasyprint/wkhtmltopdf)
+  } else {
+    throw "No HTML->DOCX converter found. Install LibreOffice (brew install --cask libreoffice) or pandoc (brew install pandoc)."
+  }
 }
 
 if ($tempHtml -and -not $KeepHtml) { Remove-Item -LiteralPath $tempHtml -ErrorAction SilentlyContinue }
@@ -120,4 +151,9 @@ if ($Pdf -and (Test-Path $pdfAbs)) {
   $pkb = [math]::Round((Get-Item $pdfAbs).Length / 1KB, 1)
   Write-Output "Created: $pdfAbs  ($pkb KB)"
 }
-if ($Open) { Start-Process $docxAbs; Write-Output "Opened: $docxAbs" }
+if ($Open) {
+  if ($onWindows)    { Start-Process $docxAbs }
+  elseif ($IsMacOS)  { & open $docxAbs }
+  else               { & xdg-open $docxAbs }
+  Write-Output "Opened: $docxAbs"
+}

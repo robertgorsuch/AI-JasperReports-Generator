@@ -6,6 +6,13 @@
                        (JRS_URL/JRS_USER/JRS_PASS) -> jrs.config.json, with
                        validation and trailing-slash trim. Also returns the
                        config's dataSourceUri fallback.
+                       Named environments: -Env <name> (or $env:JRS_ENV) selects
+                       jrs.config.json "environments".<name> -- a profile whose
+                       keys (serverUrl/user/password/passwordCommand/...) override
+                       the top-level ones. With a profile active the JRS_URL/
+                       JRS_USER/JRS_PASS process env vars are IGNORED so a stale
+                       shell export can't silently retarget a named environment;
+                       explicit script params still win.
   Invoke-JrsPut      - PUT a descriptor file to /rest_v2/resources and return
                        the HTTP code + body.
   Invoke-JrsDelete   - DELETE a resource and return the HTTP code.
@@ -36,18 +43,58 @@
                        tolerating the harmless SLF4J-on-stderr that would
                        otherwise abort a $ErrorActionPreference=Stop caller;
                        returns $true iff the .jasper was produced.
+
+  Cross-platform helpers (Windows PowerShell 5.1, pwsh 7 on Windows, pwsh 7 on
+  macOS/Linux). Dot-sourcing brings these into the caller's scope:
+  Test-JrsWindows    - $true on Windows (both PS editions), $false on macOS/Linux.
+  Get-JrsCurl        - the curl executable name: 'curl.exe' on Windows (PS 5.1's
+                       `curl` is an Invoke-WebRequest alias), 'curl' elsewhere.
+  Get-JrsPython      - the Python launcher: 'python' on Windows, 'python3' on
+                       macOS/Linux (where bare 'python' is usually absent).
 #>
+
+# $IsWindows is an automatic in pwsh 6+; it does NOT exist under Windows
+# PowerShell 5.1 (evaluates to $null there). Testing `-eq $false` is the one
+# idiom that classifies all three runtimes correctly: $null -eq $false and
+# $true -eq $false are both $false (-> Windows), only the real $false (pwsh on
+# macOS/Linux) is non-Windows.
+function Test-JrsWindows { return -not ($IsWindows -eq $false) }
+function Get-JrsCurl   { if (Test-JrsWindows) { 'curl.exe' } else { 'curl' } }
+function Get-JrsPython { if (Test-JrsWindows) { 'python' }   else { 'python3' } }
+function Get-JrsNull   { if (Test-JrsWindows) { 'NUL' }      else { '/dev/null' } }  # curl -o discard target
 
 function Resolve-JrsConfig {
     [CmdletBinding()]
-    param([string]$ServerUrl, [string]$User, [string]$Password)
+    param([string]$ServerUrl, [string]$User, [string]$Password, [string]$Env)
 
-    $cfgPath = Join-Path $PSScriptRoot "..\jrs.config.json"
+    $cfgPath = Join-Path $PSScriptRoot "../jrs.config.json"
     $cfg = if (Test-Path $cfgPath) { Get-Content $cfgPath -Raw | ConvertFrom-Json } else { $null }
+
+    # Named environment profile: -Env (or $env:JRS_ENV) selects an entry under the
+    # config's "environments" object. Profile keys shadow the top-level keys; keys
+    # a profile omits fall through to the top level (so shared user/jrLibDir need
+    # not be repeated per environment).
+    if ([string]::IsNullOrEmpty($Env)) { $Env = [Environment]::GetEnvironmentVariable("JRS_ENV") }
+    $prof = $null
+    if (-not [string]::IsNullOrEmpty($Env)) {
+        $envs = if ($cfg -and ($cfg.PSObject.Properties.Name -contains "environments")) { $cfg.environments } else { $null }
+        if (-not ($envs -and ($envs.PSObject.Properties.Name -contains $Env))) {
+            $have = if ($envs) { ($envs.PSObject.Properties.Name -join ", ") } else { "(none defined)" }
+            throw "Environment '$Env' not found under `"environments`" in jrs.config.json. Defined: $have"
+        }
+        $prof = $envs.$Env
+    }
 
     function pick($p, $e, $c) {
         if (-not [string]::IsNullOrEmpty($p)) { return $p }
-        if ($e) { $v = [Environment]::GetEnvironmentVariable($e); if (-not [string]::IsNullOrEmpty($v)) { return $v } }
+        if ($prof) {
+            # A profile pins the target: take its key, else the top-level key.
+            # Process env vars (JRS_URL/...) are deliberately skipped so a stale
+            # shell export can't silently retarget a named environment.
+            if (($prof.PSObject.Properties.Name -contains $c) -and -not [string]::IsNullOrEmpty([string]$prof.$c)) { return $prof.$c }
+        } elseif ($e) {
+            $v = [Environment]::GetEnvironmentVariable($e); if (-not [string]::IsNullOrEmpty($v)) { return $v }
+        }
         if ($cfg -and ($cfg.PSObject.Properties.Name -contains $c)) { return $cfg.$c }
         return $null
     }
@@ -55,19 +102,26 @@ function Resolve-JrsConfig {
     $u   = pick $ServerUrl "JRS_URL"  "serverUrl"
     $usr = pick $User      "JRS_USER" "user"
     $pw  = pick $Password  "JRS_PASS" "password"
-    # Secret hardening: instead of a plaintext `password`, jrs.config.json may set
-    # `passwordCommand` (a PowerShell command whose stdout is the password) so the
-    # secret lives in Windows Credential Manager / a vault, not the file. Env vars
-    # (JRS_PASS) and -Password still win; this is the no-plaintext-on-disk fallback.
-    if ([string]::IsNullOrEmpty($pw) -and $cfg -and ($cfg.PSObject.Properties.Name -contains "passwordCommand") -and $cfg.passwordCommand) {
-        try { $pw = (Invoke-Expression $cfg.passwordCommand | Out-String).Trim() } catch { $pw = $null }
+    # Secret hardening: instead of a plaintext `password`, the profile or the top
+    # level may set `passwordCommand` (a PowerShell command whose stdout is the
+    # password) so the secret lives in Windows Credential Manager / a vault, not
+    # the file. Env vars (JRS_PASS) and -Password still win; this is the
+    # no-plaintext-on-disk fallback. A profile's passwordCommand wins over the
+    # top-level one; a profile with a plaintext password never runs either.
+    if ([string]::IsNullOrEmpty($pw)) {
+        $pwCmd = $null
+        if ($prof -and ($prof.PSObject.Properties.Name -contains "passwordCommand") -and $prof.passwordCommand) { $pwCmd = $prof.passwordCommand }
+        elseif ($cfg -and ($cfg.PSObject.Properties.Name -contains "passwordCommand") -and $cfg.passwordCommand) { $pwCmd = $cfg.passwordCommand }
+        if ($pwCmd) {
+            try { $pw = (Invoke-Expression $pwCmd | Out-String).Trim() } catch { $pw = $null }
+        }
     }
 
     if (-not $u) { throw "No server URL. Set -ServerUrl, `$env:JRS_URL, or serverUrl in jrs.config.json" }
     if (-not $usr -or -not $pw) { throw "No credentials. Set -User/-Password, `$env:JRS_USER/JRS_PASS, or user/password in jrs.config.json" }
 
-    $ds = if ($cfg -and ($cfg.PSObject.Properties.Name -contains "dataSourceUri")) { $cfg.dataSourceUri } else { $null }
-    return [pscustomobject]@{ ServerUrl = $u.TrimEnd("/"); User = $usr; Password = $pw; DataSourceUri = $ds }
+    $ds = pick $null $null "dataSourceUri"
+    return [pscustomobject]@{ ServerUrl = $u.TrimEnd("/"); User = $usr; Password = $pw; DataSourceUri = $ds; Env = $Env }
 }
 
 function Invoke-JrsPut {
@@ -83,7 +137,7 @@ function Invoke-JrsPut {
     $url = "$($Jrs.ServerUrl)/rest_v2/resources$Uri" + "?createFolders=true"
     if ($Overwrite) { $url += "&overwrite=true" }
     Write-Host "PUT $url"
-    $resp = & curl.exe -s -S -w "`n%{http_code}" -u "$($Jrs.User):$($Jrs.Password)" `
+    $resp = & (Get-JrsCurl) -s -S -w "`n%{http_code}" -u "$($Jrs.User):$($Jrs.Password)" `
         -X PUT -H "Content-Type: $ContentType" -H "Accept: application/json" `
         --data-binary "@$JsonFile" $url
     $lines = $resp -split "`n"
@@ -97,7 +151,7 @@ function Invoke-JrsDelete {
     param([Parameter(Mandatory)]$Jrs, [Parameter(Mandatory)][string]$Uri)
     $sink = [IO.Path]::GetTempFileName()
     try {
-        $code = & curl.exe -s -o $sink -w "%{http_code}" -u "$($Jrs.User):$($Jrs.Password)" `
+        $code = & (Get-JrsCurl) -s -o $sink -w "%{http_code}" -u "$($Jrs.User):$($Jrs.Password)" `
             -X DELETE "$($Jrs.ServerUrl)/rest_v2/resources$Uri"
     } finally { Remove-Item $sink -ErrorAction SilentlyContinue }
     return "$code".Trim()
@@ -107,7 +161,7 @@ function Invoke-JrsGet {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Jrs, [Parameter(Mandatory)][string]$Uri,
           [string]$Accept = "application/json")
-    $resp = & curl.exe -s -w "`n%{http_code}" -u "$($Jrs.User):$($Jrs.Password)" `
+    $resp = & (Get-JrsCurl) -s -w "`n%{http_code}" -u "$($Jrs.User):$($Jrs.Password)" `
         -H "Accept: $Accept" "$($Jrs.ServerUrl)/rest_v2/resources$Uri"
     $lines = $resp -split "`n"
     $code = $lines[-1].Trim()
@@ -173,7 +227,7 @@ function Invoke-JrsDownload {
     $cArgs = @("-s", "-S", "-o", $OutFile, "-w", "%{http_code}", "-u", "$($Jrs.User):$($Jrs.Password)")
     if ($Accept) { $cArgs += @("-H", "Accept: $Accept") }
     $cArgs += $Url
-    $code = "$(& curl.exe @cArgs)".Trim()
+    $code = "$(& (Get-JrsCurl) @cArgs)".Trim()
     if (-not $AllowError -and $code -notmatch '^2\d\d$') {
         throw "download failed (HTTP $code) for $Url"
     }
@@ -200,7 +254,7 @@ function Invoke-JrsRest {
     if ($ContentType) { $cArgs += @("-H", "Content-Type: $ContentType") }
     if ($JsonFile)    { $cArgs += @("--data-binary", "@$JsonFile") }
     $cArgs += $url
-    $resp = & curl.exe @cArgs
+    $resp = & (Get-JrsCurl) @cArgs
     $lines = $resp -split "`n"
     $code = $lines[-1].Trim()
     $body = if ($lines.Length -ge 2) { ($lines[0..($lines.Length - 2)] -join "`n").Trim() } else { "" }
@@ -210,7 +264,7 @@ function Invoke-JrsRest {
 function Resolve-JrLib {
     [CmdletBinding()]
     param([string]$LibDir)
-    $cfgPath = Join-Path $PSScriptRoot "..\jrs.config.json"
+    $cfgPath = Join-Path $PSScriptRoot "../jrs.config.json"
     $cfg = if (Test-Path $cfgPath) { Get-Content $cfgPath -Raw | ConvertFrom-Json } else { $null }
     if ([string]::IsNullOrEmpty($LibDir)) { $LibDir = [Environment]::GetEnvironmentVariable("JR_LIB_DIR") }
     if ([string]::IsNullOrEmpty($LibDir) -and $cfg -and ($cfg.PSObject.Properties.Name -contains "jrLibDir")) { $LibDir = $cfg.jrLibDir }

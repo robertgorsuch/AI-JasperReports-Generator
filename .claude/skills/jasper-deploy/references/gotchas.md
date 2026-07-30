@@ -55,6 +55,7 @@ Domains / OLAP
 - [G30 Domain create 500 resource.does.not.exist](#g30)
 - [G31 Domain metadata wrong / datasourceId mismatch](#g31)
 - [G32 olapUnit view 500 on create](#g32)
+- [G32b Multi-table Domain 400 element.name.not.unique](#g32b)
 
 REST / PowerShell 5.1 / curl
 - [G33 409 versions not match on re-deploy](#g33)
@@ -85,6 +86,7 @@ Collateral docs (Word COM)
 
 Environment
 - [G50 Everything 401s (wrong port 8080)](#g50)
+- [G51 401 with the RIGHT password (account lockout via stale client creds)](#g51)
 
 ---
 
@@ -364,6 +366,15 @@ Environment
   to match the backing DB if you need the view.
 - Handled-by: `create_mondrian.ps1` warns and continues.
 
+### G32b
+- Symptom: multi-table Domain create fails
+  `400 domain.schema.presentation.element.name.not.unique` naming a column.
+- Cause: `<item id>`s must be GLOBALLY unique across ALL itemGroups, and a join
+  key by definition appears in two tables.
+- Fix: dedupe designer-style -- keep the first occurrence plain, suffix later
+  ones `_1`, `_2`, ... (the label can stay the plain column name).
+- Handled-by: `scaffold_domain_schema.py` (multi-table mode dedupes item ids).
+
 ## REST / PowerShell 5.1 / curl
 
 ### G33
@@ -503,5 +514,24 @@ Environment
 - Symptom: every path `401`s.
 - Cause: targeting port 8080, an unrelated Bearer-token-gated Java service.
 - Fix: target `http://localhost:8081/jasperserver-pro` (REST v2, HTTP Basic,
-  `superuser`/`superuser`).
+  `superuser` with the password from `jrs.config.json` -- not the default).
 - Handled-by: credential resolution defaults to 8081.
+
+### G51
+- Symptom: every call `401`s on the RIGHT server with the RIGHT password --
+  even `GET /rest_v2/serverInfo` -- when the same credentials worked minutes
+  earlier.
+- Cause: JRS account lockout. 10 failed logins disable the account
+  (`jiuser.enabled = false`); a client retrying with a STALE password (the
+  classic culprit: a deployed jasper-wizard WAR whose `web.xml` still holds the
+  old `jrsPass` after a password change, failing once per proxied request)
+  burns through the 10 in seconds. The lockout does NOT auto-expire, and no
+  org admin can re-enable the root `superuser` via REST.
+- Fix: re-enable directly in the repo metadata DB (**:5433**, not the :5432
+  decoy): `UPDATE jiuser SET enabled=true, numberoffailedloginattempts=0
+  WHERE username='superuser';` -- then fix the stale-credential client.
+- Handled-by: `webapp/jasper-wizard/build.ps1` patches the assembled
+  `web.xml`'s JRS connection from the skill's gitignored `jrs.config.json` at
+  build time, so a rebuilt wizard always matches the local server creds; the
+  smoke test's `wizard-api` step catches the drift before it can lock the
+  account.

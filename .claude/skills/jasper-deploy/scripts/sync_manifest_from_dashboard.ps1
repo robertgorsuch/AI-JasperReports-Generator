@@ -29,7 +29,7 @@ $tmp = [IO.Path]::Combine([IO.Path]::GetTempPath(), "dash_sync_" + [IO.Path]::Ge
 try {
     & (Join-Path $PSScriptRoot "export_resource.ps1") -Uri $Uri -Out $tmp `
         -ServerUrl $jrs.ServerUrl -User $jrs.User -Password $jrs.Password | Write-Host
-    & python (Join-Path $PSScriptRoot "sync_manifest.py") --zip $tmp --out $Out
+    & (Get-JrsPython) (Join-Path $PSScriptRoot "sync_manifest.py") --zip $tmp --out $Out
     if ($LASTEXITCODE -ne 0) { throw "sync_manifest.py failed" }
 } finally {
     Remove-Item $tmp -ErrorAction SilentlyContinue

@@ -2,7 +2,7 @@
 # Each test writes a temporary fixture under $env:TEMP, runs the linter against it
 # (capturing all streams + $LASTEXITCODE), then removes the fixture.
 
-$script:Linter = "$PSScriptRoot\..\scripts\lint_jrxml.ps1"
+$script:Linter = "$PSScriptRoot/../scripts/lint_jrxml.ps1"
 
 function Invoke-Linter($file) {
     $out = & $script:Linter -Path $file *>&1

@@ -27,12 +27,20 @@
     2. Capability-map scripts. Every .ps1/.py named in the backticked "Script(s)"
        column of SKILL.md's Capability map table must exist in scripts\.
 
-    3. Stale step counts. The smoke gate is now 19 steps; any leftover "18-step"
-       / "18 steps" / "each of the 18" prose is flagged (file + line).
+    3. Stale step counts. The smoke gate is now 21 steps; any leftover
+       "18/19-step" / "18/19 steps" / "each of the 18/19" prose is flagged
+       (file + line).
+
+    4. Script coverage. The inverse of check 2: every *.ps1 / *.py that exists
+       in scripts\ must be MENTIONED somewhere in SKILL.md (capability map or
+       prose). A script nobody indexed is invisible to a skill user -- this is
+       how scaffold_kpi_dial.py, gen_dashboard.py, sync_manifest.py and
+       pdf_verify.py once went missing from the map.
 
   Prints a PASS/FAIL summary with counts (files scanned, links checked, broken).
-  Exits 0 when clean, 1 if any broken link, missing capability-map script, or
-  stale step count is found -- so it slots into a docs/CI gate.
+  Exits 0 when clean, 1 if any broken link, missing capability-map script,
+  stale step count, or unindexed script is found -- so it slots into a docs/CI
+  gate.
 
 .PARAMETER SkillDir
   Skill base directory (the skill root holding SKILL.md, references\ and
@@ -74,7 +82,7 @@ while ($d) {
     if (-not $parent -or $parent -eq $d) { break }
     $d = $parent
 }
-if (-not $repoRoot) { $repoRoot = (Resolve-Path (Join-Path $SkillDir '..\..\..')).Path }
+if (-not $repoRoot) { $repoRoot = (Resolve-Path (Join-Path $SkillDir '../../..')).Path }
 
 # known local-file extensions worth resolving (everything else is prose/URL)
 $ExtPattern = '(?i)\.(md|ps1|py|json|wadl|xml|jrxml|jrtx|jrdax|png)$'
@@ -217,8 +225,24 @@ if ($capStart -ge 0) {
 foreach ($file in $docFiles) {
     $lines = Get-Content -LiteralPath $file
     for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match '(?i)18-step|18 steps|each of the 18') {
+        if ($lines[$i] -match '(?i)(18|19)-step|(18|19) steps|each of the (18|19)') {
             $stale += [pscustomobject]@{ File = $file; Line = ($i + 1); Text = $lines[$i].Trim() }
+        }
+    }
+}
+
+# --- check 4: every script is indexed in SKILL.md -----------------------------
+# SKILL.md is the discoverability surface: a script that exists in scripts\ but
+# is never mentioned there cannot be found by a skill user. Simple substring
+# match on the file NAME anywhere in SKILL.md (map row or prose) counts.
+$unindexed = @()
+$scriptsChecked = 0
+$skillText = (Get-Content -LiteralPath $skillMd -Raw)
+if (Test-Path $scriptsDir -PathType Container) {
+    foreach ($sf in (Get-ChildItem -Path $scriptsDir -File | Where-Object { $_.Name -match '(?i)\.(ps1|py)$' })) {
+        $scriptsChecked++
+        if ($skillText.IndexOf($sf.Name, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            $unindexed += $sf.Name
         }
     }
 }
@@ -247,22 +271,29 @@ if ($missing) {
 }
 if ($stale) {
     Write-Host ""
-    Write-Host "Stale step-count prose (smoke gate is now 19 steps):" -ForegroundColor Red
+    Write-Host "Stale step-count prose (smoke gate is now 21 steps):" -ForegroundColor Red
     foreach ($s in $stale) {
         Write-Host ("  {0}:{1}  {2}" -f (Rel $s.File), $s.Line, $s.Text) -ForegroundColor Red
     }
 }
+if ($unindexed) {
+    Write-Host ""
+    Write-Host "Scripts in scripts\ never mentioned in SKILL.md (add a capability-map row):" -ForegroundColor Red
+    foreach ($u in $unindexed) {
+        Write-Host ("  scripts/{0}" -f $u) -ForegroundColor Red
+    }
+}
 
-$totalBad = $broken.Count + $missing.Count + $stale.Count
+$totalBad = $broken.Count + $missing.Count + $stale.Count + $unindexed.Count
 
 Write-Host ""
-Write-Host ("Scanned {0} doc file(s); checked {1} link(s) + {2} capability-map script(s)." -f `
-    $docFiles.Count, $linksChecked, $capScriptsChecked)
+Write-Host ("Scanned {0} doc file(s); checked {1} link(s) + {2} capability-map script(s) + {3} scripts-dir file(s)." -f `
+    $docFiles.Count, $linksChecked, $capScriptsChecked, $scriptsChecked)
 
 if ($totalBad -eq 0) {
-    Write-Host ("PASS: 0 broken link(s), 0 missing script(s), 0 stale count(s).") -ForegroundColor Green
+    Write-Host ("PASS: 0 broken link(s), 0 missing script(s), 0 stale count(s), 0 unindexed script(s).") -ForegroundColor Green
     exit 0
 }
-Write-Host ("FAIL: {0} broken link(s), {1} missing script(s), {2} stale count(s)." -f `
-    $broken.Count, $missing.Count, $stale.Count) -ForegroundColor Red
+Write-Host ("FAIL: {0} broken link(s), {1} missing script(s), {2} stale count(s), {3} unindexed script(s)." -f `
+    $broken.Count, $missing.Count, $stale.Count, $unindexed.Count) -ForegroundColor Red
 exit 1

@@ -4,7 +4,7 @@ Distilled from the JRS 10.0.0 REST API Reference, scoped to the
 report-design/deploy/run workflow this skill automates. Each entry is tagged:
 
 - **[verified]** — exercised against this server (`localhost:8081/jasperserver-pro`,
-  `superuser`/`superuser`, HTTP Basic) and confirmed working.
+  `superuser` with the password from `jrs.config.json`, HTTP Basic) and confirmed working.
 - **[doc-only]** — present in the docs / WADL but not yet exercised here; the
   payload/flow below is from the reference, treat as a starting point.
 
