@@ -7,6 +7,11 @@ PROD may differ. ASCII only. Terse on purpose.
 ALL content here is [doc-only]: extracted from vendor PDFs in docs\, not exercised
 against a live server. Verify against `GET /rest_v2/serverInfo` before relying on it.
 
+This file is the DEEP 9.0 -> 10.1 delta. For the full 4.7 -> 10.1 span (upgrade
+ladder from any version, platform cliffs, pain-point mitigations, pre-upgrade
+checklist) see `upgrade-migration-playbook.md`; per-era source detail lives in
+`version-archive/{platform-evolution,upgrade-procedures,relnotes-install-deltas}.md`.
+
 Source abbreviations (all files in C:\Users\rgorsuch\tx-geocoder\docs\):
 - 9.0 RN   = js-jrs_9.0.0_relnotes.pdf
 - 10.1 RN  = js-jrs_10.1.0_relnotes.pdf

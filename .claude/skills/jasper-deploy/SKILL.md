@@ -21,8 +21,10 @@ description: >-
   domain whitelist), js-import/js-export and buildomatic administration,
   logging/audit config, Mondrian schema and AGXML authoring, Domain internals
   (schema XML, DomEL, security files), the Visualize.js API surface, JRS
-  version deltas 9.0.0 through 10.1.0 (features, platform support, upgrade
-  paths), and AWS deployment / telemetry opt-out / VPAT accessibility.
+  version deltas and upgrade/migration planning across ALL releases 4.7
+  through 10.1.0 (features, platform-support cliffs, hop-by-hop upgrade
+  ladder, keystore/driver/Jakarta pain-point mitigation, deprecation
+  timeline), and AWS deployment / telemetry opt-out / VPAT accessibility.
 ---
 
 # JasperReports design / compile / deploy
@@ -112,6 +114,8 @@ that area** — the deep detail lives there, not here.
 | Doc/link consistency check (CI guard) | `check_docs.ps1` | — |
 | Troubleshoot a deploy/fill error by symptom | — | `references/gotchas.md` |
 | What changed 9.0 → 10.0 → 10.1 (features, platforms, upgrade paths, promote compatibility) | — | `references/version-matrix.md` |
+| Plan an upgrade/migration from ANY version 4.7+ (START at sec 0 field-reported issues, then upgrade ladder, platform cliffs, EOL dates, mitigations, checklist) | — | `references/upgrade-migration-playbook.md` |
+| Per-era source depth: platform support 4.7→10.1, upgrade-guide procedures 5.6→10.1, relnotes/install/deprecation timeline | — | `references/version-archive/{platform-evolution,upgrade-procedures,relnotes-install-deltas}.md` |
 | Set up external authentication (LDAP, CAS, token pre-auth, OAuth/OIDC) or map external users to orgs/roles | — | `references/authentication.md` |
 | Harden the server / debug security-related REST 401s (keystore, CSRF, domain whitelist, SSL, lockout) | — | `references/server-hardening.md` |
 | Back up / promote via js-import, js-export, buildomatic; tune logging, audit, caches, themes, org attributes | — | `references/server-administration.md` |
@@ -224,17 +228,24 @@ stdout shape, also check the web wizard handler** that calls it
   `docs/` page cites (covers `reports`, `reportExecutions`, `inputControls`,
   `options`, `jobs`, `alerts`, `queryExecutor`, `caches`, non-JDBC datasources, and
   a verified Visualize.js cross-origin embedding recipe).
-- Full JRS PDF docs live in `docs/` (machine-local, **gitignored**, ~197 MB,
-  re-downloadable): the 10.0.0 set plus, since 2026-08-04, the complete
-  **9.0.0** and **10.1.0** sets (admin, REST API, Domains, auth cookbook,
-  server security, OLAP, Visualize.js, install/upgrade/relnotes, platform
-  support) and AWS user guides, the telemetry program note, and the 9.0 VPAT.
-  Read them with `pypdf`/`pypdfium2` — `pdftoppm` is unavailable, so the Read
-  tool can't rasterize them; the community site 403s scripted fetches.
-  Distilled [doc-only] references built from the 9.0/10.1 sets:
-  `version-matrix.md`, `authentication.md`, `server-hardening.md`, `olap.md`,
-  `domains-deep.md`, `server-administration.md`, `aws-telemetry-vpat.md`, the
-  version-deltas section of `jrs-rest-api.md`, and the API-surface section of
+- Full JRS PDF docs live in `docs/` (machine-local, **gitignored**, ~529 MB /
+  220 PDFs, re-downloadable): complete **9.0.0**, **10.0.0**, and **10.1.0**
+  sets plus, since 2026-08-04, archive-recovered docs spanning **4.7 → 8.2**
+  (upgrade/install guides, release notes, platform support for 4.7, 5.x,
+  6.0–6.4, 7.1–7.9.1, 8.0.x, 8.1, 8.2 commercial+CE), 20 numbered JRS wiki
+  technical articles (clustering, SSO/OIDC/Okta, CORS, Docker/K8s,
+  OpenTelemetry), and adjacent products (JasperReports IO 4.0, iReport,
+  Mondrian). Read them with `pypdf`/`pypdfium2` or `pdftotext` — the Read tool
+  can't rasterize them. The community site 403s scripted fetches (Cloudflare);
+  recover missing docs via the Wayback CDX API + `web.archive.org/web/<ts>id_/`
+  replay (see memory note jaspersoft-docs-archive).
+  Distilled [doc-only] references built from the corpus:
+  `version-matrix.md` (deep 9.0→10.1), `upgrade-migration-playbook.md`
+  (4.7→10.1 upgrade ladder + mitigations), `version-archive/` (per-era platform
+  / upgrade-procedure / relnotes depth), `authentication.md`,
+  `server-hardening.md`, `olap.md`, `domains-deep.md`,
+  `server-administration.md`, `aws-telemetry-vpat.md`, the version-deltas
+  section of `jrs-rest-api.md`, and the API-surface section of
   `visualize-embedding.md`.
 
 ## Cross-platform (macOS/Linux)
