@@ -15,7 +15,14 @@ description: >-
   reporting, live datasource connection testing, report thumbnails, diagnostic
   log collectors (support bundles), and Visualize.js embed page generation.
   Covers the full design-compile-deploy pipeline against a local PostgreSQL
-  database and a JasperReports Server REST v2 endpoint.
+  database and a JasperReports Server REST v2 endpoint. Also carries
+  doc-derived references for external authentication (LDAP, CAS, token
+  pre-auth, OAuth/OIDC), server security hardening (keystore, CSRF, SSL,
+  domain whitelist), js-import/js-export and buildomatic administration,
+  logging/audit config, Mondrian schema and AGXML authoring, Domain internals
+  (schema XML, DomEL, security files), the Visualize.js API surface, JRS
+  version deltas 9.0.0 through 10.1.0 (features, platform support, upgrade
+  paths), and AWS deployment / telemetry opt-out / VPAT accessibility.
 ---
 
 # JasperReports design / compile / deploy
@@ -84,8 +91,10 @@ that area** — the deep detail lives there, not here.
 | Export/import/promote/teardown a dashboard or resource | `export_resource.ps1`, `import_resource.ps1`, `promote.ps1`, `teardown_dashboard.ps1` | `references/dashboards.md` |
 | Promote between named environments (STAGE→PROD, `-FromEnv`/`-ToEnv`) | `promote.ps1` | `references/security-and-config.md` |
 | Domain (semantic layer) — single-table or multi-table with joins | `scaffold_domain_schema.py` + `create_domain.ps1` | `references/data-and-semantic-layer.md` |
+| Hand-author/debug Domain internals (schema XML, joins, derived tables, DomEL calc fields/filters, security file, locale bundles) | — | `references/domains-deep.md` |
 | Ad hoc view list/inspect/export/import | `manage_adhoc.ps1` | `references/data-and-semantic-layer.md` |
 | OLAP / Mondrian schema + connection | `create_mondrian.ps1` | `references/data-and-semantic-layer.md` |
+| Hand-author/debug a Mondrian schema, XML/A, AGXML grants, MDX, OLAP engine tuning/cache flush | `create_mondrian.ps1` | `references/olap.md` |
 | UI theme (CSS) | `scaffold_theme.py` + `deploy_theme.ps1` | `references/data-and-semantic-layer.md` |
 | Schedule a job / set a data alert | `schedule_job.ps1`, `manage_alert.ps1` | `references/admin-and-scheduling.md` |
 | Saved report options / clear a cache | `manage_options.ps1`, `manage_cache.ps1` | `references/admin-and-scheduling.md` |
@@ -102,6 +111,11 @@ that area** — the deep detail lives there, not here.
 | Preflight: is this environment ready to deploy? | `doctor.ps1` | `references/security-and-config.md` |
 | Doc/link consistency check (CI guard) | `check_docs.ps1` | — |
 | Troubleshoot a deploy/fill error by symptom | — | `references/gotchas.md` |
+| What changed 9.0 → 10.0 → 10.1 (features, platforms, upgrade paths, promote compatibility) | — | `references/version-matrix.md` |
+| Set up external authentication (LDAP, CAS, token pre-auth, OAuth/OIDC) or map external users to orgs/roles | — | `references/authentication.md` |
+| Harden the server / debug security-related REST 401s (keystore, CSRF, domain whitelist, SSL, lockout) | — | `references/server-hardening.md` |
+| Back up / promote via js-import, js-export, buildomatic; tune logging, audit, caches, themes, org attributes | — | `references/server-administration.md` |
+| AWS deployment, telemetry/data-collection opt-out, accessibility (VPAT/WCAG) questions | — | `references/aws-telemetry-vpat.md` |
 | Valid JR7 elements per construct (strict-Jackson) | — | `references/jr7-valid-elements.md` |
 | Secrets / config / portability (env, passwordCommand, no plaintext) | — | `references/security-and-config.md` |
 | Sample DBs / email test / CI / Visualize.js embed | — | `references/{seed-data,smtp-testing,ci-smoke,visualize-embedding}.md` |
@@ -210,9 +224,18 @@ stdout shape, also check the web wizard handler** that calls it
   `docs/` page cites (covers `reports`, `reportExecutions`, `inputControls`,
   `options`, `jobs`, `alerts`, `queryExecutor`, `caches`, non-JDBC datasources, and
   a verified Visualize.js cross-origin embedding recipe).
-- Full JRS 10.0.0 PDF docs live in `docs/` (machine-local, **gitignored**, ~62 MB,
-  re-downloadable). Read them with `pypdfium2` — `pdftoppm` is unavailable, so the
-  Read tool can't rasterize them; the community site 403s scripted fetches.
+- Full JRS PDF docs live in `docs/` (machine-local, **gitignored**, ~197 MB,
+  re-downloadable): the 10.0.0 set plus, since 2026-08-04, the complete
+  **9.0.0** and **10.1.0** sets (admin, REST API, Domains, auth cookbook,
+  server security, OLAP, Visualize.js, install/upgrade/relnotes, platform
+  support) and AWS user guides, the telemetry program note, and the 9.0 VPAT.
+  Read them with `pypdf`/`pypdfium2` — `pdftoppm` is unavailable, so the Read
+  tool can't rasterize them; the community site 403s scripted fetches.
+  Distilled [doc-only] references built from the 9.0/10.1 sets:
+  `version-matrix.md`, `authentication.md`, `server-hardening.md`, `olap.md`,
+  `domains-deep.md`, `server-administration.md`, `aws-telemetry-vpat.md`, the
+  version-deltas section of `jrs-rest-api.md`, and the API-surface section of
+  `visualize-embedding.md`.
 
 ## Cross-platform (macOS/Linux)
 The scripts run unchanged on Windows and under **PowerShell 7 (`pwsh`)** on

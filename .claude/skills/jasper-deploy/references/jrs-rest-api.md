@@ -16,7 +16,11 @@ site 403s scripted fetches anyway).
 **Authoritative offline docs (preferred over the community URL, which 403s
 scripted fetches):** the full JRS 10.0.0 PDF set lives in `docs/` — machine-local
 and **gitignored** (~62 MB, freely re-downloadable from Jaspersoft), like the
-`jasperreports-lib` jars. The key one is
+`jasperreports-lib` jars. `docs/` now also holds the complete **9.0.0** and
+**10.1.0** PDF sets (same machine-local, gitignored arrangement);
+`js-jrs_10.1.0_rest-api-reference.pdf` and `js-jrs_9.0.0_rest-api-reference.pdf`
+are the sources for the "Version deltas" section at the end of this file.
+The key one is
 `docs/JasperReportsServerRESTAPIReferencev10.0.0.pdf` (344 pp) —
 extract text with `pypdfium2` (`pdftoppm` isn't available, so the Read tool can't
 rasterize it). Page map for the services below: resource descriptors p.44–63,
@@ -422,3 +426,85 @@ XML/A endpoint config, diagnostics, install/upgrade/security/telemetry — prese
 in the API and in the `docs/` PDFs, but outside this skill's remit. Discover them
 via the WADL or the `docs/` guides if ever needed. (Users/roles/organizations
 admin — previously out of scope — is now scripted; see above.)
+
+---
+
+## Version deltas: 9.0.0 and 10.1.0 (doc-only)
+
+Diffed `docs/js-jrs_9.0.0_rest-api-reference.pdf` (336 pp) and
+`docs/js-jrs_10.1.0_rest-api-reference.pdf` (347 pp) section-by-section against
+each other and the 10.0.0 reference above (pypdf text extract + word-level
+diff; branding/re-wrap churn filtered out). The three references share the same
+service roster; the material deltas are few. Everything below is **[doc-only]**.
+
+### New in 10.1.0 (absent from the 10.0.0 reference)
+- **jobs historical data** - `GET /jobsAudit/jobsHistoricalData/{jobId}`
+  (`?sortType=NONE|SORTBY_EXECUTION_TIME|SORTBY_START_TIME|SORTBY_END_TIME|
+  SORTBY_STATUS|SORTBY_ERROR`) - per-run execution history for a scheduled job
+  (10.1 REST ref p.232-234). Response:
+  `{"historicalData":[{"executionTime":492,"status":"FAILED",
+  "startTime":"...","endTime":"...","error":"..."}]}`. Gated: both auditing and
+  the jobsHistoricalData property must be enabled or the call is `403` with
+  errorCode `feature.disabled` ("Jobs Historical Data endpoint is blocked");
+  missing/inactive job -> `404`. Not on this 10.0.0 install.
+- **job success/failure counters** - the job descriptor and job search results
+  gain `succeededJobsCount` / `failedJobsCount` (ignored on input)
+  (10.1 p.196-197 and p.205).
+- **inputControls `caseSensitive`** - query-based control `state` gains a
+  `caseSensitive` boolean, governed by the server property
+  `inputControl.handler.values.caseSensitive` in `WEB-INF/js.config.properties`
+  (default true) (10.1 p.164-167). Absent from the 10.0.0 reference.
+
+### Changed 10.0.0 -> 10.1.0
+- **export state wording** - the 10.1 doc shows `/export/{id}/state` phases
+  `finished` / `failed` where the 10.0 doc showed `ready` / `failure`
+  (10.1 p.113 vs 10.0 p.113). The live 10.0.0 server already answers
+  `phase=finished` (the verified export flow above polls exactly that), so this
+  is doc alignment, not a server change - but promotion tooling talking to
+  unknown versions should accept both spellings.
+- Nothing else material: the remaining section diffs (jobs descriptor text,
+  alerts, permissions, resources, import, admin services) are formatting and
+  branding churn only.
+
+### 9.0.0 targets - what promote.ps1 / export-import must NOT assume
+STAGE here is 10.0.0; a PROD on 9.0.0 differs as follows (each verified absent
+from the 9.0.0 PDF by full-text search, not just the ToC):
+- **No `licenseFeatures` service.** 10.x adds `GET /licenseFeatures` ->
+  `{"mt":true,"cl":true,...}` and `GET /licenseFeatures/{code}` (codes: mt, cl,
+  al, ds, fusion, rb, aud, dv, vj, ana, wl, ahd, db); superuser/jasperadmin
+  only, other users get `401` (10.0 ref p.20-22; 10.1 ref p.20-22; whole
+  service absent from 9.0). Expect `404` on 9.0.0.
+- **No `jobsAudit/jobsHistoricalData`** (10.1.0-only, above) - absent on both
+  9.0.0 and 10.0.0 targets.
+- **No input-control expressions** - the 10.x Input Control descriptor and
+  structure document `readOnlyExpression` / `visibilityExpression` (10.0 ref
+  p.53 and p.163-166); both absent from the 9.0.0 reference. Controls authored
+  with these may not round-trip onto a 9.0.0 server.
+- **No documented dashboard web-page `domainWhitelist` attribute flow** - the
+  "Viewing Dashboard Web Page Domain Whitelist Attributes" GET is 10.x-only
+  (10.0 ref p.332); do not assume it (or Visualize.js CORS behavior keyed to
+  it) on 9.0.0.
+- **File uploads** - 10.x adds the note that over HTTPS, `font`/`img` file
+  uploads need an explicit MIME type (`font/ttf`, `image/png`) where HTTP
+  accepted `font/*`, `image/*` (10.0 ref p.81-82); not in the 9.0.0 doc.
+- Otherwise the 9.0.0 roster already covers everything the skill scripts use:
+  resources, reports, reportExecutions, inputControls, options, jobs, alerts
+  (+ both calendars services), permissions, export/import, keys, favorites,
+  queryExecutor, caches, organizations/users/roles, attributes - same paths and
+  shapes at the level this map documents (e.g. keys 9.0 p.125 = 10.0 p.128).
+  A newer export catalog can still be refused by an older import for
+  encryption-key or catalog-version reasons - an import-service runtime
+  concern, not an endpoint difference.
+- NOTE: the `contexts`, `thumbnails`, `settings`, and `diagnostic` services
+  verified live above appear in NONE of the three REST reference PDFs (they are
+  WADL-visible only) - their presence on a 9.0.0 target is unconfirmed; probe
+  before relying on them in promotion tooling.
+
+### Confirming any live target
+Do not trust the PDFs for a given server: `GET rest_v2/serverInfo` and read the
+`version` field ("9.0.0" / "10.0.0" / "10.1.0"), then fetch that server's own
+WADL (`rest_v2/application.wadl?detail=true`) and grep it for the endpoint in
+question (`jobsHistoricalData`, `licenseFeatures`, `contexts`, ...). The WADL
+is generated from the running code, so it is ground truth for that exact
+target; this section only predicts it. The serverInfo service itself is
+identical across 9.0.0-10.1.0 (9.0 ref p.18; 10.1 ref p.18).
