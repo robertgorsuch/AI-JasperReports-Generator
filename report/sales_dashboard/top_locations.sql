@@ -1,7 +1,6 @@
-SELECT 
-  store_location,
-  province_state,
+SELECT
+  store_name,
   transaction_count
-FROM dashboard_top_locations
+FROM dashboard_store_performance
 ORDER BY transaction_count DESC
 FETCH FIRST 15 ROWS ONLY

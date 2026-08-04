@@ -1,7 +1,7 @@
-SELECT 
-  customer_id,
-  payment_method,
-  usage_count
-FROM dashboard_customer_payment
-ORDER BY usage_count DESC
+SELECT
+  customer_number,
+  transaction_count,
+  total_revenue
+FROM dashboard_customer_revenue
+ORDER BY total_revenue DESC
 FETCH FIRST 25 ROWS ONLY

@@ -1,5 +1,5 @@
-SELECT 
-  payment_method,
+SELECT
+  transaction_type,
   transaction_count
-FROM dashboard_payment_methods
+FROM dashboard_transaction_types
 ORDER BY transaction_count DESC
