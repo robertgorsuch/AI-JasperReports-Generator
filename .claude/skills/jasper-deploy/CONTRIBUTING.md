@@ -107,7 +107,8 @@ JasperReports Server + PostgreSQL. Verify readiness:
 
 ## Opening a useful issue
 
-Search existing issues first, then include:
+Use the bug report template (`.github/ISSUE_TEMPLATE/bug_report.md`) — it
+prompts for everything below. Search existing issues first, then include:
 
 1. Exact command line (credentials redacted)
 2. Full error output — for deploy/fill failures include the SERVER RESPONSE
@@ -138,7 +139,9 @@ a documented fix. One issue per problem.
 - Feedback will reference the conventions above; "the linter passes but
   the convention is broken" is still a change request.
 - Small, well-described PRs merge fastest — by design.
-- Be respectful and constructive; disagreements are about code, not people.
+- All project spaces follow the
+  [Code of Conduct](../../../CODE_OF_CONDUCT.md) (Contributor Covenant);
+  disagreements are about code, not people.
 
 By contributing you agree your contributions are licensed under the terms
 in the repository's [LICENSE](../../../LICENSE).
