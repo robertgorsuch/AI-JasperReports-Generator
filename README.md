@@ -193,6 +193,23 @@ Demos and artifacts for BI pipeline automation using **Jaspersoft** and **Claude
 - No credentials are stored in this repo. Set `PGPASSWORD` in your environment before running scripts.
 - See `RUNBOOK.md` for full environment details, rebuild order, and exact commands.
 
+## Install as a Claude Code plugin
+
+The `jasper-deploy` skill is installable directly into Claude Code — no
+clone required:
+
+```
+/plugin marketplace add robertgorsuch/AI-JasperReports-Generator
+/plugin install jasper-deploy@jaspersoft-tools
+```
+
+Then configure credentials: copy the skill's `jrs.config.example.json` to
+`jrs.config.json` (kept out of git) or set `JRS_URL` / `JRS_USER` /
+`JRS_PASS`. Prerequisites: PowerShell 5.1 or `pwsh` 7+, JDK 11+, `psql`,
+`curl`, Python 3, and a local JasperReports 7.0.6 jar directory — run the
+skill's `scripts/doctor.ps1` to verify readiness. Updates ship via
+`/plugin update jasper-deploy`.
+
 ## Contributing
 
 Contributions welcome — start with the

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "jaspersoft-tools",
+  "description": "Jaspersoft automation for Claude Code: the jasper-deploy skill for designing, compiling, and deploying JasperReports Server artifacts, with a 4.7-10.1 version/upgrade reference library.",
+  "owner": {
+    "name": "Robert Gorsuch",
+    "url": "https://github.com/robertgorsuch"
+  },
+  "plugins": [
+    {
+      "name": "jasper-deploy",
+      "description": "Design, compile, and deploy JasperReports artifacts to JasperReports Server over REST v2: JR7 jrxml scaffolding from SQL, lint gate, dashboards via export-inject-import, datasources, Domains, OLAP, themes, scheduling, permissions, STAGE/PROD promotion, and doc-derived references covering JRS 4.7 through 10.1 including the upgrade/migration playbook. Requires PowerShell 5.1 or pwsh 7+, JDK 11+, psql, curl, Python 3, and a JasperReports 7.0.6 jar directory (see the skill's jrs.config.example.json).",
+      "author": {
+        "name": "Robert Gorsuch",
+        "url": "https://github.com/robertgorsuch"
+      },
+      "category": "development",
+      "source": "./",
+      "homepage": "https://github.com/robertgorsuch/AI-JasperReports-Generator"
+    }
+  ]
+}
