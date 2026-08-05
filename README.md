@@ -193,6 +193,17 @@ Demos and artifacts for BI pipeline automation using **Jaspersoft** and **Claude
 - No credentials are stored in this repo. Set `PGPASSWORD` in your environment before running scripts.
 - See `RUNBOOK.md` for full environment details, rebuild order, and exact commands.
 
+## Contributing
+
+Contributions welcome — start with the
+[contribution guidelines](.claude/skills/jasper-deploy/CONTRIBUTING.md)
+(conventions, testing gates, and per-change-type definition-of-done
+checklists). Pull requests are pre-filled with the
+[PR template](.github/PULL_REQUEST_TEMPLATE.md); issues use the
+[bug report](.github/ISSUE_TEMPLATE/bug_report.md) and
+[feature request](.github/ISSUE_TEMPLATE/feature_request.md) templates.
+All project spaces follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## License
 
 Licensed under the [Apache License, Version 2.0](LICENSE). Jaspersoft®, JasperReports®, and related marks are trademarks of Cloud Software Group, Inc.; this is an independent demo/reference project and is not endorsed by or affiliated with the trademark holders.
