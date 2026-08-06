@@ -80,6 +80,9 @@ java -cp "%CP%;report" FillReport report\tx_density_blockgroup_report_jr7.jasper
 
 ### 3 — Deploy reports and dashboards (jasper-deploy skill)
 
+> Not cloning the repo? The skill installs straight into Claude Code as a
+> plugin — see [Install as a Claude Code plugin](#install-as-a-claude-code-plugin).
+
 ```powershell
 $skill = ".\.claude\skills\jasper-deploy\scripts"
 $env:PGPASSWORD = "postgres"
@@ -196,19 +199,41 @@ Demos and artifacts for BI pipeline automation using **Jaspersoft** and **Claude
 ## Install as a Claude Code plugin
 
 The `jasper-deploy` skill is installable directly into Claude Code — no
-clone required:
+clone required. In any Claude Code session:
 
 ```
 /plugin marketplace add robertgorsuch/AI-JasperReports-Generator
 /plugin install jasper-deploy@jaspersoft-tools
+/reload-plugins
 ```
 
-Then configure credentials: copy the skill's `jrs.config.example.json` to
-`jrs.config.json` (kept out of git) or set `JRS_URL` / `JRS_USER` /
-`JRS_PASS`. Prerequisites: PowerShell 5.1 or `pwsh` 7+, JDK 11+, `psql`,
-`curl`, Python 3, and a local JasperReports 7.0.6 jar directory — run the
-skill's `scripts/doctor.ps1` to verify readiness. Updates ship via
-`/plugin update jasper-deploy`.
+**Verify:** the skill appears in your available skills as
+`jasper-deploy` (invokable with `/jasper-deploy`), and Claude picks it up
+automatically for JasperReports work — scaffolding jrxml from SQL,
+deploying reports/dashboards, datasources, Domains, promotion, and
+upgrade/migration planning questions.
+
+**Configure credentials** (never committed): in the installed skill's
+directory copy `jrs.config.example.json` to `jrs.config.json`, or set the
+`JRS_URL` / `JRS_USER` / `JRS_PASS` environment variables. A
+`passwordCommand` hook is available for secret managers.
+
+**Prerequisites:** PowerShell 5.1 or `pwsh` 7+ (Windows/macOS/Linux),
+JDK 11+, `psql` 14, `curl` 8.x, Python 3 (`sqlglot`, `pypdfium2`), and a
+local JasperReports 7.0.6 jar directory (`jrLibDir` in the config or
+`JR_LIB_DIR`). Run the skill's `scripts/doctor.ps1` to verify readiness
+against your JasperReports Server.
+
+**Manage:**
+
+```
+/plugin update jasper-deploy        # pull the latest published version
+/plugin uninstall jasper-deploy     # remove
+```
+
+Working on this repo directly? Skip the plugin — the project-level skill
+in `.claude/skills/jasper-deploy/` loads automatically (installing the
+plugin too would load it twice).
 
 ## Contributing
 
