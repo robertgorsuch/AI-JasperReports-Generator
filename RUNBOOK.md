@@ -360,11 +360,64 @@ These are in addition to the general gotchas in §3 and are also indexed by symp
 | `gotchas.md` | 60+ issues indexed by symptom → fix; JRS errors auto-print a pointer here |
 | `dashboard-model.md` | Dashboard JSON model internals |
 | `security-and-config.md` | Secrets management, env-only creds, `passwordCommand`, named environment profiles |
-| `visualize-embedding.md` | Visualize.js embedding patterns |
+| `visualize-embedding.md` | Visualize.js embedding patterns + full 10.1 API surface |
 | `ci-smoke.md` | CI integration for `smoke_test.ps1` |
 | `manifest.schema.json` | Dashboard manifest JSON schema |
 | `jrs.config.schema.json` | Server config JSON schema |
 | `environment.schema.json` | Reconcile environment manifest schema |
+| `jrs-rest-api.md` | Verified-vs-doc-only REST endpoint map + version deltas |
+| `version-matrix.md` | Deep 9.0 → 10.0 → 10.1 delta (features, platforms, upgrade paths) |
+| `upgrade-migration-playbook.md` | **Cross-version upgrade planning 4.7 → 10.1**: field-issue guiding input (sec 0), vendor EOL dates (sec 1b), upgrade ladder, platform cliffs, pain-point mitigations, pre-upgrade checklist |
+| `version-archive/` | Per-era source depth: platform-evolution, upgrade-procedures, relnotes-install-deltas (every claim cited to its vendor PDF) |
+| `authentication.md` | LDAP / CAS / token pre-auth / OAuth-OIDC setup |
+| `server-hardening.md` | Keystore, CSRF, SSL, lockout + REST 401/403 checklist |
+| `server-administration.md` | js-import/export, buildomatic, logging/audit, ehcache |
+| `olap.md` | Mondrian schema anatomy, AGXML grants, XML/A |
+| `domains-deep.md` | Domain internals: schema XML, DomEL, security files |
+| `aws-telemetry-vpat.md` | AWS deployment, telemetry opt-out, VPAT/WCAG |
+
+### Vendor documentation corpus (`docs\`, local-only)
+
+`docs\` holds ~220 official JasperReports Server PDFs spanning **4.7 through
+10.1.0** (upgrade/install guides, release notes, platform support, admin/user
+guides, wiki technical articles) plus the vendor EOL policy extraction and the
+field-reported upgrade-issues tracker. It is **gitignored and must stay that
+way** — the PDFs are Cloud Software Group copyrighted material and cannot be
+redistributed; only the distilled, cited summaries in `references/` are ours to
+publish. The community site 403s scripted fetches (Cloudflare); recover or
+extend the corpus via the Wayback CDX API
+(`web.archive.org/web/<ts>id_/<url>` replay). Read PDFs with `pdftotext` or
+`pypdf`.
+
+### Plugin distribution
+
+The repo doubles as a Claude Code plugin marketplace (`.claude-plugin/
+marketplace.json` + `plugin.json`, marketplace name `jaspersoft-tools`,
+plugin root = repo root, skills path `./.claude/skills/`). Consumers install
+without cloning:
+
+```
+/plugin marketplace add robertgorsuch/AI-JasperReports-Generator
+/plugin install jasper-deploy@jaspersoft-tools
+/reload-plugins
+```
+
+Maintenance: bump `version` in `.claude-plugin/plugin.json` when script
+interfaces change (semver contract in `CONTRIBUTING.md`); consumers pick up
+changes with `/plugin update jasper-deploy`. Validate manifests with
+`claude plugin validate .`. Do NOT install the plugin on a machine that works
+in this repo — the project-level skill already loads.
+
+### Contribution governance
+
+`CONTRIBUTING.md` (in the skill root) defines the conventions, per-change-type
+definition-of-done checklists, and the two test gates (offline:
+`check_docs.ps1` + Pester; live: `smoke_test.ps1`). GitHub templates enforce
+it: `.github/PULL_REQUEST_TEMPLATE.md` embeds the checklists;
+`.github/ISSUE_TEMPLATE/` has tailored bug/feature forms; `CODE_OF_CONDUCT.md`
+applies everywhere. Generated Office artifacts (`*.docx`/`*.pptx`) are
+gitignored — regenerate them from tracked md/html sources with
+`scripts/make_docx.ps1`; do not commit the binaries.
 
 ---
 

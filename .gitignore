@@ -63,6 +63,11 @@ backups/
 # Load / job logs (regenerated on each run)
 *.log
 
+# Generated Office artifacts (DOCX/PPTX renders of tracked md/html sources;
+# regenerate with make_docx.ps1 - binary blobs stay out of the public repo)
+*.docx
+*.pptx
+
 # Notes:
 #  - The JasperReports runtime jar dir (JR_LIB_DIR) and 7.0.6 source tree
 #    live outside this repo by design.

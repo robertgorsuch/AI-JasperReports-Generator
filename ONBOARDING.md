@@ -29,7 +29,9 @@ Built on PostgreSQL 14 + PostGIS 3.4. All 254 Texas counties are loaded via the 
 A 317-page block-group density report compiled from the same PostGIS database, plus chart, crosstab, drill-down, and dashboard samples under `report/`. (Leaflet map visualizations can also be generated locally into `maps/` — generated HTML is not tracked in the repo.)
 
 **3. A full JRS automation toolkit**
-The `jasper-deploy` Claude Code skill (45+ PowerShell/Python scripts) and a self-service web wizard (Jakarta servlet WAR) that together automate the entire JasperReports Server lifecycle — design, compile, lint, deploy, verify, dashboard composition, single- and multi-table Domains, live datasource connection tests, usage reporting, diagnostics, Visualize.js embedding, admin, governance, and STAGE→PROD promotion via named environment profiles.
+The `jasper-deploy` Claude Code skill (48 PowerShell/Python scripts) and a self-service web wizard (Jakarta servlet WAR) that together automate the entire JasperReports Server lifecycle — design, compile, lint, deploy, verify, dashboard composition, single- and multi-table Domains, live datasource connection tests, usage reporting, diagnostics, Visualize.js embedding, admin, governance, and STAGE→PROD promotion via named environment profiles. The skill also carries a doc-derived reference library covering **JasperReports Server 4.7 through 10.1** — version deltas, platform-support cliffs, vendor EOL dates, and a cross-version upgrade/migration playbook (`references/upgrade-migration-playbook.md`, start at its section 0).
+
+The skill is also installable into Claude Code as a **plugin** without cloning this repo — see "Install as a Claude Code plugin" in `README.md` (`/plugin marketplace add robertgorsuch/AI-JasperReports-Generator`, then `/plugin install jasper-deploy@jaspersoft-tools`). If you work in this repo directly, do NOT install the plugin: the project-level skill already loads, and both would load twice.
 
 ---
 
@@ -72,6 +74,8 @@ Auth: superuser / superuser  (HTTP Basic)
 | `.claude/skills/jasper-deploy/` | The automation skill — read `SKILL.md` first, then `references/` for detail |
 | `webapp/jasper-wizard/` | Self-service web wizard — see its `README.md` |
 | `maps/`, `backups/` | Generated artifacts (Leaflet HTML, JRS export zips) — local-only, not tracked |
+| `docs/` | Vendor PDF corpus (220 JRS docs, 4.7→10.1) — **machine-local, gitignored** (not redistributable); the distilled summaries live in the skill's `references/` |
+| `.claude-plugin/` | Plugin + marketplace manifests that make the skill installable via `/plugin install` |
 | `RUNBOOK.md` | **Full reference** — read this before running anything in production |
 
 ### Jaspersoft editions covered
@@ -239,8 +243,11 @@ When a deploy `400`s with an opaque error, check `references/gotchas.md` (indexe
 |---|---|
 | Full operational reference | `RUNBOOK.md` |
 | Skill index and happy path | `.claude/skills/jasper-deploy/SKILL.md` |
+| Contribution guidelines (conventions, definition-of-done) | `.claude/skills/jasper-deploy/CONTRIBUTING.md` |
 | Symptom → fix index (50+ issues) | `.claude/skills/jasper-deploy/references/gotchas.md` |
 | Valid JR7 element names | `.claude/skills/jasper-deploy/references/jr7-valid-elements.md` |
+| Upgrade/migration planning (any version → 10.1) | `.claude/skills/jasper-deploy/references/upgrade-migration-playbook.md` |
+| Version deltas 9.0 → 10.1 in depth | `.claude/skills/jasper-deploy/references/version-matrix.md` |
 | Web wizard reference | `webapp/jasper-wizard/README.md` |
 | Official Jaspersoft docs | https://community.jaspersoft.com/documentation |
 | Jaspersoft community forum | https://community.jaspersoft.com |
