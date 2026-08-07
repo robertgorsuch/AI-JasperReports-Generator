@@ -1,5 +1,9 @@
 # AI-JasperReports-Generator
 
+[![CI](https://github.com/robertgorsuch/AI-JasperReports-Generator/actions/workflows/ci.yml/badge.svg)](https://github.com/robertgorsuch/AI-JasperReports-Generator/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/robertgorsuch/AI-JasperReports-Generator)](https://github.com/robertgorsuch/AI-JasperReports-Generator/releases)
+[![License](https://img.shields.io/github/license/robertgorsuch/AI-JasperReports-Generator)](LICENSE)
+
 > **BI pipeline automation using Jaspersoft and Claude Code** — a self-contained toolkit that geocodes Texas addresses, visualizes 2020 census population data, and automates the full JasperReports Server lifecycle through a Claude Code skill and a self-service web wizard.
 
 Built and maintained by the Actian (HCLSoftware) SE team as a working reference for customers evaluating **Jaspersoft** embedded analytics and report automation.
@@ -25,7 +29,7 @@ This is a **working demo environment**, not a starter template. Every script, sk
 |---|---|
 | `scripts/` | TIGER data loaders that build the PostGIS sample DB the demo reports query — `load_tiger_nation.bat`, `load_remaining.ps1`, etc. All use `curl` + `7z t` integrity checks with retry. |
 | `report/` | JasperReports templates (`*_jr7.jrxml` native JR7 + 6.x version), JDBC data adapter, compile/fill harnesses. `report/foodmart/` holds deployable KPI reports + `dashboard.json` manifest. |
-| `plugins/jasper-deploy/skills/jasper-deploy/` | The **jasper-deploy skill** — 45+ PowerShell/Python scripts covering the full JRS lifecycle. `SKILL.md` is the lean index; detail lives in `references/`. |
+| `plugins/jasper-deploy/` | The **jasper-deploy Claude Code plugin** — the skill (49 PowerShell/Python scripts covering the full JRS lifecycle; `SKILL.md` is the lean index, detail lives in `references/`), four slash commands, and the plugin [CHANGELOG](plugins/jasper-deploy/CHANGELOG.md). |
 | `webapp/jasper-wizard/` | Self-service browser UI over the skill. Business users create, run, and deliver Jaspersoft artifacts with no JRXML or REST knowledge. |
 | `postman_collections/` | REST v2 Postman collections for manual API exploration. |
 | `output/`, `maps/`, `backups/` | Generated artifacts (PDF / GeoJSON / CSV / Leaflet HTML / JRS export zips) — not tracked; regenerate from the DB and the skill's export scripts. |
@@ -184,7 +188,12 @@ Full details in `RUNBOOK.md` §3 and `plugins/jasper-deploy/skills/jasper-deploy
 | JasperReports Library (open source) | https://github.com/Jaspersoft/jasperreports |
 | Jaspersoft Studio download | https://community.jaspersoft.com/download |
 | REST API reference | `{jrs-host}/jasperserver-pro/rest_v2/api` (live Swagger on your server) |
-| Actian Jaspersoft product page | https://www.actian.com/analytic-database/jaspersoft-reporting-analytics/ |
+| Actian Jaspersoft page | https://www.actian.com/jaspersoft/ |
+
+> Note: `jaspersoft.com` / `community.jaspersoft.com` sit behind Cloudflare and
+> block scripted access (HTTP 403 to curl and link checkers) — open them in a
+> browser. The skill's `references/` carry doc-derived offline equivalents for
+> most of what the documentation site covers.
 
 ---
 
@@ -192,7 +201,7 @@ Full details in `RUNBOOK.md` §3 and `plugins/jasper-deploy/skills/jasper-deploy
 
 Demos and artifacts for BI pipeline automation using **Jaspersoft** and **Claude Code Desktop**, built by the Actian SE team.
 
-- Topics: `jaspersoft` `claude-code` `claude-skills` `postgis` `jasperreports`
+- Topics: `jaspersoft` `jasperreports` `claude-code` `claude-skills` `claude-code-plugin` `postgis` `business-intelligence`
 - No credentials are stored in this repo. Set `PGPASSWORD` in your environment before running scripts.
 - See `RUNBOOK.md` for full environment details, rebuild order, and exact commands.
 
@@ -207,11 +216,21 @@ clone required. In any Claude Code session:
 /reload-plugins
 ```
 
-**Verify:** the skill appears in your available skills as
-`jasper-deploy` (invokable with `/jasper-deploy`), and Claude picks it up
-automatically for JasperReports work — scaffolding jrxml from SQL,
-deploying reports/dashboards, datasources, Domains, promotion, and
-upgrade/migration planning questions.
+**Slash commands** (since [1.1.0](plugins/jasper-deploy/CHANGELOG.md)):
+
+| Command | What it does |
+|---|---|
+| `/jasper-deploy:doctor` | Preflight the toolchain + server connectivity — **run this first** |
+| `/jasper-deploy:deploy` | Scaffold/compile/deploy a report from SQL or a `.jrxml`, then verify it renders |
+| `/jasper-deploy:promote` | Promote a resource between environments (STAGE → PROD) with a target backup |
+| `/jasper-deploy:smoke` | Full 24-step lifecycle regression test |
+
+**Verify:** the four commands above appear in your command list, and Claude
+picks the skill up automatically for JasperReports work — scaffolding jrxml
+from SQL, deploying reports/dashboards, datasources, Domains, promotion, and
+upgrade/migration planning questions. Release history:
+[CHANGELOG](plugins/jasper-deploy/CHANGELOG.md) ·
+[GitHub releases](https://github.com/robertgorsuch/AI-JasperReports-Generator/releases).
 
 **Configure credentials** (never committed): in the installed skill's
 directory copy `jrs.config.example.json` to `jrs.config.json`, or set the

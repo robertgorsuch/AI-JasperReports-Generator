@@ -2,6 +2,12 @@
 
 Welcome to `AI-JasperReports-Generator` — a working reference for **BI pipeline automation using Jaspersoft and Claude Code**, built by the Actian SE team.
 
+> **Note:** this guide and `RUNBOOK.md` document the *reference environment*
+> (a specific Windows machine with local PostGIS + JRS 10 Pro). If you only
+> want the portable `jasper-deploy` skill, skip the clone entirely — install
+> it as a [Claude Code plugin](README.md#install-as-a-claude-code-plugin) and
+> run `/jasper-deploy:doctor` to adapt it to your own environment.
+
 This guide gets you oriented in about 10 minutes. For full operational detail, see `RUNBOOK.md`.
 
 ---
