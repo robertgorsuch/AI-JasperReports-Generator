@@ -8,11 +8,11 @@ assignees: ''
 ---
 
 **Before filing:** check the capability map in
-`.claude/skills/jasper-deploy/SKILL.md` — most "new" needs already have a
+`plugins/jasper-deploy/skills/jasper-deploy/SKILL.md` — most "new" needs already have a
 script or a reference (48 scripts, 25+ references). If a script almost does
 what you need, name it below instead of proposing a new one. For anything
 larger than a small option, file this issue BEFORE building — see
-`.claude/skills/jasper-deploy/CONTRIBUTING.md` ("Before you start").
+`plugins/jasper-deploy/skills/jasper-deploy/CONTRIBUTING.md` ("Before you start").
 
 **Problem / use case**
 What are you trying to accomplish, and what makes it hard or impossible

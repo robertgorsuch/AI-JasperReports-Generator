@@ -1,0 +1,23 @@
+{
+  "serverUrl": "http://localhost:8081/jasperserver-pro",
+  "user": "superuser",
+  "password": "CHANGE_ME",
+  "dataSourceUri": "/datasources/postgis_34_sample",
+  "jrLibDir": "/absolute/path/to/jasperreports-lib",
+  "environments": {
+    "stage": {
+      "serverUrl": "http://localhost:8081/jasperserver-pro"
+    },
+    "prod": {
+      "serverUrl": "http://prod-host:8080/jasperserver-pro",
+      "user": "superuser",
+      "passwordCommand": "(Get-StoredCredential -Target jrs-prod).GetNetworkCredential().Password"
+    }
+  },
+  "repoDb": {
+    "host": "localhost",
+    "port": 5433,
+    "database": "jasperserver",
+    "user": "postgres"
+  }
+}

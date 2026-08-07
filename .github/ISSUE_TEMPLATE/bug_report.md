@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 **Before filing:** search existing issues and check
-`.claude/skills/jasper-deploy/references/gotchas.md` — it is indexed by
+`plugins/jasper-deploy/skills/jasper-deploy/references/gotchas.md` — it is indexed by
 symptom and your error may already have a documented fix. One issue per
 problem. **Redact all credentials, real hostnames/IPs, and org names.**
 
@@ -39,7 +39,7 @@ A clear description of what you expected to happen.
 
 **Artifacts**
 The offending `.jrxml` / `.jrtx` / manifest if shareable, or a minimal
-reproduction built from `.claude/skills/jasper-deploy/fixtures/` or
+reproduction built from `plugins/jasper-deploy/skills/jasper-deploy/fixtures/` or
 `report/samples/`.
 
 **Additional context**

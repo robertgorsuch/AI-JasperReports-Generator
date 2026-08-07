@@ -71,7 +71,7 @@ Auth: superuser / superuser  (HTTP Basic)
 |---|---|
 | `scripts/` | TIGER data loaders (idempotent, verified with `7z t`) |
 | `report/` | JasperReports templates, compile/fill harnesses, Foodmart KPI reports |
-| `.claude/skills/jasper-deploy/` | The automation skill — read `SKILL.md` first, then `references/` for detail |
+| `plugins/jasper-deploy/skills/jasper-deploy/` | The automation skill — read `SKILL.md` first, then `references/` for detail |
 | `webapp/jasper-wizard/` | Self-service web wizard — see its `README.md` |
 | `maps/`, `backups/` | Generated artifacts (Leaflet HTML, JRS export zips) — local-only, not tracked |
 | `docs/` | Vendor PDF corpus (220 JRS docs, 4.7→10.1) — **machine-local, gitignored** (not redistributable); the distilled summaries live in the skill's `references/` |
@@ -103,7 +103,7 @@ Before you can run anything, confirm these are installed and configured:
 Run the environment preflight before your first deploy:
 
 ```powershell
-.\.claude\skills\jasper-deploy\scripts\doctor.ps1
+.\plugins\jasper-deploy\skills\jasper-deploy\scripts\doctor.ps1
 ```
 
 This 10-point preflight checks server reachability, both databases (reporting + repo metadata on :5433), JRS→DB connectivity via the `/contexts` service, server settings (including the Visualize.js `domainWhitelist`), jar availability, config validity, and Python deps, and prints a PASS/WARN/FAIL checklist.
@@ -142,7 +142,7 @@ See RUNBOOK §5 for the full build sequence. High-level:
 ### Deploy reports and build a dashboard
 
 ```powershell
-$skill = ".\.claude\skills\jasper-deploy\scripts"
+$skill = ".\plugins\jasper-deploy\skills\jasper-deploy\scripts"
 $env:PGPASSWORD = "postgres"
 
 # Run environment preflight
@@ -170,7 +170,7 @@ Then open `http://localhost:8081/jasper-wizard/`. Business users can create repo
 ### Lint a JRXML before deploying
 
 ```powershell
-.\.claude\skills\jasper-deploy\scripts\lint_jrxml.ps1 -Path report\my_report.jrxml
+.\plugins\jasper-deploy\skills\jasper-deploy\scripts\lint_jrxml.ps1 -Path report\my_report.jrxml
 ```
 
 Catches strict-Jackson violations that a clean local compile misses. This runs automatically inside `deploy_report.ps1` — skip it only if you know what you're doing (`-SkipLint`).
@@ -178,7 +178,7 @@ Catches strict-Jackson violations that a clean local compile misses. This runs a
 ### Extract lineage from deployed reports
 
 ```powershell
-python .\.claude\skills\jasper-deploy\scripts\extract_lineage.py --folder /public/Samples
+python .\plugins\jasper-deploy\skills\jasper-deploy\scripts\extract_lineage.py --folder /public/Samples
 ```
 
 Emits a metadata + column-level lineage graph (reports → datasources → tables → columns). Add `--format openlineage` for OpenLineage-compatible output.
@@ -186,7 +186,7 @@ Emits a metadata + column-level lineage graph (reports → datasources → table
 ### Detect drift between local source and live JRS
 
 ```powershell
-.\.claude\skills\jasper-deploy\scripts\diff_resource.ps1 -Uri /public/Reports/MyReport -Against report\MyReport.json
+.\plugins\jasper-deploy\skills\jasper-deploy\scripts\diff_resource.ps1 -Uri /public/Reports/MyReport -Against report\MyReport.json
 ```
 
 Exits nonzero if the live resource differs from the committed local descriptor.
@@ -195,18 +195,18 @@ Exits nonzero if the live resource differs from the committed local descriptor.
 
 ```powershell
 # Preview what would change (plan-only, default)
-.\.claude\skills\jasper-deploy\scripts\reconcile.ps1 -Manifest env.json
+.\plugins\jasper-deploy\skills\jasper-deploy\scripts\reconcile.ps1 -Manifest env.json
 
 # Apply the changes
-.\.claude\skills\jasper-deploy\scripts\reconcile.ps1 -Manifest env.json -Apply
+.\plugins\jasper-deploy\skills\jasper-deploy\scripts\reconcile.ps1 -Manifest env.json -Apply
 ```
 
 ### See who's actually using what
 
 ```powershell
 $env:PGPASSWORD = "postgres"
-.\.claude\skills\jasper-deploy\scripts\report_usage.ps1                       # top resources, 30 days
-.\.claude\skills\jasper-deploy\scripts\report_usage.ps1 -Action users -Days 7
+.\plugins\jasper-deploy\skills\jasper-deploy\scripts\report_usage.ps1                       # top resources, 30 days
+.\plugins\jasper-deploy\skills\jasper-deploy\scripts\report_usage.ps1 -Action users -Days 7
 ```
 
 Reads the repository metadata DB's access events (live DB is on **:5433**).
@@ -215,7 +215,7 @@ Reads the repository metadata DB's access events (live DB is on **:5433**).
 
 ```powershell
 # Profiles are defined once under "environments" in jrs.config.json
-.\.claude\skills\jasper-deploy\scripts\promote.ps1 -Uri /reports/geocoder/sales_dashboard -FromEnv stage -ToEnv prod
+.\plugins\jasper-deploy\skills\jasper-deploy\scripts\promote.ps1 -Uri /reports/geocoder/sales_dashboard -FromEnv stage -ToEnv prod
 ```
 
 ---
@@ -242,12 +242,12 @@ When a deploy `400`s with an opaque error, check `references/gotchas.md` (indexe
 | Resource | Location |
 |---|---|
 | Full operational reference | `RUNBOOK.md` |
-| Skill index and happy path | `.claude/skills/jasper-deploy/SKILL.md` |
-| Contribution guidelines (conventions, definition-of-done) | `.claude/skills/jasper-deploy/CONTRIBUTING.md` |
-| Symptom → fix index (50+ issues) | `.claude/skills/jasper-deploy/references/gotchas.md` |
-| Valid JR7 element names | `.claude/skills/jasper-deploy/references/jr7-valid-elements.md` |
-| Upgrade/migration planning (any version → 10.1) | `.claude/skills/jasper-deploy/references/upgrade-migration-playbook.md` |
-| Version deltas 9.0 → 10.1 in depth | `.claude/skills/jasper-deploy/references/version-matrix.md` |
+| Skill index and happy path | `plugins/jasper-deploy/skills/jasper-deploy/SKILL.md` |
+| Contribution guidelines (conventions, definition-of-done) | `plugins/jasper-deploy/skills/jasper-deploy/CONTRIBUTING.md` |
+| Symptom → fix index (50+ issues) | `plugins/jasper-deploy/skills/jasper-deploy/references/gotchas.md` |
+| Valid JR7 element names | `plugins/jasper-deploy/skills/jasper-deploy/references/jr7-valid-elements.md` |
+| Upgrade/migration planning (any version → 10.1) | `plugins/jasper-deploy/skills/jasper-deploy/references/upgrade-migration-playbook.md` |
+| Version deltas 9.0 → 10.1 in depth | `plugins/jasper-deploy/skills/jasper-deploy/references/version-matrix.md` |
 | Web wizard reference | `webapp/jasper-wizard/README.md` |
 | Official Jaspersoft docs | https://community.jaspersoft.com/documentation |
 | Jaspersoft community forum | https://community.jaspersoft.com |

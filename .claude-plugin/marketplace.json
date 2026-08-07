@@ -15,7 +15,7 @@
         "url": "https://github.com/robertgorsuch"
       },
       "category": "development",
-      "source": "./",
+      "source": "./plugins/jasper-deploy",
       "homepage": "https://github.com/robertgorsuch/AI-JasperReports-Generator"
     }
   ]

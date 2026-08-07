@@ -56,7 +56,7 @@ sub = doc.add_paragraph("Capabilities Summary — a Claude Code skill for design
 sub.runs[0].italic = True
 sub.runs[0].font.color.rgb = GREY
 meta = doc.add_paragraph("Generated 2026-06-01  ·  repo: AI-JasperReports-Generator  "
-                         "·  location: .claude/skills/jasper-deploy/")
+                         "·  location: plugins/jasper-deploy/skills/jasper-deploy/")
 meta.runs[0].font.size = Pt(8.5)
 meta.runs[0].font.color.rgb = GREY
 

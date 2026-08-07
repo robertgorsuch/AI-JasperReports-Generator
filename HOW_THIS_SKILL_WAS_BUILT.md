@@ -1,6 +1,6 @@
 # How the jasper-deploy Skill Was Built
 
-*The engineering story behind `.claude/skills/jasper-deploy/` - a Claude Code skill that
+*The engineering story behind `plugins/jasper-deploy/skills/jasper-deploy/` - a Claude Code skill that
 automates the full JasperReports Server 10 lifecycle. Written for anyone who wants to
 understand the skill's design, reproduce the approach for another product, or evaluate
 what "agent-built automation" looks like when it is held to production standards.*
@@ -59,7 +59,7 @@ Five rules held from the first commit to the latest:
 ## 3. Architecture
 
 ```
-.claude/skills/jasper-deploy/
+plugins/jasper-deploy/skills/jasper-deploy/
 +-- SKILL.md                  # lean capability index (task -> script -> reference)
 +-- jrs.config.example.json   # credential/config template (real config is gitignored)
 +-- scripts/                  # 44 PowerShell + Python tools

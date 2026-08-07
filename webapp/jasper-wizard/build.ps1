@@ -55,7 +55,7 @@ Copy-Item (Join-Path $webDir "*") $build -Recurse -Force
 # jrs.config.json so the deployed wizard always matches the local server creds
 # -- otherwise its JRS proxy calls 401 after a password change (the smoke
 # test's wizard-api step catches exactly that drift).
-$jrsCfgPath = Join-Path $root "..\..\.claude\skills\jasper-deploy\jrs.config.json"
+$jrsCfgPath = Join-Path $root "..\..\plugins\jasper-deploy\skills\jasper-deploy\jrs.config.json"
 if (Test-Path $jrsCfgPath) {
     $jrsCfg = Get-Content $jrsCfgPath -Raw | ConvertFrom-Json
     $webXml = Join-Path $build "WEB-INF\web.xml"
@@ -73,7 +73,7 @@ if (Test-Path $jrsCfgPath) {
 # bundle the verified jasper-deploy scripts INSIDE the WAR (WEB-INF/scripts) so
 # the Tomcat service account (LocalService) can read+execute them from its own
 # webapps dir -- no access to the user profile/repo is needed at runtime.
-$repoScripts = Resolve-Path (Join-Path $root "..\..\.claude\skills\jasper-deploy\scripts")
+$repoScripts = Resolve-Path (Join-Path $root "..\..\plugins\jasper-deploy\skills\jasper-deploy\scripts")
 $bundle = Join-Path $build "WEB-INF\scripts"
 New-Item -ItemType Directory -Path $bundle -Force | Out-Null
 Copy-Item (Join-Path $repoScripts "*") $bundle -Recurse -Force

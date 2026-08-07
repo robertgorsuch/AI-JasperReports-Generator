@@ -10,7 +10,7 @@
 #>
 
 param(
-    [string]$SkillPath = ".\.claude\skills\jasper-deploy\scripts",
+    [string]$SkillPath = ".\plugins\jasper-deploy\skills\jasper-deploy\scripts",
     [string]$ManifestPath = "report\pos\dashboard.json",
     [string]$DashboardUri = "/reports/pos/pos_comprehensive_dashboard",
     [string]$WorkDir = "out\pos_dashboard_build"

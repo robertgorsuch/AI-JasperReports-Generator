@@ -72,3 +72,6 @@ backups/
 #  - The JasperReports runtime jar dir (JR_LIB_DIR) and 7.0.6 source tree
 #    live outside this repo by design.
 #  - TIGER staging data lives in C:\gisdata (not tracked).
+
+# Runtime lock artifacts
+.in_use/

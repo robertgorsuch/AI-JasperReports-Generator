@@ -4,7 +4,7 @@
 Renders a URL in headless Chrome and waits for the page's #status div to report
 "RENDERED OK" / "ERROR" before screenshotting -- used to verify the JRS
 Visualize.js cross-origin embedding recipe (serve the embed page outside the
-webapp; see .claude/skills/jasper-deploy/references/jrs-rest-api.md) actually
+webapp; see plugins/jasper-deploy/skills/jasper-deploy/references/jrs-rest-api.md) actually
 renders, not just loads.
 
 Usage:

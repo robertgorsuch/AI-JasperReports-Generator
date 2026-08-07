@@ -17,25 +17,37 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # DISABLED 2026-07-30: jasper-deploy offline checks (check_docs.ps1 + Pester).
-  # The same gate runs locally as the first phase of scripts/smoke_test.ps1, so
-  # every commit already passes it before push. Re-enable by uncommenting.
-  # skill-checks:
-  #   name: jasper-deploy offline checks
-  #   runs-on: windows-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Doc/link consistency (check_docs.ps1)
-  #       shell: powershell
-  #       run: |
-  #         & .\.claude\skills\jasper-deploy\scripts\check_docs.ps1
-  #         if ($LASTEXITCODE) { throw "skill docs are stale (broken link / missing script / stale count)" }
-  #     - name: Pester unit tests
-  #       shell: powershell
-  #       run: |
-  #         $tests = ".\.claude\skills\jasper-deploy\tests"
-  #         if (Test-Path $tests) {
-  #           Invoke-Pester -Path $tests -EnableExit
-  #         } else {
-  #           Write-Host "no tests directory - skipping"
-  #         }
+  # Offline skill checks on both OSes: doc/link consistency + Pester unit tests.
+  # The ubuntu leg runs under pwsh and is what backs the cross-platform claim
+  # in SKILL.md - if a script regresses to Windows-only syntax, this leg fails.
+  skill-checks:
+    name: jasper-deploy offline checks (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Doc/link consistency (check_docs.ps1)
+        shell: pwsh
+        run: |
+          & ./plugins/jasper-deploy/skills/jasper-deploy/scripts/check_docs.ps1
+          if ($LASTEXITCODE) { throw "skill docs are stale (broken link / missing script / stale count)" }
+      - name: Pester unit tests
+        shell: pwsh
+        run: |
+          $tests = "./plugins/jasper-deploy/skills/jasper-deploy/tests"
+          if (Test-Path $tests) {
+            Invoke-Pester -Path $tests -EnableExit
+          } else {
+            Write-Host "no tests directory - skipping"
+          }
+      - name: Plugin manifest sanity
+        shell: pwsh
+        run: |
+          $mp = Get-Content ./.claude-plugin/marketplace.json -Raw | ConvertFrom-Json
+          $pl = Get-Content ./plugins/jasper-deploy/.claude-plugin/plugin.json -Raw | ConvertFrom-Json
+          if ($mp.plugins[0].source -ne "./plugins/jasper-deploy") { throw "marketplace source drifted: $($mp.plugins[0].source)" }
+          if (-not (Test-Path "./plugins/jasper-deploy/skills/jasper-deploy/SKILL.md")) { throw "SKILL.md missing from plugin payload" }
+          Write-Host "plugin $($pl.name) v$($pl.version) manifest OK"

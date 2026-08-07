@@ -20,7 +20,7 @@
     <param-name>jrsPass</param-name>
     <param-value>superuser</param-value>
   </context-param>
-  <!-- Repo checkout that holds .claude/skills/jasper-deploy/scripts. Only used
+  <!-- Repo checkout that holds plugins/jasper-deploy/skills/jasper-deploy/scripts. Only used
        as a fallback when the WAR-bundled WEB-INF/scripts is absent. Leave empty
        to fall back to the JASPER_WIZARD_REPO_ROOT env var, then the working dir. -->
   <context-param>

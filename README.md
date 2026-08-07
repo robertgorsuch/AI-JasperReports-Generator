@@ -25,7 +25,7 @@ This is a **working demo environment**, not a starter template. Every script, sk
 |---|---|
 | `scripts/` | TIGER data loaders that build the PostGIS sample DB the demo reports query — `load_tiger_nation.bat`, `load_remaining.ps1`, etc. All use `curl` + `7z t` integrity checks with retry. |
 | `report/` | JasperReports templates (`*_jr7.jrxml` native JR7 + 6.x version), JDBC data adapter, compile/fill harnesses. `report/foodmart/` holds deployable KPI reports + `dashboard.json` manifest. |
-| `.claude/skills/jasper-deploy/` | The **jasper-deploy skill** — 45+ PowerShell/Python scripts covering the full JRS lifecycle. `SKILL.md` is the lean index; detail lives in `references/`. |
+| `plugins/jasper-deploy/skills/jasper-deploy/` | The **jasper-deploy skill** — 45+ PowerShell/Python scripts covering the full JRS lifecycle. `SKILL.md` is the lean index; detail lives in `references/`. |
 | `webapp/jasper-wizard/` | Self-service browser UI over the skill. Business users create, run, and deliver Jaspersoft artifacts with no JRXML or REST knowledge. |
 | `postman_collections/` | REST v2 Postman collections for manual API exploration. |
 | `output/`, `maps/`, `backups/` | Generated artifacts (PDF / GeoJSON / CSV / Leaflet HTML / JRS export zips) — not tracked; regenerate from the DB and the skill's export scripts. |
@@ -84,7 +84,7 @@ java -cp "%CP%;report" FillReport report\tx_density_blockgroup_report_jr7.jasper
 > plugin — see [Install as a Claude Code plugin](#install-as-a-claude-code-plugin).
 
 ```powershell
-$skill = ".\.claude\skills\jasper-deploy\scripts"
+$skill = ".\plugins\jasper-deploy\skills\jasper-deploy\scripts"
 $env:PGPASSWORD = "postgres"
 
 # Build all Foodmart KPI dashlets and compose the dashboard
@@ -107,7 +107,7 @@ Access at `http://localhost:8081/jasper-wizard/`.
 
 ## The `jasper-deploy` skill
 
-`.claude/skills/jasper-deploy/` automates the full JasperReports Server lifecycle against JRS 10 Pro over REST v2. All scripts are JR 7.0.6-native and verified end-to-end. Highlights:
+`plugins/jasper-deploy/skills/jasper-deploy/` automates the full JasperReports Server lifecycle against JRS 10 Pro over REST v2. All scripts are JR 7.0.6-native and verified end-to-end. Highlights:
 
 **Design & compile**
 - `scaffold_jrxml.py` — introspect a SQL query, emit a JR7 tabular report with optional charts, parameters, grouping, conditional formatting, drill-down, crosstab, and subreport support
@@ -145,7 +145,7 @@ Access at `http://localhost:8081/jasper-wizard/`.
 - `scaffold_visualize_embed.py` — generate a ready-to-open Visualize.js embed page for a deployed report or dashboard (credential placeholder by default)
 - `get_thumbnail.ps1` — fetch a report's server-side thumbnail image, the cheapest visual sanity check
 
-Full reference: `.claude/skills/jasper-deploy/SKILL.md` and `RUNBOOK.md` §9.
+Full reference: `plugins/jasper-deploy/skills/jasper-deploy/SKILL.md` and `RUNBOOK.md` §9.
 
 ---
 
@@ -163,7 +163,7 @@ A Jakarta servlet WAR (Actian-branded) that puts the `jasper-deploy` skill behin
 
 ## Key gotchas
 
-Full details in `RUNBOOK.md` §3 and `.claude/skills/jasper-deploy/references/gotchas.md`. Top issues:
+Full details in `RUNBOOK.md` §3 and `plugins/jasper-deploy/skills/jasper-deploy/references/gotchas.md`. Top issues:
 
 1. **Use `curl.exe`, not `wget`** — wget's installer source is unreachable in this environment.
 2. **Always verify downloads with `7z t` + retry** — the Census CDN silently returns corrupt ZIPs (HTTP 200).
@@ -232,13 +232,13 @@ against your JasperReports Server.
 ```
 
 Working on this repo directly? Skip the plugin — the project-level skill
-in `.claude/skills/jasper-deploy/` loads automatically (installing the
+in `plugins/jasper-deploy/skills/jasper-deploy/` loads automatically (installing the
 plugin too would load it twice).
 
 ## Contributing
 
 Contributions welcome — start with the
-[contribution guidelines](.claude/skills/jasper-deploy/CONTRIBUTING.md)
+[contribution guidelines](plugins/jasper-deploy/skills/jasper-deploy/CONTRIBUTING.md)
 (conventions, testing gates, and per-change-type definition-of-done
 checklists). Pull requests are pre-filled with the
 [PR template](.github/PULL_REQUEST_TEMPLATE.md); issues use the

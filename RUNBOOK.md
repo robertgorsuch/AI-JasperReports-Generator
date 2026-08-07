@@ -45,7 +45,7 @@ Cumulative operational knowledge from building a statewide Texas address geocode
 
 **JasperReports** (in `report\`): a block-group density report in both 6.x and native JR 7 format, compiled (`.jasper`) and rendered (`output\tx_density_blockgroup_report.pdf`, 317 pages).
 
-**jasper-deploy skill** (`.claude\skills\jasper-deploy\`): 45+ scripts automating the full JRS 10 lifecycle (reports, dashboards, data sources with live connection tests, single- and multi-table domains, themes, admin, environment promotion, usage reporting, diagnostics, lineage, embedding, smoke testing).
+**jasper-deploy skill** (`plugins\jasper-deploy\skills\jasper-deploy\`): 45+ scripts automating the full JRS 10 lifecycle (reports, dashboards, data sources with live connection tests, single- and multi-table domains, themes, admin, environment promotion, usage reporting, diagnostics, lineage, embedding, smoke testing).
 
 **Web wizard** (`webapp\jasper-wizard\`): Jakarta servlet WAR — a browser UI over the skill for business users.
 
@@ -261,7 +261,7 @@ SELECT SUM(pop) FROM tiger_data.tx_tabblock20;  -- 29,145,505
 
 ## 9. jasper-deploy skill
 
-`.claude/skills/jasper-deploy/` scripts the full JasperReports lifecycle against JRS 10 Pro at `http://localhost:8081/jasperserver-pro` over REST v2. All scripts are JR 7.0.6-native and verified end-to-end.
+`plugins/jasper-deploy/skills/jasper-deploy/` scripts the full JasperReports lifecycle against JRS 10 Pro at `http://localhost:8081/jasperserver-pro` over REST v2. All scripts are JR 7.0.6-native and verified end-to-end.
 
 ### Configuration
 
@@ -315,7 +315,7 @@ JR 7.0.6 runtime jars resolve via: `-LibDir` parameter → `$env:JR_LIB_DIR` →
 ### Quick start
 
 ```powershell
-$skill = ".\.claude\skills\jasper-deploy\scripts"
+$skill = ".\plugins\jasper-deploy\skills\jasper-deploy\scripts"
 $env:PGPASSWORD = "postgres"
 
 # Preflight check

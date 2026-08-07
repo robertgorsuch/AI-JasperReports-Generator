@@ -1,7 +1,7 @@
 <!--
 One focused change per PR. Commit style: "component: summary" first line.
 Redact all credentials, real hostnames/IPs, and org names from descriptions
-and logs. Full guidelines: .claude/skills/jasper-deploy/CONTRIBUTING.md
+and logs. Full guidelines: plugins/jasper-deploy/skills/jasper-deploy/CONTRIBUTING.md
 -->
 
 ## What and why
