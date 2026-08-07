@@ -78,3 +78,6 @@ backups/
 
 # Local Claude Code project config (settings, skill junction/copy) - never ship
 .claude/
+
+# Release archives built locally (attached to GitHub releases, not tracked)
+*.zip
