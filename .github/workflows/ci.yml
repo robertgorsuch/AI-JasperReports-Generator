@@ -37,6 +37,11 @@ jobs:
       - name: Pester unit tests
         shell: pwsh
         run: |
+          # Tests use legacy Pester 3.x `Should Be` syntax (local dev machines run
+          # the Windows-bundled 3.4.0). Runners preinstall Pester 5, which dropped
+          # that syntax - pin Pester 4, which accepts it and runs on pwsh/Linux.
+          Install-Module Pester -RequiredVersion 4.10.1 -Force -Scope CurrentUser -SkipPublisherCheck
+          Import-Module Pester -RequiredVersion 4.10.1
           $tests = "./plugins/jasper-deploy/skills/jasper-deploy/tests"
           if (Test-Path $tests) {
             Invoke-Pester -Path $tests -EnableExit

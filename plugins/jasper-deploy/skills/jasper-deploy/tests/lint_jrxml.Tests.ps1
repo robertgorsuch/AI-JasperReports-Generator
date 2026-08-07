@@ -1,6 +1,7 @@
-# Pester 3.x (Windows-bundled 3.4.0) tests for scripts\lint_jrxml.ps1.
-# Each test writes a temporary fixture under $env:TEMP, runs the linter against it
-# (capturing all streams + $LASTEXITCODE), then removes the fixture.
+# Pester 3.x/4.x (legacy `Should Be` syntax; CI installs Pester 4 for pwsh)
+# tests for scripts\lint_jrxml.ps1. Each test writes a temporary fixture to the
+# platform temp dir, runs the linter against it (capturing all streams +
+# $LASTEXITCODE), then removes the fixture.
 
 $script:Linter = "$PSScriptRoot/../scripts/lint_jrxml.ps1"
 
@@ -12,7 +13,7 @@ function Invoke-Linter($file) {
 Describe "lint_jrxml.ps1" {
 
     It "flags a .jrtx with isDefault true (exit 1, jrtx-default-attr)" {
-        $f = Join-Path $env:TEMP ("lint_jrtx_{0}.jrtx" -f ([guid]::NewGuid().ToString('N')))
+        $f = Join-Path ([IO.Path]::GetTempPath())("lint_jrtx_{0}.jrtx" -f ([guid]::NewGuid().ToString('N')))
         @'
 <?xml version="1.0" encoding="UTF-8"?>
 <jasperTemplate>
@@ -27,7 +28,7 @@ Describe "lint_jrxml.ps1" {
     }
 
     It "flags an area chart plot with tick props (exit 1, areaplot-plot-props)" {
-        $f = Join-Path $env:TEMP ("lint_area_{0}.jrxml" -f ([guid]::NewGuid().ToString('N')))
+        $f = Join-Path ([IO.Path]::GetTempPath())("lint_area_{0}.jrxml" -f ([guid]::NewGuid().ToString('N')))
         @'
 <?xml version="1.0" encoding="UTF-8"?>
 <jasperReport name="r">
@@ -48,7 +49,7 @@ Describe "lint_jrxml.ps1" {
     }
 
     It "passes a clean minimal .jrxml (exit 0)" {
-        $f = Join-Path $env:TEMP ("lint_clean_{0}.jrxml" -f ([guid]::NewGuid().ToString('N')))
+        $f = Join-Path ([IO.Path]::GetTempPath())("lint_clean_{0}.jrxml" -f ([guid]::NewGuid().ToString('N')))
         @'
 <?xml version="1.0" encoding="UTF-8"?>
 <jasperReport name="clean">
