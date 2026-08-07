@@ -75,3 +75,6 @@ backups/
 
 # Runtime lock artifacts
 .in_use/
+
+# Local Claude Code project config (settings, skill junction/copy) - never ship
+.claude/

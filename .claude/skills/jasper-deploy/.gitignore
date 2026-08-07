@@ -1,5 +1,0 @@
-# Local JasperReports Server credentials — never commit
-jrs.config.json
-
-# Machine-specific overlay - never commit
-LOCAL.md
