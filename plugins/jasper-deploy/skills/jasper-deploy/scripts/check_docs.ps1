@@ -73,16 +73,22 @@ $scriptsDir     = Join-Path $SkillDir 'scripts'
 $skillMd        = Join-Path $SkillDir 'SKILL.md'
 if (-not (Test-Path $skillMd -PathType Leaf)) { throw "SKILL.md not found under $SkillDir" }
 
-# repo root = nearest ancestor that itself contains a .claude folder
+# repo root = nearest ancestor containing a tracked root marker. .claude/ is
+# gitignored (exists locally, absent in CI checkouts), so test .git and
+# .claude-plugin too; fall back to the known skill depth
+# (plugins/jasper-deploy/skills/jasper-deploy = 4 levels below root).
 $repoRoot = $null
 $d = $SkillDir
 while ($d) {
-    if (Test-Path (Join-Path $d '.claude') -PathType Container) { $repoRoot = $d; break }
+    $isRoot = (Test-Path (Join-Path $d '.git')) -or
+              (Test-Path (Join-Path $d '.claude-plugin/marketplace.json') -PathType Leaf) -or
+              (Test-Path (Join-Path $d '.claude') -PathType Container)
+    if ($isRoot) { $repoRoot = $d; break }
     $parent = Split-Path $d -Parent
     if (-not $parent -or $parent -eq $d) { break }
     $d = $parent
 }
-if (-not $repoRoot) { $repoRoot = (Resolve-Path (Join-Path $SkillDir '../../..')).Path }
+if (-not $repoRoot) { $repoRoot = (Resolve-Path (Join-Path $SkillDir '../../../..')).Path }
 
 # known local-file extensions worth resolving (everything else is prose/URL)
 $ExtPattern = '(?i)\.(md|ps1|py|json|wadl|xml|jrxml|jrtx|jrdax|png)$'
