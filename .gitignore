@@ -81,3 +81,6 @@ backups/
 
 # Release archives built locally (attached to GitHub releases, not tracked)
 *.zip
+
+# Wobby API credentials (public repo - never commit)
+wobby.config.json
