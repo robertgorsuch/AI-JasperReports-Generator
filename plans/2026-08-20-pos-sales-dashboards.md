@@ -19,7 +19,7 @@
 - New JRXMLs live under `report/pos_perf/` (the existing `report/pos/` set belongs to the old comprehensive dashboard — do not modify it). JRS folder `/reports/pos_perf`.
 - Dashboard recompose requires deleting the existing dashboard first (house rule).
 - All dashlet tiles: `showTitleBar:false`, `scaleToFit:width` in manifests.
-- Acceptance reference numbers (extended basis, Regular Sale, Jan 2019–Dec 2020): net sales $764,167,990.73; 19,487,389 transactions; 81,616,420 units; 330 stores; region sales ON $411.7M / Western $237.6M / QC $80.0M / Atlantic $34.8M; TPR $388.1M. Task 2 may re-baseline these if the basis decision changes (per-line net sales would be $630,046,078.45).
+- Acceptance reference numbers (Regular Sale, Jan 2019–Dec 2020). Task 2's margin-basis probe (`out/pos_perf/margin_basis_decision.md`) confirmed `sellingprice` is a per-unit price (net sales must extend by quantity: `SUM(sellingprice*quantity)`) while `cost` is already line-extended (total cost must NOT be re-multiplied by quantity: `SUM(cost)`, not `SUM(cost*quantity)`) — so the sales-side numbers below are unchanged from the original extended-basis figures, and total cost / gross margin are now pinned down for the first time: net sales $764,167,990.73; total cost $522,326,380.9364; gross margin $241,841,609.7936; gross margin % 31.65%; avg basket value $39.21; avg unit price $9.36; 19,487,389 transactions; 81,616,420 units; 330 stores; region sales ON $411.7M / Western $237.6M / QC $80.0M / Atlantic $34.8M; TPR $388.1M. (Rejected alternative: per-line, unextended net sales of $630,046,078.45 — `sellingprice` is not extended in the raw column.)
 
 ---
 
