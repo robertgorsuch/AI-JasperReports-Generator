@@ -50,14 +50,14 @@ def iso_now() -> str:
 
 
 # --- the three companion files ----------------------------------------------
-def build_components(dashlets) -> str:
+def build_components(dashlets, dashlet_filter_popup=False) -> str:
     props = {
         "id": "DashboardProperties", "type": "dashboardProperties",
         "name": "DashboardProperties", "autoRefresh": False,
         "refreshInterval": 5, "refreshIntervalUnit": "minute",
         "showDashletBorders": True, "showExportButton": False,
         "showPrintButton": False, "dashletMargin": 5, "dashletPadding": 5,
-        "dashletFilterShowPopup": False, "useFixedSize": False,
+        "dashletFilterShowPopup": bool(dashlet_filter_popup), "useFixedSize": False,
         "fixedWidth": 1280, "fixedHeight": 800, "canvasColor": "#ffffff",
         "titleBarColor": "rgba(0, 0, 0, 0)", "titleTextColor": "#454545",
     }
@@ -297,7 +297,7 @@ def main():
     entries = {
         "index.xml": build_index(folder, name),
         f"{base}.xml": build_descriptor(folder, name, label, dashlets, ts),
-        f"{files_base}/components.data": build_components(dashlets),
+        f"{files_base}/components.data": build_components(dashlets, m.get("dashletFilterShowPopup", False)),
         f"{files_base}/layout": build_layout(dashlets),
         f"{files_base}/wiring.data": build_wiring(dashlets, m.get("wiring")),
     }
