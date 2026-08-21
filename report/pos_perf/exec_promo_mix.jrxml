@@ -5,7 +5,8 @@
      window-function customizer. dash_promo actually carries 4 promotiontype
      codes (T, M, O, blank); T and blank ("No Promotion") are the two dominant
      ones (~50.8% / ~49.2% on STAGE) and get the brief's two named colors (order
-     0/1); M and O round to ~0% and use JFreeChart's default series colors.
+     0/1); M and O round to ~0% and get the remaining two brand categorical
+     colors (order 2/3: #0A4CAD, #239CA8) rather than JFreeChart defaults.
      JR7-native (stackedBar is a barPlot; showLabels is valid per
      jr7-valid-elements.md 3c; gradient customizer does NOT apply to stackedbar
      per gotcha G7, so explicit seriesColor is used instead).
@@ -38,6 +39,8 @@ SELECT promotiontype, round(SUM(sales_ext) * 100.0 / (SELECT SUM(sales_ext) FROM
 			<plot showTickMarks="true" showTickLabels="true" showLabels="true">
 				<seriesColor order="0" color="#0550DC"/>
 				<seriesColor order="1" color="#1DB6C0"/>
+				<seriesColor order="2" color="#0A4CAD"/>
+				<seriesColor order="3" color="#239CA8"/>
 			</plot>
 		</element>
 	</summary>
