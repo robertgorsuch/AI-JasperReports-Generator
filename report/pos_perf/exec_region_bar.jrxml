@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Executive Overview: Net Sales by Region. Actian-blue gradient bar (single
-     series -> GradientTrendCustomizer colors bars by value, no trend line) plus
-     direct value labels (barPlot showLabels; see jr7-valid-elements.md 3c).
+<!-- Executive Overview: Net Sales by Region. Plain solid brand-blue bar (single
+     series; no chart customizer, since PROD lacks com.actian.jasper.GradientTrendCustomizer
+     on its classpath, so bar color is set via explicit seriesColor order=0 instead)
+     plus direct value labels (barPlot showLabels; see jr7-valid-elements.md 3c).
      JR7-native. -->
 <jasperReport name="exec_region_bar" language="java" pageWidth="950" pageHeight="422" columnWidth="910" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
 	<query language="SQL"><![CDATA[SELECT storeregion, sales_ext FROM dash_region ORDER BY sales_ext DESC]]></query>
@@ -16,7 +17,7 @@
 	</title>
 
 	<summary height="330">
-		<element kind="chart" chartType="bar" x="0" y="0" width="910" height="330" evaluationTime="Report" customizerClass="com.actian.jasper.GradientTrendCustomizer">
+		<element kind="chart" chartType="bar" x="0" y="0" width="910" height="330" evaluationTime="Report">
 			<dataset kind="category">
 				<series>
 					<seriesExpression><![CDATA["Net Sales"]]></seriesExpression>
@@ -24,7 +25,9 @@
 					<valueExpression><![CDATA[$F{sales_ext}]]></valueExpression>
 				</series>
 			</dataset>
-			<plot showTickMarks="true" showTickLabels="true" showLabels="true"/>
+			<plot showTickMarks="true" showTickLabels="true" showLabels="true">
+				<seriesColor order="0" color="#0550DC"/>
+			</plot>
 		</element>
 	</summary>
 

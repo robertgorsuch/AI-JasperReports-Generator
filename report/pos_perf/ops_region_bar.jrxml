@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Operations Console: Net Sales by Region, filtered by the shared
-     p_from/p_to/p_regions/p_promo/p_period controls. Actian-blue gradient bar
-     (GradientTrendCustomizer) plus direct value labels, same pattern as
-     exec_region_bar.jrxml. JR7-native. -->
+     p_from/p_to/p_regions/p_promo/p_period controls. Plain solid brand-blue bar
+     (no chart customizer, since PROD lacks com.actian.jasper.GradientTrendCustomizer
+     on its classpath, so bar color is set via explicit seriesColor order=0 instead)
+     plus direct value labels, same pattern as exec_region_bar.jrxml. JR7-native. -->
 <jasperReport name="ops_region_bar" language="java" pageWidth="950" pageHeight="422" columnWidth="910" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
 	<parameter name="p_from" class="java.util.Date">
 		<defaultValueExpression><![CDATA[new java.text.SimpleDateFormat("yyyy-MM-dd").parse("2019-01-01")]]></defaultValueExpression>
@@ -38,7 +39,7 @@ GROUP BY 1 ORDER BY 2 DESC
 	</title>
 
 	<summary height="330">
-		<element kind="chart" chartType="bar" x="0" y="0" width="910" height="330" evaluationTime="Report" customizerClass="com.actian.jasper.GradientTrendCustomizer">
+		<element kind="chart" chartType="bar" x="0" y="0" width="910" height="330" evaluationTime="Report">
 			<dataset kind="category">
 				<series>
 					<seriesExpression><![CDATA["Net Sales"]]></seriesExpression>
@@ -46,7 +47,9 @@ GROUP BY 1 ORDER BY 2 DESC
 					<valueExpression><![CDATA[$F{v}]]></valueExpression>
 				</series>
 			</dataset>
-			<plot showTickMarks="true" showTickLabels="true" showLabels="true"/>
+			<plot showTickMarks="true" showTickLabels="true" showLabels="true">
+				<seriesColor order="0" color="#0550DC"/>
+			</plot>
 		</element>
 	</summary>
 
