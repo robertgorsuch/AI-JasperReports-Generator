@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Executive Overview: Net Sales by Region. Actian-blue gradient bar (single
+     series -> GradientTrendCustomizer colors bars by value, no trend line) plus
+     direct value labels (barPlot showLabels; see jr7-valid-elements.md 3c).
+     JR7-native. -->
+<jasperReport name="exec_region_bar" language="java" pageWidth="950" pageHeight="422" columnWidth="910" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<query language="SQL"><![CDATA[SELECT storeregion, sales_ext FROM dash_region ORDER BY sales_ext DESC]]></query>
+
+	<field name="storeregion" class="java.lang.String"/>
+	<field name="sales_ext" class="java.math.BigDecimal"/>
+
+	<title height="52">
+		<element kind="image" x="0" y="0" width="44" height="44" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
+		<element kind="staticText" x="0" y="0" width="910" height="24" fontSize="17.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Net Sales by Region]]></text></element>
+		<element kind="staticText" x="0" y="26" width="910" height="14" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Regional performance -- Jan 2019 - Dec 2020]]></text></element>
+	</title>
+
+	<summary height="330">
+		<element kind="chart" chartType="bar" x="0" y="0" width="910" height="330" evaluationTime="Report" customizerClass="com.actian.jasper.GradientTrendCustomizer">
+			<dataset kind="category">
+				<series>
+					<seriesExpression><![CDATA["Net Sales"]]></seriesExpression>
+					<categoryExpression><![CDATA[$F{storeregion}]]></categoryExpression>
+					<valueExpression><![CDATA[$F{sales_ext}]]></valueExpression>
+				</series>
+			</dataset>
+			<plot showTickMarks="true" showTickLabels="true" showLabels="true"/>
+		</element>
+	</summary>
+
+</jasperReport>

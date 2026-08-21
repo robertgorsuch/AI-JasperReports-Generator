@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Executive Overview: monthly Net Sales trend, Jan 2019 - Dec 2020. Pattern
+     mirrors foodmart/sales_trend.jrxml (line chart, showLines/showShapes,
+     categoryAxisTickLabelRotation="-45"). Category label built in Java (not SQL
+     lpad; avoids a Postgres-dialect function on the Ingres/Avalanche backend).
+
+     NOTE on the brief's "interval marker on 2020-03..2020-12 via customizer":
+     no JFreeChart interval-marker customizer class exists in
+     chart_customizers/com/actian/jasper/ (only GradientTrendCustomizer, which is
+     bar-chart-specific; converts row 0 to a gradient BAR renderer and would
+     visually break a line chart, and per gotcha G7 the gradient treatment is
+     scoped to bar/pie only). Building + deploying a new customizer jar means
+     rebuilding actian-chart-customizers.jar and restarting Tomcat on shared
+     STAGE infra, which is out of scope for report authoring and risks the
+     server-wide classpath. Per the "working fallback beats a broken feature"
+     principle (the same one governing the FusionMaps decision), this report
+     ships a plain, safe line chart plus a labeled callout under the title
+     instead of an in-plot shaded region. JR7-native, locally compilable. -->
+<jasperReport name="exec_trend" language="java" pageWidth="1000" pageHeight="220" columnWidth="980" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
+	<query language="SQL"><![CDATA[
+SELECT yr, mo, SUM(sales_ext) AS v FROM dash_monthly GROUP BY 1,2 ORDER BY 1,2
+	]]></query>
+
+	<field name="yr" class="java.lang.Integer"/>
+	<field name="mo" class="java.lang.Integer"/>
+	<field name="v" class="java.math.BigDecimal"/>
+
+	<title height="40">
+		<element kind="image" x="0" y="0" width="36" height="36" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
+		<element kind="staticText" x="0" y="0" width="980" height="22" fontSize="14.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Monthly Net Sales Trend]]></text></element>
+		<element kind="staticText" x="0" y="23" width="980" height="12" fontSize="8.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Jan 2019 - Dec 2020 -- callout: Mar-Dec 2020 recovery period]]></text></element>
+	</title>
+
+	<summary height="160">
+		<element kind="chart" chartType="line" x="0" y="0" width="980" height="160" evaluationTime="Report">
+			<dataset kind="category">
+				<series>
+					<seriesExpression><![CDATA["Net Sales"]]></seriesExpression>
+					<categoryExpression><![CDATA[$F{yr} + "-" + ($F{mo} < 10 ? "0" + $F{mo} : "" + $F{mo})]]></categoryExpression>
+					<valueExpression><![CDATA[$F{v}]]></valueExpression>
+				</series>
+			</dataset>
+			<plot showLines="true" showShapes="true" categoryAxisTickLabelRotation="-45">
+				<seriesColor order="0" color="#0550DC"/>
+			</plot>
+		</element>
+	</summary>
+
+</jasperReport>

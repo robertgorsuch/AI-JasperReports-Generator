@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Executive Overview: live "last refreshed" + version tile. Pattern mirrors
+     foodmart/last_updated.jrxml (now() evaluated per-run -> dynamic). JR7-native. -->
+<jasperReport name="exec_last_updated" language="java" pageWidth="600" pageHeight="96" columnWidth="588" leftMargin="6" rightMargin="6" topMargin="6" bottomMargin="6">
+	<query language="SQL"><![CDATA[SELECT CURRENT_TIMESTAMP AS ts]]></query>
+
+	<field name="ts" class="java.sql.Timestamp"/>
+
+	<title height="84">
+		<element kind="textField" x="0" y="0" width="588" height="84" fontSize="13.0" bold="true" forecolor="#5B7DA6" hTextAlign="Center" vTextAlign="Middle" evaluationTime="Report"><expression><![CDATA["Last refreshed: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format($F{ts}) + "       ·       Version 1.0"]]></expression></element>
+	</title>
+
+</jasperReport>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Executive Overview: Promotion Mix, 100% stacked bar (single category; every
+     distinct promotiontype value is its own stacked segment, summing to 100%).
+     Percent computed in SQL so the stack sums to exactly 100 without a
+     window-function customizer. dash_promo actually carries 4 promotiontype
+     codes (T, M, O, blank); T and blank ("No Promotion") are the two dominant
+     ones (~50.8% / ~49.2% on STAGE) and get the brief's two named colors (order
+     0/1); M and O round to ~0% and use JFreeChart's default series colors.
+     JR7-native (stackedBar is a barPlot; showLabels is valid per
+     jr7-valid-elements.md 3c; gradient customizer does NOT apply to stackedbar
+     per gotcha G7, so explicit seriesColor is used instead).
+     Page math: pageHeight 300 - topMargin 20 - bottomMargin 20 = 260 usable;
+     title 40 + summary 220 = 260 (fits on page 1; an earlier 44+230=274 draft
+     overflowed the chart onto page 2). -->
+<jasperReport name="exec_promo_mix" language="java" pageWidth="950" pageHeight="300" columnWidth="910" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<query language="SQL"><![CDATA[
+SELECT promotiontype, round(SUM(sales_ext) * 100.0 / (SELECT SUM(sales_ext) FROM dash_promo), 1) AS pct FROM dash_promo GROUP BY 1 ORDER BY 2 DESC
+	]]></query>
+
+	<field name="promotiontype" class="java.lang.String"/>
+	<field name="pct" class="java.math.BigDecimal"/>
+
+	<title height="40">
+		<element kind="image" x="0" y="0" width="32" height="32" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
+		<element kind="staticText" x="0" y="0" width="910" height="20" fontSize="15.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Promotion Mix]]></text></element>
+		<element kind="staticText" x="0" y="21" width="910" height="12" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Share of net sales -- promoted vs. non-promoted]]></text></element>
+	</title>
+
+	<summary height="220">
+		<element kind="chart" chartType="stackedBar" x="0" y="0" width="910" height="220" evaluationTime="Report">
+			<dataset kind="category">
+				<series>
+					<seriesExpression><![CDATA[$F{promotiontype} == null || $F{promotiontype}.trim().isEmpty() ? "No Promotion" : $F{promotiontype}]]></seriesExpression>
+					<categoryExpression><![CDATA["Promotion Mix"]]></categoryExpression>
+					<valueExpression><![CDATA[$F{pct}]]></valueExpression>
+				</series>
+			</dataset>
+			<plot showTickMarks="true" showTickLabels="true" showLabels="true">
+				<seriesColor order="0" color="#0550DC"/>
+				<seriesColor order="1" color="#1DB6C0"/>
+			</plot>
+		</element>
+	</summary>
+
+</jasperReport>
