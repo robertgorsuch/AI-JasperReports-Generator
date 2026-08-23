@@ -478,3 +478,29 @@ Edit `web.xml` and rebuild, or edit the exploded webapp in Tomcat's `webapps/` d
 | `400` on array property | `ConvertTo-Json` unwraps single-element array | Emit as hand-built JSON string |
 
 For deeper diagnosis, run `doctor.ps1` for environment preflight and check `references/gotchas.md` (indexed by symptom).
+
+---
+
+## pos_perf: rebuild aggregates, redeploy a report, recompose a dashboard
+
+Rebuild aggregates (idempotent, ~2 min):
+    $adm = ".\.claude\skills\admiral\scripts"
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\build_dash_aggregates.sql -ResourceId av-flm7ykoxlcvq
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\verify_dash_aggregates.sql -ResourceId av-flm7ykoxlcvq
+
+Redeploy one report after editing its jrxml:
+    $env:JRS_ENV = "stage"; $jd = ".\.claude\skills\jasper-deploy\scripts"
+    & "$jd\lint_jrxml.ps1" -Path report\pos_perf\exec_region_bar.jrxml
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_region_bar.jrxml -TargetUri /reports/pos_perf/exec_region_bar -Label "Net Sales by Region" -DataSourceUri /datasources/pos_data_avalanche -Overwrite
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/exec_region_bar -Format pdf -OutFile out\pos_perf\exec_region_bar.pdf
+
+Recompose a dashboard (delete first, the import will not overwrite companions):
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_executive_overview
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\exec_dashboard.json -AutoGrid
+
+Gotchas: dashboards do not run to PDF (verify the tiles); compose labels are
+not XML-escaped (use "and", never "&"); Ops Console filters are per-dashlet
+popups (dashletFilterShowPopup true); PROD lacks the chart customizer jar, so
+tiles use plain seriesColor; STAGE-to-PROD export/import fails with
+import.decode.failed (per-server key), so promote by deploying jrxml to PROD
+with -Env prod and recomposing there.

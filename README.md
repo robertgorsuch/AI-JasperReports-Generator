@@ -197,6 +197,24 @@ Full details in `RUNBOOK.md` §3 and `plugins/jasper-deploy/skills/jasper-deploy
 
 ---
 
+## POS performance dashboards (report/pos_perf)
+
+Three dashboards on JasperReports Server, fed by `robert.gorsuch` on the
+pos_data Avalanche warehouse through `/datasources/pos_data_avalanche`:
+
+| Dashboard | URI | Manifest |
+|---|---|---|
+| POS Executive Overview | /reports/pos_perf/pos_executive_overview | report/pos_perf/exec_dashboard.json |
+| POS Operations Console | /reports/pos_perf/pos_operations_console | report/pos_perf/ops_dashboard.json |
+| POS Promo and Margin Story | /reports/pos_perf/pos_promo_story | report/pos_perf/story_dashboard.json |
+
+Tiles read the precomputed `dash_*` aggregates built by
+`scripts/pos_perf/build_dash_aggregates.sql` (verify with
+`verify_dash_aggregates.sql`). Margin basis: extended sales minus extended
+cost per line, 31.65 pct network (see out/pos_perf/margin_basis_decision.md
+in a local build). Design: specs/2026-08-20-pos-sales-dashboards-design.md;
+suite roadmap: specs/2026-08-23-pos-suite-design.md.
+
 ## About
 
 Demos and artifacts for BI pipeline automation using **Jaspersoft** and **Claude Code Desktop**, built by the Actian SE team.
