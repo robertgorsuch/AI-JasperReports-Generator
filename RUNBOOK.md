@@ -19,6 +19,7 @@ Cumulative operational knowledge from building a statewide Texas address geocode
 9. [jasper-deploy skill](#9-jasper-deploy-skill)
 10. [Self-service web wizard](#10-self-service-web-wizard)
 11. [Troubleshooting quick reference](#11-troubleshooting-quick-reference)
+12. [pos_perf: rebuild aggregates, redeploy a report, recompose a dashboard](#12-pos_perf-rebuild-aggregates-redeploy-a-report-recompose-a-dashboard)
 
 ---
 
@@ -481,7 +482,7 @@ For deeper diagnosis, run `doctor.ps1` for environment preflight and check `refe
 
 ---
 
-## pos_perf: rebuild aggregates, redeploy a report, recompose a dashboard
+## 12. pos_perf: rebuild aggregates, redeploy a report, recompose a dashboard
 
 Rebuild aggregates (idempotent, ~2 min):
     $adm = ".\.claude\skills\admiral\scripts"
