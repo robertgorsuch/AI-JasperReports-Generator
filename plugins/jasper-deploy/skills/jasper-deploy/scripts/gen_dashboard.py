@@ -24,7 +24,15 @@ Manifest (JSON):
      "label": "Year-over-Year Sales (1997 vs 1998)",
      "x": 0, "y": 0, "width": 22, "height": 10},
     ...
-  ]
+  ],
+  "filters": ["p_from", "p_to", "p_regions"]   # optional: dashboard-level filter
+                                               # strip (a filterGroup dashlet +
+                                               # one inputControl per name, wired
+                                               # to every report tile). Controls
+                                               # live in "filterControlFolder"
+                                               # (default <folder>/controls); the
+                                               # owning report is "filterOwner"
+                                               # (default: first report dashlet).
 }
 
 Emits a .zip ready for import_resource.ps1. With --auto-grid, dashlet x/y/width/
@@ -49,8 +57,40 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="milliseconds")
 
 
+FILTER_GROUP_ID = "FilterGroup"
+
+
+def build_filter_components(filters, ctl_folder, owner):
+    """One inputControl component per control name + the filterGroup that holds
+    them. Field names/shape copied verbatim from a JRS 10 designer export
+    (/public/Samples/Dashboards/1._Supermart_Dashboard and 4._New_Dashboard):
+    membership is expressed by `parentId`/`position` on each control, NOT by an
+    `items` list on the group; `resource` is the control's repository URI and
+    `ownerResourceId` the resource that declares the parameter.
+    """
+    comps = []
+    for i, name in enumerate(filters):
+        comps.append({
+            "type": "inputControl", "label": name,
+            "resourceId": name, "resource": f"{ctl_folder}/{name}",
+            "id": name, "name": name,
+            "selected": False, "interactive": True,
+            "ownerResourceId": owner, "ownerResourceParameterName": name,
+            "masterDependencies": [], "fullCollectionRequired": False,
+            "parentId": FILTER_GROUP_ID, "position": i + 1,
+        })
+    comps.append({
+        "type": "filterGroup", "name": "Filters", "id": FILTER_GROUP_ID,
+        "filtersPerRow": max(1, len(filters)), "buttonsPosition": "bottom",
+        "applyButton": True, "resetButton": True, "floating": True,
+        "toolbar": None,
+    })
+    return comps
+
+
 # --- the three companion files ----------------------------------------------
-def build_components(dashlets, dashlet_filter_popup=False) -> str:
+def build_components(dashlets, dashlet_filter_popup=False,
+                     filters=None, ctl_folder=None, owner=None) -> str:
     props = {
         "id": "DashboardProperties", "type": "dashboardProperties",
         "name": "DashboardProperties", "autoRefresh": False,
@@ -62,6 +102,10 @@ def build_components(dashlets, dashlet_filter_popup=False) -> str:
         "titleBarColor": "rgba(0, 0, 0, 0)", "titleTextColor": "#454545",
     }
     arr = [props]
+    # a report tile driven by the dashboard filter strip declares each control as
+    # an input parameter {id,uri,label} (designer export shape)
+    rpt_params = [{"id": n, "uri": f"{ctl_folder}/{n}", "label": n}
+                  for n in (filters or [])]
     for d in dashlets:
         cid = d["cid"]
         kind = d.get("kind", "report")
@@ -103,19 +147,27 @@ def build_components(dashlets, dashlet_filter_popup=False) -> str:
                 "showRefreshButton": False, "showMaximizeButton": True,
                 "showBackButton": True, "dataSourceUri": d["resource"],
                 "showVizSelectorIcon": False, "outputParameters": [],
-                "parameters": [], "showVizSelector": False,
+                "parameters": list(rpt_params), "showVizSelector": False,
             })
+    if filters:
+        arr.extend(build_filter_components(filters, ctl_folder, owner))
     return json.dumps(arr, separators=(",", ":"))
 
 
-def build_layout(dashlets) -> str:
-    return "".join(
-        f"<div data-componentId='{d['cid']}' data-x='{d['x']}' data-y='{d['y']}' "
-        f"data-width='{d['width']}' data-height='{d['height']}'></div>"
-        for d in dashlets)
+def build_layout(dashlets, filters=None, strip_height=3) -> str:
+    def div(cid, x, y, w, h):
+        return (f"<div data-componentId='{cid}' data-x='{x}' data-y='{y}' "
+                f"data-width='{w}' data-height='{h}'></div>")
+
+    dy = strip_height if filters else 0
+    out = "".join(div(d["cid"], d["x"], d["y"] + dy, d["width"], d["height"])
+                  for d in dashlets)
+    if filters:                       # full-width control strip across the top
+        out += div(FILTER_GROUP_ID, 0, 0, 40, strip_height)
+    return out
 
 
-def build_wiring(dashlets, extra=None) -> str:
+def build_wiring(dashlets, extra=None, filters=None) -> str:
     def event(name):
         return {
             "name": name, "producer": f"DashboardProperties:{name}",
@@ -125,6 +177,21 @@ def build_wiring(dashlets, extra=None) -> str:
                           for d in dashlets],
         }
     events = [event("@init"), event("@applyParams")]
+    if filters:
+        # designer shape: the group's Apply fires @refresh -> every tile's
+        # @applyParams; each control publishes <name>:<name> -> tile:<name>
+        report_cids = [d["cid"] for d in dashlets
+                       if d.get("kind", "report") == "report"]
+        events.append({
+            "name": "@refresh", "producer": f"{FILTER_GROUP_ID}:@refresh",
+            "component": FILTER_GROUP_ID,
+            "consumers": [{"consumer": f"{c}:@applyParams"} for c in report_cids],
+        })
+        for n in filters:
+            events.append({
+                "name": n, "producer": f"{n}:{n}", "component": n,
+                "consumers": [{"consumer": f"{c}:{n}"} for c in report_cids],
+            })
     # optional cross-dashlet wiring passthrough: [{producer, consumers:[..]}]
     for w in (extra or []):
         prod = w["producer"]
@@ -137,16 +204,24 @@ def build_wiring(dashlets, extra=None) -> str:
 
 
 # --- archive descriptors -----------------------------------------------------
-def build_descriptor(folder, name, label, dashlets, ts) -> str:
+def build_descriptor(folder, name, label, dashlets, ts,
+                     filters=None, ctl_folder=None) -> str:
     files_folder = f"{folder}/{name}_files"
     report_dashlets = [d for d in dashlets if d.get("kind", "report") == "report"]
+    ctl_uris = [f"{ctl_folder}/{n}" for n in (filters or [])]
     rds = "".join(
         f"    <resourceDescriptor>\n        <type>reportUnit</type>\n"
         f"        <id>{d['resource']}</id>\n    </resourceDescriptor>\n"
         for d in report_dashlets)
+    rds += "".join(
+        f"    <resourceDescriptor>\n        <type>inputControl</type>\n"
+        f"        <id>{u}</id>\n    </resourceDescriptor>\n" for u in ctl_uris)
     res_uris = "".join(
         f"    <resource>\n        <uri>{d['resource']}</uri>\n    </resource>\n"
         for d in report_dashlets)
+    res_uris += "".join(
+        f"    <resource>\n        <uri>{u}</uri>\n    </resource>\n"
+        for u in ctl_uris)
 
     def local(data_file, rname, ftype, xsitype, ver):
         return (
@@ -291,15 +366,29 @@ def main():
                          f"(use --auto-grid): {missing}\n")
         sys.exit(2)
 
+    # optional dashboard-level filter strip: manifest "filters":["p_from",...]
+    filters = m.get("filters") or None
+    ctl_folder = (m.get("filterControlFolder") or f"{folder}/controls").rstrip("/")
+    owner = m.get("filterOwner")
+    if filters and not owner:
+        rpt = next((d for d in dashlets if d.get("kind", "report") == "report"), None)
+        if not rpt:
+            sys.stderr.write("ERROR: 'filters' needs at least one report dashlet\n")
+            sys.exit(2)
+        owner = rpt["resource"]
+
     ts = iso_now()
     base = f"resources{folder}/{name}"
     files_base = f"resources{folder}/{name}_files"
     entries = {
         "index.xml": build_index(folder, name),
-        f"{base}.xml": build_descriptor(folder, name, label, dashlets, ts),
-        f"{files_base}/components.data": build_components(dashlets, m.get("dashletFilterShowPopup", False)),
-        f"{files_base}/layout": build_layout(dashlets),
-        f"{files_base}/wiring.data": build_wiring(dashlets, m.get("wiring")),
+        f"{base}.xml": build_descriptor(folder, name, label, dashlets, ts,
+                                        filters, ctl_folder),
+        f"{files_base}/components.data": build_components(
+            dashlets, m.get("dashletFilterShowPopup", False),
+            filters, ctl_folder, owner),
+        f"{files_base}/layout": build_layout(dashlets, filters),
+        f"{files_base}/wiring.data": build_wiring(dashlets, m.get("wiring"), filters),
     }
     # the folder chain that holds the dashboard must be described or the import
     # broker silently no-ops (reports referenced by URI are resolved in the repo)
