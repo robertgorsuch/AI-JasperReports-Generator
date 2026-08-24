@@ -97,7 +97,7 @@ WHERE score_date = DATE($P{p_score_date})
   AND risk_band IN ('Critical', 'High')
   AND recommended_action <> 'None'
   AND ('All' = $P{p_region} OR region = $P{p_region})
-ORDER BY expected_ltv_at_risk DESC
+ORDER BY expected_ltv_at_risk DESC, customer_id
 	]]></query>
 
 	<field name="customer_id" class="java.lang.String"/>
