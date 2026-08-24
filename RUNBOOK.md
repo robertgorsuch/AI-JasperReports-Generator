@@ -499,6 +499,20 @@ Rebuild the Treasury tender aggregate (Phase 1, feeds trs_tender_mix):
     & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\build_dash_tender_monthly.sql -ResourceId av-flm7ykoxlcvq
     & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\verify_dash_tender_monthly.sql -ResourceId av-flm7ykoxlcvq
 
+Rebuild the two Phase 2 retention aggregates (feeds the six chn_* tiles and the
+Churn Action List; dash_churn is customer grain and takes the longer of the two):
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\build_dash_churn.sql   -ResourceId av-flm7ykoxlcvq
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\verify_dash_churn.sql  -ResourceId av-flm7ykoxlcvq
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\build_dash_cohort.sql  -ResourceId av-flm7ykoxlcvq
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\verify_dash_cohort.sql -ResourceId av-flm7ykoxlcvq
+Expected from verify_dash_churn: 3,184,743 rows, 0 duplicate keys, an exact
+tie-out to the source, bands Critical 684,159 / High 1,447,344 / Watch 587,944
+/ Low 465,296, Critical+High LTV at risk 20,807,163.28, and four regions and
+four tiers with no NULLs. Expected from verify_dash_cohort: 36 rows, cohort
+years 2019 and 2020, 0 duplicate keys, active_pct exactly 100.00 at month 0 for
+both cohorts, 2019 settling around 26-28 pct and 2020 (a partial year, so it
+stops at month 11) around 20-24 pct, and agg_rows = src_rows = 39,654,230.
+
 Create the shared finance input controls (idempotent, skips what exists):
     $env:JRS_ENV = "stage"
     . .\scripts\pos_perf\jrs_controls.ps1
@@ -511,9 +525,77 @@ p_store, p_yyyymm, p_version, p_province, plus their LOV/query companions).
 A control already attached to a report unit is skipped with a WARNING; re-run
 with -Force only if you really mean to replace it.
 
+Create the shared churn input controls (same dot-source contract; the file
+dot-sources jrs_controls.ps1 and reuses its idempotency machinery):
+    $env:JRS_ENV = "stage"
+    . .\scripts\pos_perf\churn_controls.ps1
+    New-ChurnControls
+    Attach-ChurnControls -ReportUri /reports/pos_perf/chn_kpi
+`New-ChurnControls` creates exactly three controls -- chn_score_date (Score
+date), chn_tier (Loyalty tier), chn_band (Risk band) -- all type 7
+multiSelectQuery, plus their _query companions, under
+/reports/pos_perf/controls/. It deliberately does NOT create `p_regions`: that
+control already exists from the Phase 0 Ops Console work and is reused as-is.
+`Attach-ChurnControls` attaches the fixed four-control set in strip order
+(chn_score_date, p_regions, chn_tier, chn_band) to one report unit. Use
+`. .\scripts\pos_perf\churn_controls.ps1 -Env prod` to target PROD.
+
 Recompose a dashboard (delete first, the import will not overwrite companions):
     & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_executive_overview
     & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\exec_dashboard.json -AutoGrid
+
+Redeploy the whole Retention and Churn console after editing any chn_* jrxml.
+The teardown is not optional: a tile of a composed dashboard 403s with
+resource.in.use. Five tiles get the controls back, chn_cohorts gets none:
+    $env:JRS_ENV = "stage"; $jd = ".\.claude\skills\jasper-deploy\scripts"
+    $ds = "/datasources/pos_data_avalanche"
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_retention_churn
+    foreach ($u in @("chn_kpi","chn_bands","chn_ltv_band","chn_drivers","chn_cohorts","chn_actions")) {
+        & "$jd\lint_jrxml.ps1"    -Path "report\pos_perf\$u.jrxml"
+        & "$jd\deploy_report.ps1" -Jrxml "report\pos_perf\$u.jrxml" -TargetUri "/reports/pos_perf/$u" -Label $u -DataSourceUri $ds -Overwrite
+    }
+    . .\scripts\pos_perf\churn_controls.ps1
+    foreach ($u in @("chn_kpi","chn_bands","chn_ltv_band","chn_drivers","chn_actions")) { Attach-ChurnControls -ReportUri "/reports/pos_perf/$u" }
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\chn_dashboard.json -AutoGrid
+The six tile labels ARE their unit names (chn_kpi, chn_bands, ...); only the
+drill target carries a prose label, "Churn Action List". The manifest supplies
+the human-readable dashlet captions (Key Metrics, Risk Bands, LTV at Risk by
+Band, Top Churn Drivers, Cohort Retention, Recommended Actions) and the
+composer resolves dashlets by URI, never by label, so a mismatched deploy label
+will not break composition. Keep them as written anyway: an export names each
+unit's jrxml payload after the LABEL, so changing one silently renames the file
+the server-vs-git diff below is looking for.
+
+Verify the Phase 2 build on STAGE without a browser -- render all seven units
+and diff the server against git:
+    New-Item -ItemType Directory -Force "out\pos_perf\phase2" | Out-Null
+    foreach ($u in @("chn_kpi","chn_bands","chn_ltv_band","chn_drivers","chn_cohorts","chn_actions","rpt_churn_action_list")) {
+        & "$jd\run_report_async.ps1" -ReportUri "/reports/pos_perf/$u" -Format pdf -OutFile "out\pos_perf\phase2\$u.pdf" -TimeoutSec 300
+    }
+    & "$jd\export_resource.ps1" -Uri /reports/pos_perf/pos_retention_churn    -Out out\pos_perf\phase2\exp_pos_retention_churn.zip
+    & "$jd\export_resource.ps1" -Uri /reports/pos_perf/rpt_churn_action_list  -Out out\pos_perf\phase2\exp_rpt_churn_action_list.zip
+The dashboard export carries each tile's jrxml as
+resources/reports/pos_perf/<unit>_files/<unit>_main_jrxml.data; the report
+export names its payload after the LABEL, not the unit, so the Churn Action
+List lands as rpt_churn_action_list_files/Churn_Action_List_main_jrxml.data.
+Compare each against report\pos_perf\<unit>.jrxml -- they should be byte
+identical. A server copy that instead comes back with uuid attributes on every
+element, reordered attributes, no XML comments, and an extra
+`net.sf.jasperreports.viewer.zoom` property is a JRS re-serialization, i.e. the
+unit on the server is NOT the file in git. That is not cosmetic drift to wave
+through: redeploy from the committed jrxml and re-export until the bytes match.
+
+Expected in chn_kpi.pdf: Scored Customers 3,184,743, Critical + High Risk
+66.9%, LTV at Risk $20,807,163, Overdue vs Expected 32.5%, Avg Churn
+Probability 0.524, footer "Customers scored as of 2020-12-31". Expected in
+chn_actions.pdf: five rows, no "None" row, Loyalty bonus 265,021 / $7,808,187
+at the top. To prove the filter plumbing without a browser, run chn_kpi with
+explicit values (note the Hashtable form -- `-Parameters "k=v"` fails before
+the run is even submitted):
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/chn_kpi -Format pdf `
+        -OutFile out\pos_perf\phase2\chn_kpi_critical.pdf -Parameters @{ chn_band = "Critical"; chn_score_date = "2020-12-31" }
+Expect Scored Customers 684,159 and LTV at Risk $4,995,666, which is exactly
+the Critical row of the band distribution.
 
 Re-attach input controls after ANY redeploy of a Treasury tile or a finance
 report -- deploy_report.ps1 -Overwrite replaces the whole report unit and
@@ -582,6 +664,70 @@ http://localhost:8081/jasperserver-pro; dashboards open at
    standing so check 1 can be cross-checked against a minimal case. Once check
    1 passes, delete it:
        & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/spike_filter_test
+5. **Retention and Churn filter strip.** Open pos_retention_churn. Confirm a
+   strip renders with Score date / Regions / Loyalty tier / Risk band and an
+   Apply button. All four are multi-selects. Set Risk band=Critical and Score
+   date=2020-12-31, press Apply. Expect the Key Metrics strip to go to Scored
+   Customers 684,159, Critical + High Risk 100.0%, LTV at Risk $4,995,666,
+   Overdue 62.8%, Avg prob 0.789 -- the exact figures the parameterized
+   chn_kpi run produces headlessly, so any other number means the strip is not
+   reaching the tile. Clear Risk band, set Regions=Ontario and Loyalty
+   tier=Gold, Apply: expect 256,992 / 17.8% / $901,174. Cohort Retention must
+   not change under any of this; it is lifetime scoped on purpose.
+
+   Fallback if the strip does not render or Apply is inert: the same shape
+   Phase 1 uses -- drop the `filters` key from report/pos_perf/chn_dashboard.json,
+   add `"dashletFilterShowPopup": true` as ops_dashboard.json does, then
+   teardown and recompose. It works here, but read the two differences before
+   reaching for it. (a) In popup mode a tile's filter widgets come from its own
+   ATTACHED input controls, not from the manifest, so the reader has to set the
+   same four values five separate times -- once each on chn_kpi, chn_bands,
+   chn_ltv_band, chn_drivers and chn_actions -- and there is no single Apply
+   that moves the board. That is a real downgrade in this suite, not the
+   near-equivalent it was on the Ops Console. (b) chn_cohorts has no attached
+   controls, so it gets no popup at all; correct, but it means the fallback
+   silently removes the only visual cue that the tile is deliberately
+   unfiltered. If you take the fallback, say so on the tile.
+
+   Do NOT try the narrower "fix" of leaving the strip up and dropping
+   chn_cohorts out of the filter wiring. gen_dashboard.py hands the whole
+   `filters` array to every report dashlet and wires every control to every
+   report dashlet's @applyParams with no check that the tile declares the name;
+   the wiring is blind by design and the manifest has no per-dashlet opt-out.
+   That is why chn_cohorts declares all four parameters and reads none of them.
+6. **Churn Action List drill click-test, and the Collection-to-String
+   derivation.** This is the one Phase 2 behaviour that has been proven at the
+   SQL and render level but never in a viewer. On pos_retention_churn, first
+   press Apply on the strip with Score date=2020-12-31 selected, THEN click an
+   Action cell in Recommended Actions (any row). Expect the Churn Action List
+   to open with "as of 2020-12-31" in its subtitle and 500 detail rows.
+
+   What is actually under test: the console's controls are Collections, but the
+   target report's two parameters are Strings. chn_actions bridges that with a
+   `p_score_date` default expression that takes `.iterator().next()` off
+   `chn_score_date`, and the hyperlink passes THAT derived String. A headless
+   parameterized run exercises the same expression, but only a real Apply
+   click proves the derivation survives the round trip through the filter
+   strip and into the drill URL. If the target opens on a different date, or
+   errors on a class cast, the derivation did not survive; if it opens showing
+   the default 2020-12-31 when the strip is set to some other score date, the
+   strip value never reached the tile.
+
+   Expected and NOT a defect: the target always opens on p_region="All", even
+   when the strip has a single region selected. chn_actions passes the literal
+   string "All", the same convention Phase 1 used for trs_tax_province into
+   rpt_tax_remittance -- the target is a workable ranked list, not a per-action
+   drill, so it does not inherit a filter the reader would have to undo.
+7. **Top Churn Drivers subtitle.** Visual read only, no clicking. The tile's
+   subtitle says "Among customers in the Critical band, regardless of the risk
+   band filter". It means it: the tile is pinned to Critical and its numbers do
+   not move when the strip's Risk band changes. Confirm that the sentence sits
+   close enough to the chart, and reads plainly enough next to a Risk band
+   widget that is set to something else, that a viewer reads it as a stated
+   scope rather than as a filter that failed to apply. If it does not, the fix
+   is wording or placement on chn_drivers.jrxml, not a change to what the tile
+   counts -- ranking drivers across all four bands would just rank the
+   population, which is the question chn_bands already answers.
 
 ### PROD promotion of the Phase 1 finance suite (deferred, user-run)
 
@@ -690,3 +836,108 @@ dashboard down first; PROD lacks the chart customizer jar, so tiles use plain
 seriesColor (every Phase 1 unit was authored without one); STAGE-to-PROD
 export/import fails with import.decode.failed (per-server key), so promote by
 deploying jrxml to PROD with -Env prod and recomposing there.
+
+### PROD promotion of the Phase 2 retention suite (deferred, user-run)
+
+Not run by any agent -- auto-mode denies PROD writes. PROD is
+http://3.214.51.180:8080/jasperserver-pro. Run these one line at a time. This
+block promotes the six chn_* tiles, the Churn Action List, the three churn
+controls and the pos_retention_churn dashboard. It is independent of the Phase
+1 block above and can be run before it, after it, or on its own; the only thing
+the two share is `p_regions`, which neither of them creates.
+
+Step 0, the aggregates. Both Phase 2 dashboards read `dash_churn` and
+`dash_cohort` on the pos_data warehouse through
+`/datasources/pos_data_avalanche`. If PROD's datasource of that name points at
+the SAME warehouse STAGE uses (av-flm7ykoxlcvq), the tables are already there
+and this step is a no-op -- check by running the two verify scripts and
+comparing against the figures in the Phase 2 rebuild recipe above. If PROD
+points somewhere else, build them there first, against that ResourceId:
+    $adm = ".\.claude\skills\admiral\scripts"
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\build_dash_churn.sql   -ResourceId <prod-warehouse-id>
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\verify_dash_churn.sql  -ResourceId <prod-warehouse-id>
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\build_dash_cohort.sql  -ResourceId <prod-warehouse-id>
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\verify_dash_cohort.sql -ResourceId <prod-warehouse-id>
+Both builds depend on tables the churn model produces (customer_churn_scores,
+customer_ipt_stats, customer_month, customers). If those are absent on the
+other warehouse this is a bigger job than a promotion and should stop here.
+
+Step 1, the churn controls:
+    . .\scripts\pos_perf\churn_controls.ps1 -Env prod
+    New-ChurnControls
+`New-ChurnControls` creates only the three churn-specific controls
+(chn_score_date, chn_tier, chn_band) and their _query companions. It does NOT
+create `p_regions`, and must not: `p_regions` already exists on PROD from the
+earlier Ops Console promotion and is shared with the Phase 1 Treasury controls.
+Recreating it would replace a control nine other report units already point at.
+Before Step 4 attaches it to five more units, verify
+`/reports/pos_perf/controls/p_regions` exists on PROD -- a GET, or just read
+the Step 5 counts.
+
+Step 2, tear the dashboard down (tiles of a live dashboard 403 with
+resource.in.use on redeploy; a 404 on a first promotion is expected and means
+nothing is there yet):
+    $env:JRS_ENV = "prod"; $jd = ".\.claude\skills\jasper-deploy\scripts"
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_retention_churn
+
+Step 3, deploy the seven report units. The six tile labels are their own unit
+names; only the drill target has a prose label:
+    $ds = "/datasources/pos_data_avalanche"
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\chn_kpi.jrxml               -TargetUri /reports/pos_perf/chn_kpi               -Label "chn_kpi"            -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\chn_bands.jrxml             -TargetUri /reports/pos_perf/chn_bands             -Label "chn_bands"          -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\chn_ltv_band.jrxml          -TargetUri /reports/pos_perf/chn_ltv_band          -Label "chn_ltv_band"       -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\chn_drivers.jrxml           -TargetUri /reports/pos_perf/chn_drivers           -Label "chn_drivers"        -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\chn_cohorts.jrxml           -TargetUri /reports/pos_perf/chn_cohorts           -Label "chn_cohorts"        -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\chn_actions.jrxml           -TargetUri /reports/pos_perf/chn_actions           -Label "chn_actions"        -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\rpt_churn_action_list.jrxml -TargetUri /reports/pos_perf/rpt_churn_action_list -Label "Churn Action List"  -DataSourceUri $ds -Overwrite -Backup
+
+Step 4, attach the four console controls. Five tiles take all four, in strip
+order; chn_cohorts takes NONE (it declares the four parameters and reads none
+of them, so nothing needs to populate them) and rpt_churn_action_list takes
+none either (its two String parameters arrive on the drill URL and otherwise
+fall back to their defaults):
+    . .\scripts\pos_perf\churn_controls.ps1 -Env prod
+    foreach ($u in @("chn_kpi","chn_bands","chn_ltv_band","chn_drivers","chn_actions")) { Attach-ChurnControls -ReportUri "/reports/pos_perf/$u" }
+
+Step 5, GET-verify the counts (4 for each of the five, 0 for chn_cohorts and
+rpt_churn_action_list; any zero among the five means step 4 did not stick, and
+any non-zero on the last two means something was attached that should not be):
+    . ".\.claude\skills\jasper-deploy\scripts\_jrs_common.ps1"; $jrs = Resolve-JrsConfig
+    foreach ($r in @("chn_kpi","chn_bands","chn_ltv_band","chn_drivers","chn_cohorts","chn_actions","rpt_churn_action_list")) { $b = (Invoke-JrsGet -Jrs $jrs -Uri "/reports/pos_perf/$r").Body | ConvertFrom-Json; "{0,-24} {1}" -f $r, @($b.inputControls | Where-Object { $_ }).Count }
+The `Where-Object { $_ }` is not decoration: PowerShell 5.1 counts a bare
+`@($null)` as 1, so a unit with no controls reports 1 without it.
+
+Step 6, compose the dashboard:
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\chn_dashboard.json -AutoGrid
+
+Step 7, smoke it, then put the shell back on STAGE (this last line is part of
+the procedure, not an afterthought):
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/chn_kpi               -Format pdf -OutFile out\pos_perf\prod_chn_kpi.pdf
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/rpt_churn_action_list -Format pdf -OutFile out\pos_perf\prod_rpt_churn_action_list.pdf
+    $env:JRS_ENV = "stage"
+Expected in prod_chn_kpi.pdf: Scored Customers 3,184,743, Critical + High Risk
+66.9%, LTV at Risk $20,807,163, Overdue vs Expected 32.5%, Avg Churn
+Probability 0.524, footer "Customers scored as of 2020-12-31". Expected in
+prod_rpt_churn_action_list.pdf: 14 pages, 500 detail rows, the coverage line
+reading "Top 500 of 1,357,153". Different numbers mean PROD is pointed at a
+different warehouse, or at a re-run of the churn model with a later cutoff.
+
+Step 8, then run browser checks 5, 6 and 7 above against the PROD URL. Do not
+call the promotion done on the strength of the PDFs: the filter strip, the
+drill click and the chn_drivers subtitle are the three things a PDF cannot see,
+and none of them has been confirmed in a viewer on either server.
+
+Phase 2 gotchas, on top of the Phase 1 list above: the four console controls
+are ALL multiSelectQuery (type 7), so every one of them arrives at a tile as a
+java.util.Collection, including the score date -- a tile that needs a scalar
+date derives it with `.iterator().next()` in a parameter default rather than
+taking a second control, so do not "fix" a Collection parameter into a String
+in a jrxml without also fixing the control; gen_dashboard.py wires every filter
+to every report dashlet with no per-dashlet opt-out, which is why chn_cohorts
+declares four parameters it never reads; the report export names its jrxml
+payload after the report LABEL, not the unit, so the Churn Action List's
+payload is Churn_Action_List_main_jrxml.data; and `lint_jrxml.ps1` does NOT
+catch a `--` inside an XML comment (it is invalid XML and fails at compile with
+an opaque error) -- this bit three separate times during Phase 2, so when a
+lint-clean jrxml fails to deploy, grep the comments for a double hyphen before
+looking anywhere else.

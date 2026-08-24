@@ -199,7 +199,7 @@ Full details in `RUNBOOK.md` §3 and `plugins/jasper-deploy/skills/jasper-deploy
 
 ## POS performance dashboards (report/pos_perf)
 
-Five dashboards and four paginated reports on JasperReports Server, fed by
+Six dashboards and five paginated reports on JasperReports Server, fed by
 `robert.gorsuch` on the pos_data Avalanche warehouse through
 `/datasources/pos_data_avalanche`:
 
@@ -210,6 +210,7 @@ Five dashboards and four paginated reports on JasperReports Server, fed by
 | POS Promo and Margin Story | /reports/pos_perf/pos_promo_story | report/pos_perf/story_dashboard.json |
 | POS Store Profit and Budget | /reports/pos_perf/pos_store_pnl | report/pos_perf/pnl_dashboard.json |
 | POS Franchise Treasury | /reports/pos_perf/pos_treasury | report/pos_perf/trs_dashboard.json |
+| POS Retention and Churn | /reports/pos_perf/pos_retention_churn | report/pos_perf/chn_dashboard.json |
 
 | Report | URI | Reached from |
 |---|---|---|
@@ -217,18 +218,36 @@ Five dashboards and four paginated reports on JasperReports Server, fed by
 | Franchise Receivables Aging | /reports/pos_perf/rpt_ar_aging | trs_ar_aging tile |
 | Payables Aging and Payment Run | /reports/pos_perf/rpt_ap_aging | trs_dpo tile |
 | Sales Tax Remittance | /reports/pos_perf/rpt_tax_remittance | trs_tax_province tile |
+| Churn Action List | /reports/pos_perf/rpt_churn_action_list | chn_actions tile |
 
 Executive Overview and Promo Story render on a navy canvas (`#000032`); the
-other three are light. Franchise Treasury carries a dashboard-level filter
-strip (the manifest's `filters` key) over shared input controls under
-`/reports/pos_perf/controls/`; the Operations Console uses per-dashlet filter
-popups instead.
+other four are light. Franchise Treasury and Retention and Churn carry a
+dashboard-level filter strip (the manifest's `filters` key) over shared input
+controls under `/reports/pos_perf/controls/`; the Operations Console uses
+per-dashlet filter popups instead.
+
+Retention and Churn is filtered by `chn_score_date` / `p_regions` / `chn_tier`
+/ `chn_band`, all four of them multi-select query controls that arrive at a
+tile as a `java.util.Collection`. `p_regions` is the same control the Ops
+Console and Treasury boards already use; the three `chn_*` controls are created
+by `scripts/pos_perf/churn_controls.ps1`. A tile that needs a scalar score date
+for its SQL derives one internally with `.iterator().next()` rather than taking
+a second control, so the strip stays four widgets wide. Five of the six tiles
+carry all four controls; `chn_cohorts` carries none because a retention curve
+is a lifetime measurement of a fixed cohort, but it still declares all four
+parameters, because `gen_dashboard.py` wires every filter to every report
+dashlet whether the tile reads it or not.
 
 The first three dashboards read the precomputed `dash_*` aggregates built by
 `scripts/pos_perf/build_dash_aggregates.sql` (verify with
 `verify_dash_aggregates.sql`); the Treasury tender tile reads
 `dash_tender_monthly` from `build_dash_tender_monthly.sql`. The finance
-dashboards and reports read the base finance tables directly. Margin basis on
+dashboards and reports read the base finance tables directly. Retention and
+Churn reads two more aggregates: `dash_churn` (customer grain, 3,184,743 rows,
+from `build_dash_churn.sql`) for five of its tiles and the Churn Action List,
+and `dash_cohort` (cohort-year by months-since-first grain, 36 rows, from
+`build_dash_cohort.sql`) for the retention curve. Each has a matching
+`verify_*.sql`. Margin basis on
 the `dash_*` aggregates: extended sales minus line cost, 31.6 pct across
 2019-2020 (see out/pos_perf/margin_basis_decision.md in a local build). The
 Store Profit board reports 33.7 pct on the same basis because it is scoped to
