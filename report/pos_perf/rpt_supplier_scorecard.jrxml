@@ -92,14 +92,14 @@ ORDER BY lifetime_on_time_pct ASC
 	<columnHeader height="20">
 		<element kind="rectangle" x="0" y="0" width="782" height="20" mode="Opaque" backcolor="#1F4E79" forecolor="#1F4E79"/>
 		<element kind="staticText" x="2" y="0" width="120" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Supplier]]></text></element>
-		<element kind="staticText" x="124" y="0" width="90" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Category Focus]]></text></element>
-		<element kind="staticText" x="216" y="0" width="50" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Terms]]></text></element>
-		<element kind="staticText" x="268" y="0" width="66" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Lifetime On-Time %]]></text></element>
-		<element kind="staticText" x="336" y="0" width="66" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Lifetime Fill Rate %]]></text></element>
-		<element kind="staticText" x="404" y="0" width="46" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Lead Days]]></text></element>
-		<element kind="staticText" x="452" y="0" width="82" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Lifetime Spend]]></text></element>
-		<element kind="staticText" x="536" y="0" width="60" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Lifetime POs]]></text></element>
-		<element kind="staticText" x="598" y="0" width="60" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Quarter POs]]></text></element>
+		<element kind="staticText" x="124" y="0" width="68" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Category Focus]]></text></element>
+		<element kind="staticText" x="194" y="0" width="36" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Terms]]></text></element>
+		<element kind="staticText" x="232" y="0" width="88" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Lifetime On-Time %]]></text></element>
+		<element kind="staticText" x="322" y="0" width="88" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Lifetime Fill Rate %]]></text></element>
+		<element kind="staticText" x="412" y="0" width="46" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Lead Days]]></text></element>
+		<element kind="staticText" x="460" y="0" width="82" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Lifetime Spend]]></text></element>
+		<element kind="staticText" x="544" y="0" width="56" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Lifetime POs]]></text></element>
+		<element kind="staticText" x="602" y="0" width="56" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Quarter POs]]></text></element>
 		<element kind="staticText" x="660" y="0" width="122" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Quarter On-Time %]]></text></element>
 	</columnHeader>
 
@@ -111,28 +111,28 @@ ORDER BY lifetime_on_time_pct ASC
 			<element kind="textField" style="sup_cell" x="2" y="0" width="120" height="16" vTextAlign="Middle">
 				<expression><![CDATA[$F{supplier_name}]]></expression>
 			</element>
-			<element kind="textField" style="sup_cell" x="124" y="0" width="90" height="16" vTextAlign="Middle" blankWhenNull="true">
+			<element kind="textField" style="sup_cell" x="124" y="0" width="68" height="16" vTextAlign="Middle" blankWhenNull="true">
 				<expression><![CDATA[$F{category_focus}]]></expression>
 			</element>
-			<element kind="textField" style="sup_cell" x="216" y="0" width="50" height="16" vTextAlign="Middle">
+			<element kind="textField" style="sup_cell" x="194" y="0" width="36" height="16" vTextAlign="Middle">
 				<expression><![CDATA[$F{payment_terms}]]></expression>
 			</element>
-			<element kind="textField" style="sup_cell" x="268" y="0" width="66" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="0.00" blankWhenNull="true">
+			<element kind="textField" style="sup_cell" x="232" y="0" width="88" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="0.00" blankWhenNull="true">
 				<expression><![CDATA[$F{lifetime_on_time_pct}]]></expression>
 			</element>
-			<element kind="textField" style="sup_cell" x="336" y="0" width="66" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="0.00" blankWhenNull="true">
+			<element kind="textField" style="sup_cell" x="322" y="0" width="88" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="0.00" blankWhenNull="true">
 				<expression><![CDATA[$F{lifetime_fill_rate_pct}]]></expression>
 			</element>
-			<element kind="textField" style="sup_cell" x="404" y="0" width="46" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="#,##0" blankWhenNull="true">
+			<element kind="textField" style="sup_cell" x="412" y="0" width="46" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="#,##0" blankWhenNull="true">
 				<expression><![CDATA[$F{lead_time_days}]]></expression>
 			</element>
-			<element kind="textField" style="sup_cell" x="452" y="0" width="82" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
+			<element kind="textField" style="sup_cell" x="460" y="0" width="82" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
 				<expression><![CDATA[$F{lifetime_spend}]]></expression>
 			</element>
-			<element kind="textField" style="sup_cell" x="536" y="0" width="60" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="#,##0" blankWhenNull="true">
+			<element kind="textField" style="sup_cell" x="544" y="0" width="56" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="#,##0" blankWhenNull="true">
 				<expression><![CDATA[$F{lifetime_po_count}]]></expression>
 			</element>
-			<element kind="textField" style="sup_cell" x="598" y="0" width="60" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="#,##0" blankWhenNull="true">
+			<element kind="textField" style="sup_cell" x="602" y="0" width="56" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="#,##0" blankWhenNull="true">
 				<expression><![CDATA[$F{quarter_po_count}]]></expression>
 			</element>
 
