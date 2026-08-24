@@ -40,6 +40,7 @@ GROUP BY aging_bucket ORDER BY ord
 			<hyperlinkParameter name="_report"><expression><![CDATA["/reports/pos_perf/rpt_ar_aging"]]></expression></hyperlinkParameter>
 			<hyperlinkParameter name="p_asof"><expression><![CDATA[$P{p_asof}]]></expression></hyperlinkParameter>
 			<hyperlinkParameter name="p_regions"><expression><![CDATA[$P{p_regions}]]></expression></hyperlinkParameter>
+			<hyperlinkParameter name="p_franchisee"><expression><![CDATA[$P{p_franchisee}]]></expression></hyperlinkParameter>
 		</element>
 		<element kind="textField" x="0" y="26" width="580" height="14" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center" vTextAlign="Middle"><expression><![CDATA["Unpaid franchise fees in CAD. Ledger as of 2020-12-31, invoices through " + $P{p_asof}.substring(0, 4) + "-" + $P{p_asof}.substring(4)]]></expression></element>
 

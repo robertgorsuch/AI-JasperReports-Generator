@@ -89,6 +89,7 @@ FROM ap_invoices a
 JOIN (SELECT payment_terms, MAX(FLOAT8(discount_taken) / FLOAT8(NULLIF(amount, 0))) AS rate
       FROM ap_invoices WHERE discount_taken > 0 GROUP BY payment_terms) r ON r.payment_terms = a.payment_terms
 WHERE a.status <> 'Paid' AND a.invoice_yyyymm <= INT4($P{p_asof})
+  AND a.due_date > (SELECT MAX(calendar_date) FROM date_dim WHERE yyyymm = INT4($P{p_asof}))
   AND a.due_date <= (SELECT MAX(calendar_date) FROM date_dim WHERE yyyymm = INT4($P{p_asof})) + 14
   AND $X{IN, a.region, p_regions}
 GROUP BY a.supplier_name, a.payment_terms
