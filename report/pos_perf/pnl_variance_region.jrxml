@@ -1,14 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Store Profit and Budget cockpit: four-wall EBITDA variance against the
      original 2020 budget, by region. Diverging bars: TWO series over the same
-     category, each returning null unless the variance has the matching sign,
-     so the bar colour encodes favourable (brand blue) vs unfavourable (teal)
-     without a conditional-style customizer. JFreeChart skips the null series
-     for a category, so exactly one bar is drawn per region and the tile still
-     reads correctly if a region flips sign in a later data build.
+     category, each returning BigDecimal.ZERO unless the variance has the
+     matching sign, so the bar colour encodes favourable (brand blue) vs
+     unfavourable (teal) without a conditional-style customizer.
      JR7-native bar plot (showTickMarks/showTickLabels/showLabels per
      jr7-valid-elements.md 3c); chart is in the title band, so
-     evaluationTime="Report". -->
+     evaluationTime="Report".
+
+     POST-COMPLETION FIX (seriesColor null-registration): the query orders
+     regions by variance DESC, so the first row is whichever region has the
+     largest signed variance. If every region is unfavourable that period,
+     the first row is negative and the old null-valued "Favourable" series
+     never registers at row 0 - "Unfavourable" registers first instead and
+     steals seriesColor order="0" (brand blue), inverting both bars. This is
+     the same JR7 category-dataset defect documented in commit 1e068ec
+     (rpt_store_pnl_statement.jrxml): a null value is not registered: a zero
+     is. Both series now return BigDecimal.ZERO for the non-matching sign
+     instead of null, so both always register at row 0 in declaration order
+     regardless of how the data sorts, and the non-matching bar draws at
+     zero height (invisible) rather than being omitted. -->
 <jasperReport name="pnl_variance_region" language="java" pageWidth="800" pageHeight="440" columnWidth="780" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
 
 	<query language="SQL"><![CDATA[
@@ -30,12 +41,12 @@ GROUP BY region ORDER BY 2 DESC
 				<series>
 					<seriesExpression><![CDATA["Favourable"]]></seriesExpression>
 					<categoryExpression><![CDATA[$F{region}]]></categoryExpression>
-					<valueExpression><![CDATA[$F{variance_cad} != null && $F{variance_cad}.signum() >= 0 ? $F{variance_cad} : null]]></valueExpression>
+					<valueExpression><![CDATA[$F{variance_cad} != null && $F{variance_cad}.signum() >= 0 ? $F{variance_cad} : java.math.BigDecimal.ZERO]]></valueExpression>
 				</series>
 				<series>
 					<seriesExpression><![CDATA["Unfavourable"]]></seriesExpression>
 					<categoryExpression><![CDATA[$F{region}]]></categoryExpression>
-					<valueExpression><![CDATA[$F{variance_cad} != null && $F{variance_cad}.signum() < 0 ? $F{variance_cad} : null]]></valueExpression>
+					<valueExpression><![CDATA[$F{variance_cad} != null && $F{variance_cad}.signum() < 0 ? $F{variance_cad} : java.math.BigDecimal.ZERO]]></valueExpression>
 				</series>
 			</dataset>
 			<plot showTickMarks="true" showTickLabels="true" showLabels="true">
