@@ -28,7 +28,12 @@
         absolute denominator, positive always means favourable on every line, which
         is what the brief's own note ("the variance sign is always
         favourable-positive") asks for, and it lets one sign test colour both the
-        amount and the percent.
+        amount and the percent. The percent is left as the raw FLOAT8 quotient
+        (field class java.lang.Double) and NOT re-cast to DECIMAL(..., 8, 1):
+        that cast TRUNCATES the scale rather than rounding, so every displayed
+        tenth could read 0.1pp low (labour 9.065 printed 9.0, shrinkage -41.59
+        printed -41.5). The pattern="#,##0.0'%'" does the rounding at render
+        time instead.
 
      3. The inline per-row variance bar is a summary-band chart. JR7 has no
         expression-driven element width, so a per-row rectangle cannot be scaled;
@@ -46,7 +51,7 @@
         so the store would be announced as rank #1 in its region. The chip is
         replaced with a plain "no sales recorded" sentence in that case.
 
-     6. The variance bar's two sign series return BigDecimal.ZERO, not null, for a
+     6. The variance bar's two sign series return a zero, not null, for a
         non-matching sign. A null is NOT registered in the category dataset, so the
         series that happens to carry the FIRST row's value is registered first and
         takes seriesColor order="0". With a null, the colours therefore invert
@@ -111,7 +116,7 @@ SELECT s.line_order, s.line_label,
        DECIMAL(s.actual_amt, 14, 2) AS actual_amt,
        DECIMAL(s.budget_amt, 14, 2) AS budget_amt,
        DECIMAL(s.actual_amt - s.budget_amt, 14, 2) AS variance_amt,
-       DECIMAL(100.0 * FLOAT8(s.actual_amt - s.budget_amt) / FLOAT8(NULLIF(ABS(s.budget_amt), 0)), 8, 1) AS variance_pct,
+       100.0 * FLOAT8(s.actual_amt - s.budget_amt) / FLOAT8(NULLIF(ABS(s.budget_amt), 0)) AS variance_pct,
        s.is_total,
        (SELECT storename FROM stores WHERE storenumber = $P{p_store}) AS storename,
        (SELECT region FROM stores WHERE storenumber = $P{p_store}) AS region,
@@ -138,7 +143,7 @@ FROM (
 	<field name="actual_amt" class="java.math.BigDecimal"/>
 	<field name="budget_amt" class="java.math.BigDecimal"/>
 	<field name="variance_amt" class="java.math.BigDecimal"/>
-	<field name="variance_pct" class="java.math.BigDecimal"/>
+	<field name="variance_pct" class="java.lang.Double"/>
 	<field name="is_total" class="java.lang.Integer"/>
 	<field name="storename" class="java.lang.String"/>
 	<field name="region" class="java.lang.String"/>
@@ -216,12 +221,12 @@ FROM (
 				<series>
 					<seriesExpression><![CDATA["Favourable"]]></seriesExpression>
 					<categoryExpression><![CDATA[$F{line_order}.intValue() == 8 ? "Other store opex" : $F{line_label}]]></categoryExpression>
-					<valueExpression><![CDATA[$F{variance_pct} != null && $F{variance_pct}.signum() >= 0 ? $F{variance_pct} : java.math.BigDecimal.ZERO]]></valueExpression>
+					<valueExpression><![CDATA[$F{variance_pct} != null && $F{variance_pct}.doubleValue() >= 0 ? $F{variance_pct} : Double.valueOf(0)]]></valueExpression>
 				</series>
 				<series>
 					<seriesExpression><![CDATA["Unfavourable"]]></seriesExpression>
 					<categoryExpression><![CDATA[$F{line_order}.intValue() == 8 ? "Other store opex" : $F{line_label}]]></categoryExpression>
-					<valueExpression><![CDATA[$F{variance_pct} != null && $F{variance_pct}.signum() < 0 ? $F{variance_pct} : java.math.BigDecimal.ZERO]]></valueExpression>
+					<valueExpression><![CDATA[$F{variance_pct} != null && $F{variance_pct}.doubleValue() < 0 ? $F{variance_pct} : Double.valueOf(0)]]></valueExpression>
 				</series>
 			</dataset>
 			<plot orientation="Horizontal" showTickMarks="true" showTickLabels="true" showLabels="false">
