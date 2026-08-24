@@ -2,6 +2,7 @@
   "folder": "/reports/pos_perf",
   "name": "pos_executive_overview",
   "label": "POS Executive Overview",
+  "canvasColor": "#000032",
   "dashlets": [
     {
       "resource": "/reports/pos_perf/exec_map",

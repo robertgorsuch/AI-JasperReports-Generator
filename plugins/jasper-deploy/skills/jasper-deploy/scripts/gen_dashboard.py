@@ -90,7 +90,8 @@ def build_filter_components(filters, ctl_folder, owner):
 
 # --- the three companion files ----------------------------------------------
 def build_components(dashlets, dashlet_filter_popup=False,
-                     filters=None, ctl_folder=None, owner=None) -> str:
+                     filters=None, ctl_folder=None, owner=None,
+                     canvas_color="#ffffff") -> str:
     props = {
         "id": "DashboardProperties", "type": "dashboardProperties",
         "name": "DashboardProperties", "autoRefresh": False,
@@ -98,7 +99,7 @@ def build_components(dashlets, dashlet_filter_popup=False,
         "showDashletBorders": True, "showExportButton": False,
         "showPrintButton": False, "dashletMargin": 5, "dashletPadding": 5,
         "dashletFilterShowPopup": bool(dashlet_filter_popup), "useFixedSize": False,
-        "fixedWidth": 1280, "fixedHeight": 800, "canvasColor": "#ffffff",
+        "fixedWidth": 1280, "fixedHeight": 800, "canvasColor": canvas_color,
         "titleBarColor": "rgba(0, 0, 0, 0)", "titleTextColor": "#454545",
     }
     arr = [props]
@@ -386,7 +387,8 @@ def main():
                                         filters, ctl_folder),
         f"{files_base}/components.data": build_components(
             dashlets, m.get("dashletFilterShowPopup", False),
-            filters, ctl_folder, owner),
+            filters, ctl_folder, owner,
+            m.get("canvasColor", "#ffffff")),
         f"{files_base}/layout": build_layout(dashlets, filters),
         f"{files_base}/wiring.data": build_wiring(dashlets, m.get("wiring"), filters),
     }

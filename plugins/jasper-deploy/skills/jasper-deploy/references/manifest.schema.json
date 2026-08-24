@@ -41,6 +41,11 @@
       "type": "string",
       "description": "Human-readable dashboard label. The component id is derived from this via re.sub('[^0-9A-Za-z]','_', label), so keep labels unique across tiles."
     },
+    "canvasColor": {
+      "type": "string",
+      "description": "Background colour of the dashboard canvas (the gutters between tiles), written to DashboardProperties.canvasColor. Default #ffffff. Set it to the tiles' own page background (e.g. #000032 for the navy POS boards) so the gutters do not read as white seams.",
+      "default": "#ffffff"
+    },
     "outDir": {
       "type": "string",
       "description": "Local output directory for generated jrxml/jasper artifacts, e.g. report\\foodmart (Windows path, backslashes escaped in JSON)."

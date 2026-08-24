@@ -6,14 +6,20 @@
      codes (T, M, O, blank); T and blank ("No Promotion") are the two dominant
      ones (~50.8% / ~49.2% on STAGE) and get the brief's two named colors (order
      0/1); M and O round to ~0% and get the remaining two brand categorical
-     colors (order 2/3: #0A4CAD, #239CA8) rather than JFreeChart defaults.
+     colors (order 2/3) rather than JFreeChart defaults.
      JR7-native (stackedBar is a barPlot; showLabels is valid per
      jr7-valid-elements.md 3c; gradient customizer does NOT apply to stackedbar
      per gotcha G7, so explicit seriesColor is used instead).
-     Page math: pageHeight 300 - topMargin 20 - bottomMargin 20 = 260 usable;
-     title 40 + summary 220 = 260 (fits on page 1; an earlier 44+230=274 draft
-     overflowed the chart onto page 2). -->
-<jasperReport name="exec_promo_mix" language="java" pageWidth="950" pageHeight="300" columnWidth="910" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+
+     NAVY THEME: full-bleed #000032 background band with margins folded into the
+     element coordinates (see exec_kpi_strip.jrxml); series are Tech Blue
+     #3C91FF then Software Teal #2EC0CB, and the teal series carries
+     showLabels="true". Chart element and plot are opaque #000032, and the axis /
+     legend / item-label colours are set explicitly because JFreeChart draws all
+     three black by default (see exec_region_bar.jrxml for the source citation).
+     Page math: pageHeight 300 with zero margins = 300 usable; title 60 +
+     summary 220 = 280 (fits on page 1). -->
+<jasperReport name="exec_promo_mix" language="java" pageWidth="950" pageHeight="300" columnWidth="950" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
 	<query language="SQL"><![CDATA[
 SELECT promotiontype, round(SUM(sales_ext) * 100.0 / (SELECT SUM(sales_ext) FROM dash_promo), 1) AS pct FROM dash_promo GROUP BY 1 ORDER BY 2 DESC
 	]]></query>
@@ -21,14 +27,18 @@ SELECT promotiontype, round(SUM(sales_ext) * 100.0 / (SELECT SUM(sales_ext) FROM
 	<field name="promotiontype" class="java.lang.String"/>
 	<field name="pct" class="java.math.BigDecimal"/>
 
-	<title height="40">
-		<element kind="image" x="0" y="0" width="32" height="32" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
-		<element kind="staticText" x="0" y="0" width="910" height="20" fontSize="15.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Promotion Mix]]></text></element>
-		<element kind="staticText" x="0" y="21" width="910" height="12" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Share of net sales -- promoted vs. non-promoted]]></text></element>
+	<background height="300">
+		<element kind="rectangle" x="0" y="0" width="950" height="300" mode="Opaque" backcolor="#000032" forecolor="#000032"/>
+	</background>
+
+	<title height="60">
+		<element kind="image" x="20" y="20" width="32" height="32" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
+		<element kind="staticText" x="20" y="20" width="910" height="20" fontSize="15.0" bold="true" forecolor="#FFFFFF" hTextAlign="Center"><text><![CDATA[Promotion Mix]]></text></element>
+		<element kind="staticText" x="20" y="41" width="910" height="12" fontSize="9.0" forecolor="#8AC6F8" hTextAlign="Center"><text><![CDATA[Share of net sales -- promoted vs. non-promoted]]></text></element>
 	</title>
 
 	<summary height="220">
-		<element kind="chart" chartType="stackedBar" x="0" y="0" width="910" height="220" evaluationTime="Report">
+		<element kind="chart" chartType="stackedBar" x="20" y="0" width="910" height="220" mode="Opaque" backcolor="#000032" legendColor="#FFFFFF" legendBackgroundColor="#000032" evaluationTime="Report">
 			<dataset kind="category">
 				<series>
 					<seriesExpression><![CDATA[$F{promotiontype} == null || $F{promotiontype}.trim().isEmpty() ? "No Promotion" : $F{promotiontype}]]></seriesExpression>
@@ -36,10 +46,13 @@ SELECT promotiontype, round(SUM(sales_ext) * 100.0 / (SELECT SUM(sales_ext) FROM
 					<valueExpression><![CDATA[$F{pct}]]></valueExpression>
 				</series>
 			</dataset>
-			<plot showTickMarks="true" showTickLabels="true" showLabels="true">
-				<seriesColor order="0" color="#0550DC"/>
-				<seriesColor order="1" color="#1DB6C0"/>
-				<seriesColor order="2" color="#0A4CAD"/>
+			<plot showTickMarks="true" showTickLabels="true" showLabels="true" backcolor="#000032"
+			      categoryAxisLabelColor="#8AC6F8" categoryAxisTickLabelColor="#8AC6F8" categoryAxisLineColor="#26305A"
+			      valueAxisLabelColor="#8AC6F8" valueAxisTickLabelColor="#8AC6F8" valueAxisLineColor="#26305A">
+				<itemLabel color="#FFFFFF" backgroundColor="#000032"/>
+				<seriesColor order="0" color="#3C91FF"/>
+				<seriesColor order="1" color="#2EC0CB"/>
+				<seriesColor order="2" color="#71B7F4"/>
 				<seriesColor order="3" color="#239CA8"/>
 			</plot>
 		</element>

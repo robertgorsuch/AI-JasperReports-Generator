@@ -21,35 +21,58 @@
   the storeregion codes already confirmed in the Task 2 region rollup) to these
   numeric ids; unmatched codes fall through to "00" (renders uncolored, does
   not break the map).
+
+  NAVY THEME: this file is deliberately JR6 legacy syntax (the fm:map PRO
+  component has no JR7 terse form), so the background band uses the JR6
+  <background><band><rectangle> shape rather than the JR7 <background
+  height=".."><element kind="rectangle"/> shape used by the sibling tiles - the
+  two syntaxes are NOT mixed within a file. Margins are zeroed and folded into
+  the element coordinates so the #000032 rectangle bleeds to the page edge (JR
+  rejects a background element that reaches outside its band, and also a
+  background band taller than pageHeight minus the margins). The sequential ramp
+  is re-pointed at the navy scale #1B2C52 / #2E5BA8 / #3C91FF / #8AC6F8 (the
+  legend swatches follow), entity labels stay white via baseFontColor, and the
+  FusionCharts plate itself is painted #000032 via bgColor / bgAlpha /
+  canvasBgColor so no white block shows behind the provinces. nullEntityColor
+  keeps the no-data territories on the ramp's darkest step instead of the
+  FusionCharts default light grey.
 -->
 <jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
               xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
-              name="exec_map" pageWidth="842" pageHeight="596" columnWidth="822"
-              leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10"
+              name="exec_map" pageWidth="842" pageHeight="596" columnWidth="842"
+              leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0"
               uuid="e1ec0a17-0005-0002-0003-000000000001">
 	<queryString><![CDATA[SELECT storeprovince, sales_ext, qty FROM dash_province ORDER BY sales_ext DESC]]></queryString>
 	<field name="storeprovince" class="java.lang.String"/>
 	<field name="sales_ext" class="java.math.BigDecimal"/>
 	<field name="qty" class="java.lang.Long"/>
+	<background>
+		<band height="596">
+			<rectangle>
+				<reportElement x="0" y="0" width="842" height="596" mode="Opaque" backcolor="#000032" forecolor="#000032" uuid="e1ec0a17-0005-0002-0003-000000000030"/>
+				<graphicElement><pen lineWidth="0.0"/></graphicElement>
+			</rectangle>
+		</band>
+	</background>
 	<title>
-		<band height="576">
+		<band height="586">
 			<image>
-				<reportElement x="0" y="0" width="44" height="44" uuid="e1ec0a17-0005-0002-0003-000000000010"/>
+				<reportElement x="10" y="10" width="44" height="44" uuid="e1ec0a17-0005-0002-0003-000000000010"/>
 				<imageExpression><![CDATA["repo:/images/actian_logo"]]></imageExpression>
 			</image>
 			<staticText>
-				<reportElement x="0" y="0" width="822" height="24" forecolor="#1F4E79" uuid="e1ec0a17-0005-0002-0003-000000000002"/>
+				<reportElement x="10" y="10" width="822" height="24" forecolor="#FFFFFF" uuid="e1ec0a17-0005-0002-0003-000000000002"/>
 				<textElement textAlignment="Center"><font size="16" isBold="true"/></textElement>
 				<text><![CDATA[Retail POS Sales Performance -- Net Sales by Province]]></text>
 			</staticText>
 			<staticText>
-				<reportElement x="0" y="24" width="822" height="13" forecolor="#5B7DA6" uuid="e1ec0a17-0005-0002-0003-000000000003"/>
+				<reportElement x="10" y="34" width="822" height="13" forecolor="#8AC6F8" uuid="e1ec0a17-0005-0002-0003-000000000003"/>
 				<textElement textAlignment="Center"><font size="9"/></textElement>
 				<text><![CDATA[Geographic heatmap -- color = net sales; label shows net sales and units sold]]></text>
 			</staticText>
 			<componentElement>
-				<reportElement x="150" y="50" width="672" height="526" uuid="e1ec0a17-0005-0002-0003-000000000004"/>
+				<reportElement x="160" y="60" width="672" height="526" uuid="e1ec0a17-0005-0002-0003-000000000004"/>
 				<fm:map xmlns:fm="http://jaspersoft.com/fusion"
 				        xsi:schemaLocation="http://jaspersoft.com/fusion http://jaspersoft.com/schema/fusion.xsd"
 				        evaluationTime="Report">
@@ -79,24 +102,36 @@
 						<fm:propertyExpression><![CDATA["#FFFFFF"]]></fm:propertyExpression>
 					</fm:mapProperty>
 					<fm:mapProperty name="legendItemFontColor">
-						<fm:propertyExpression><![CDATA["#454545"]]></fm:propertyExpression>
+						<fm:propertyExpression><![CDATA["#FFFFFF"]]></fm:propertyExpression>
 					</fm:mapProperty>
-					<fm:colorRange color="#B8D4EC">
+					<fm:mapProperty name="bgColor">
+						<fm:propertyExpression><![CDATA["000032"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="bgAlpha">
+						<fm:propertyExpression><![CDATA["100"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="canvasBgColor">
+						<fm:propertyExpression><![CDATA["000032"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:mapProperty name="nullEntityColor">
+						<fm:propertyExpression><![CDATA["1B2C52"]]></fm:propertyExpression>
+					</fm:mapProperty>
+					<fm:colorRange color="#1B2C52">
 						<fm:minValueExpression><![CDATA[0]]></fm:minValueExpression>
 						<fm:maxValueExpression><![CDATA[10000000]]></fm:maxValueExpression>
 						<fm:labelExpression><![CDATA["< $10M"]]></fm:labelExpression>
 					</fm:colorRange>
-					<fm:colorRange color="#4A6FA5">
+					<fm:colorRange color="#2E5BA8">
 						<fm:minValueExpression><![CDATA[10000000]]></fm:minValueExpression>
 						<fm:maxValueExpression><![CDATA[50000000]]></fm:maxValueExpression>
 						<fm:labelExpression><![CDATA["$10M - $50M"]]></fm:labelExpression>
 					</fm:colorRange>
-					<fm:colorRange color="#2B4C7E">
+					<fm:colorRange color="#3C91FF">
 						<fm:minValueExpression><![CDATA[50000000]]></fm:minValueExpression>
 						<fm:maxValueExpression><![CDATA[150000000]]></fm:maxValueExpression>
 						<fm:labelExpression><![CDATA["$50M - $150M"]]></fm:labelExpression>
 					</fm:colorRange>
-					<fm:colorRange color="#0A2A4A">
+					<fm:colorRange color="#8AC6F8">
 						<fm:minValueExpression><![CDATA[150000000]]></fm:minValueExpression>
 						<fm:maxValueExpression><![CDATA[500000000]]></fm:maxValueExpression>
 						<fm:labelExpression><![CDATA["$150M+"]]></fm:labelExpression>
@@ -129,43 +164,43 @@ $F{storeprovince}.trim().toUpperCase().equals("NU") ? "14" : "00"
 				</fm:map>
 			</componentElement>
 			<staticText>
-				<reportElement x="6" y="248" width="138" height="14" forecolor="#1F4E79" uuid="e1ec0a17-0005-0002-0003-000000000020"/>
+				<reportElement x="16" y="258" width="138" height="14" forecolor="#FFFFFF" uuid="e1ec0a17-0005-0002-0003-000000000020"/>
 				<textElement><font size="10" isBold="true"/></textElement>
 				<text><![CDATA[Net Sales]]></text>
 			</staticText>
 			<rectangle>
-				<reportElement x="10" y="268" width="20" height="14" mode="Opaque" backcolor="#B8D4EC" forecolor="#B8D4EC" uuid="e1ec0a17-0005-0002-0003-000000000021"/>
+				<reportElement x="20" y="278" width="20" height="14" mode="Opaque" backcolor="#1B2C52" forecolor="#1B2C52" uuid="e1ec0a17-0005-0002-0003-000000000021"/>
 				<graphicElement><pen lineWidth="0.0"/></graphicElement>
 			</rectangle>
 			<staticText>
-				<reportElement x="36" y="268" width="108" height="14" uuid="e1ec0a17-0005-0002-0003-000000000022"/>
+				<reportElement x="46" y="278" width="108" height="14" forecolor="#FFFFFF" uuid="e1ec0a17-0005-0002-0003-000000000022"/>
 				<textElement verticalAlignment="Middle"><font size="9"/></textElement>
 				<text><![CDATA[< $10M]]></text>
 			</staticText>
 			<rectangle>
-				<reportElement x="10" y="290" width="20" height="14" mode="Opaque" backcolor="#4A6FA5" forecolor="#4A6FA5" uuid="e1ec0a17-0005-0002-0003-000000000023"/>
+				<reportElement x="20" y="300" width="20" height="14" mode="Opaque" backcolor="#2E5BA8" forecolor="#2E5BA8" uuid="e1ec0a17-0005-0002-0003-000000000023"/>
 				<graphicElement><pen lineWidth="0.0"/></graphicElement>
 			</rectangle>
 			<staticText>
-				<reportElement x="36" y="290" width="108" height="14" uuid="e1ec0a17-0005-0002-0003-000000000024"/>
+				<reportElement x="46" y="300" width="108" height="14" forecolor="#FFFFFF" uuid="e1ec0a17-0005-0002-0003-000000000024"/>
 				<textElement verticalAlignment="Middle"><font size="9"/></textElement>
 				<text><![CDATA[$10M - $50M]]></text>
 			</staticText>
 			<rectangle>
-				<reportElement x="10" y="312" width="20" height="14" mode="Opaque" backcolor="#2B4C7E" forecolor="#2B4C7E" uuid="e1ec0a17-0005-0002-0003-000000000025"/>
+				<reportElement x="20" y="322" width="20" height="14" mode="Opaque" backcolor="#3C91FF" forecolor="#3C91FF" uuid="e1ec0a17-0005-0002-0003-000000000025"/>
 				<graphicElement><pen lineWidth="0.0"/></graphicElement>
 			</rectangle>
 			<staticText>
-				<reportElement x="36" y="312" width="108" height="14" uuid="e1ec0a17-0005-0002-0003-000000000026"/>
+				<reportElement x="46" y="322" width="108" height="14" forecolor="#FFFFFF" uuid="e1ec0a17-0005-0002-0003-000000000026"/>
 				<textElement verticalAlignment="Middle"><font size="9"/></textElement>
 				<text><![CDATA[$50M - $150M]]></text>
 			</staticText>
 			<rectangle>
-				<reportElement x="10" y="334" width="20" height="14" mode="Opaque" backcolor="#0A2A4A" forecolor="#0A2A4A" uuid="e1ec0a17-0005-0002-0003-000000000027"/>
+				<reportElement x="20" y="344" width="20" height="14" mode="Opaque" backcolor="#8AC6F8" forecolor="#8AC6F8" uuid="e1ec0a17-0005-0002-0003-000000000027"/>
 				<graphicElement><pen lineWidth="0.0"/></graphicElement>
 			</rectangle>
 			<staticText>
-				<reportElement x="36" y="334" width="108" height="14" uuid="e1ec0a17-0005-0002-0003-000000000028"/>
+				<reportElement x="46" y="344" width="108" height="14" forecolor="#FFFFFF" uuid="e1ec0a17-0005-0002-0003-000000000028"/>
 				<textElement verticalAlignment="Middle"><font size="9"/></textElement>
 				<text><![CDATA[$150M+]]></text>
 			</staticText>
