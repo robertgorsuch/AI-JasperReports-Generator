@@ -199,21 +199,46 @@ Full details in `RUNBOOK.md` §3 and `plugins/jasper-deploy/skills/jasper-deploy
 
 ## POS performance dashboards (report/pos_perf)
 
-Three dashboards on JasperReports Server, fed by `robert.gorsuch` on the
-pos_data Avalanche warehouse through `/datasources/pos_data_avalanche`:
+Five dashboards and four paginated reports on JasperReports Server, fed by
+`robert.gorsuch` on the pos_data Avalanche warehouse through
+`/datasources/pos_data_avalanche`:
 
 | Dashboard | URI | Manifest |
 |---|---|---|
 | POS Executive Overview | /reports/pos_perf/pos_executive_overview | report/pos_perf/exec_dashboard.json |
 | POS Operations Console | /reports/pos_perf/pos_operations_console | report/pos_perf/ops_dashboard.json |
 | POS Promo and Margin Story | /reports/pos_perf/pos_promo_story | report/pos_perf/story_dashboard.json |
+| POS Store Profit and Budget | /reports/pos_perf/pos_store_pnl | report/pos_perf/pnl_dashboard.json |
+| POS Franchise Treasury | /reports/pos_perf/pos_treasury | report/pos_perf/trs_dashboard.json |
 
-Tiles read the precomputed `dash_*` aggregates built by
+| Report | URI | Reached from |
+|---|---|---|
+| Store P and L Statement | /reports/pos_perf/rpt_store_pnl_statement | pnl_worst_stores tile |
+| Franchise Receivables Aging | /reports/pos_perf/rpt_ar_aging | trs_ar_aging tile |
+| Payables Aging and Payment Run | /reports/pos_perf/rpt_ap_aging | trs_dpo tile |
+| Sales Tax Remittance | /reports/pos_perf/rpt_tax_remittance | trs_tax_province tile |
+
+Executive Overview and Promo Story render on a navy canvas (`#000032`); the
+other three are light. Franchise Treasury carries a dashboard-level filter
+strip (the manifest's `filters` key) over shared input controls under
+`/reports/pos_perf/controls/`; the Operations Console uses per-dashlet filter
+popups instead.
+
+The first three dashboards read the precomputed `dash_*` aggregates built by
 `scripts/pos_perf/build_dash_aggregates.sql` (verify with
-`verify_dash_aggregates.sql`). Margin basis: extended sales minus extended
-cost per line, 31.65 pct network (see out/pos_perf/margin_basis_decision.md
-in a local build). Design: specs/2026-08-20-pos-sales-dashboards-design.md;
-suite roadmap: specs/2026-08-23-pos-suite-design.md.
+`verify_dash_aggregates.sql`); the Treasury tender tile reads
+`dash_tender_monthly` from `build_dash_tender_monthly.sql`. The finance
+dashboards and reports read the base finance tables directly. Margin basis on
+the `dash_*` aggregates: extended sales minus line cost, 31.6 pct across
+2019-2020 (see out/pos_perf/margin_basis_decision.md in a local build). The
+Store Profit board reports 33.7 pct on the same basis because it is scoped to
+2020 alone; 2019 is 29.2 pct and the two years together are 31.6 pct.
+
+`scripts/pos_perf/wobby_metric_crosscheck.py` reconciles the finance KPIs
+against the semantic layer's own metric expressions; as of 2026-08-24 all
+eleven checked metrics agree exactly. Design:
+specs/2026-08-20-pos-sales-dashboards-design.md; suite roadmap:
+specs/2026-08-23-pos-suite-design.md.
 
 ## About
 

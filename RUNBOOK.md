@@ -495,13 +495,183 @@ Redeploy one report after editing its jrxml:
     & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_region_bar.jrxml -TargetUri /reports/pos_perf/exec_region_bar -Label "Net Sales by Region" -DataSourceUri /datasources/pos_data_avalanche -Overwrite
     & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/exec_region_bar -Format pdf -OutFile out\pos_perf\exec_region_bar.pdf
 
+Rebuild the Treasury tender aggregate (Phase 1, feeds trs_tender_mix):
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\build_dash_tender_monthly.sql -ResourceId av-flm7ykoxlcvq
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\verify_dash_tender_monthly.sql -ResourceId av-flm7ykoxlcvq
+
+Create the shared finance input controls (idempotent, skips what exists):
+    $env:JRS_ENV = "stage"
+    . .\scripts\pos_perf\jrs_controls.ps1
+    New-FinanceControls
+The helper is dot-sourced, so the environment binds at dot-source time --
+there is no -Env switch on New-FinanceControls itself; use
+`. .\scripts\pos_perf\jrs_controls.ps1 -Env prod` to target PROD. Controls
+land under /reports/pos_perf/controls/ (p_asof, p_regions, p_franchisee,
+p_store, p_yyyymm, p_version, p_province, plus their LOV/query companions).
+A control already attached to a report unit is skipped with a WARNING; re-run
+with -Force only if you really mean to replace it.
+
 Recompose a dashboard (delete first, the import will not overwrite companions):
     & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_executive_overview
     & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\exec_dashboard.json -AutoGrid
 
+Re-attach input controls after ANY redeploy of a Treasury tile or a finance
+report -- deploy_report.ps1 -Overwrite replaces the whole report unit and
+drops inputControls:
+    . .\scripts\pos_perf\jrs_controls.ps1
+    $ctl = @("/reports/pos_perf/controls/p_asof","/reports/pos_perf/controls/p_regions","/reports/pos_perf/controls/p_franchisee")
+    Attach-Controls -ReportUri /reports/pos_perf/trs_ar_aging -ControlUris $ctl
+Then GET-verify it stuck:
+    . ".\.claude\skills\jasper-deploy\scripts\_jrs_common.ps1"; $jrs = Resolve-JrsConfig
+    @((Invoke-JrsGet -Jrs $jrs -Uri "/reports/pos_perf/trs_ar_aging").Body | ConvertFrom-Json | ForEach-Object inputControls).Count
+
+Verify a whole build on STAGE without a browser -- render every tile and
+report to PDF, then diff the server against git:
+    foreach ($u in @("pnl_kpi_strip","pnl_waterfall","pnl_variance_region","pnl_contribution_trend","pnl_worst_stores","trs_kpi","trs_ar_aging","trs_dpo","trs_tender_mix","trs_tax_province","trs_liability","trs_lease_expiry","rpt_store_pnl_statement","rpt_ar_aging","rpt_ap_aging","rpt_tax_remittance")) {
+        & "$jd\run_report_async.ps1" -ReportUri "/reports/pos_perf/$u" -Format pdf -OutFile "out\pos_perf\phase1\$u.pdf" -TimeoutSec 300
+    }
+    & "$jd\export_resource.ps1" -Uri /reports/pos_perf/pos_treasury -Out out\pos_perf\phase1\exp_pos_treasury.zip
+The export zip carries each tile's jrxml as
+resources/reports/pos_perf/<unit>_files/*_main_jrxml.data, the composed layout
+as <dash>_files/components.data (tile list, canvasColor, filter group), and
+each report unit's attached controls in <unit>.xml -- enough to confirm that
+what is on the server is what is in git.
+
+Reconcile the finance KPIs against the semantic layer (one API GET, then any
+number of offline re-runs):
+    $cfg = Get-Content ".claude\skills\wobby\wobby.config.json" -Raw | ConvertFrom-Json
+    $r = Invoke-WebRequest -Uri "$($cfg.baseUrl)/api/public/v1/environment" -Headers @{Authorization="Bearer $($cfg.apiKey)"} -Method Get -UseBasicParsing
+    [IO.File]::WriteAllText("$PWD\out\pos_perf\wobby_env_phase1.json", $r.Content)
+    python scripts\pos_perf\wobby_metric_crosscheck.py out\pos_perf\wobby_env_phase1.json
+The config file is gitignored and the key never lands in a committed file. The
+API allows 2 requests per 5 seconds -- fetch the export once and re-run the
+script against the saved file.
+
+### Checks that need a human with a browser
+
+An agent cannot do these: dashboards do not render to PDF, and the filter strip
+and drill links are viewer behaviour. STAGE base is
+http://localhost:8081/jasperserver-pro; dashboards open at
+`/dashboard/viewer.html#%2Freports%2Fpos_perf%2F<name>`.
+
+1. **Treasury filter strip.** Open pos_treasury. Confirm a strip renders with
+   As of month / Regions / Franchisee and an Apply button. Set Regions=Quebec,
+   As of month=202006, press Apply. Expect AR Outstanding to fall from
+   $5,399,130 to $93,477, the AP Outstanding chip to blank (there are no unpaid
+   supplier invoices before 2020-11-03), Tax Collected YTD to drop to
+   $1,008,049, and the footer to read "invoices through 2020-06". If the strip
+   does not render or Apply is inert, fall back to per-dashlet popups: drop the
+   `filters` key from report/pos_perf/trs_dashboard.json, add
+   `"dashletFilterShowPopup": true` as ops_dashboard.json does, then teardown
+   and recompose.
+2. **Drill click-tests.** From pos_store_pnl click a store name in the Lowest
+   Four-Wall Margin tile (expect the Store P and L Statement for that store at
+   202012). From pos_treasury click a bar in Receivables Aging, Days to Pay by
+   Terms, and Tax Collected by Province (expect the AR, AP and Tax Remittance
+   reports). Watch one thing in particular: set Regions=Quebec on the strip
+   before clicking the AR bar. `p_regions` and `p_franchisee` cross the drill
+   URL as a java.util.Collection; if the target opens with "Regions: Quebec" in
+   its subtitle the collection survived, if it opens with "Regions: all" it was
+   dropped silently rather than erroring.
+3. **Navy eyeball.** Open pos_executive_overview and pos_promo_story. Confirm
+   the canvas is #000032 with no white gutters and that axis text, legends and
+   item labels are legible. Known and accepted: the Actian logo image has a
+   baked-in white plate and reads as a white box, and JFreeChart meter tick
+   labels are pure blue with no override.
+4. **Spike cleanup.** /reports/pos_perf/spike_filter_test is deliberately still
+   standing so check 1 can be cross-checked against a minimal case. Once check
+   1 passes, delete it:
+       & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/spike_filter_test
+
+### PROD promotion of the Phase 1 finance suite (deferred, user-run)
+
+Not run by any agent -- auto-mode denies PROD writes. PROD is
+http://3.214.51.180:8080/jasperserver-pro. Run these one line at a time.
+
+Step 1, shared controls:
+    . .\scripts\pos_perf\jrs_controls.ps1 -Env prod
+    New-FinanceControls
+
+Step 2, tear the four dashboards down (tiles of a live dashboard 403 with
+resource.in.use on redeploy; a 404 on the two new boards is expected):
+    $env:JRS_ENV = "prod"; $jd = ".\.claude\skills\jasper-deploy\scripts"
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_store_pnl
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_treasury
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_executive_overview
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_promo_story
+
+Step 3, deploy all 28 report units. Labels must match the ones live on STAGE
+or the manifests will not resolve:
+    $ds = "/datasources/pos_data_avalanche"
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_map.jrxml               -TargetUri /reports/pos_perf/exec_map               -Label "Net Sales by Province"         -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_margin_dial.jrxml       -TargetUri /reports/pos_perf/exec_margin_dial       -Label "Gross Margin"                  -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_yoy_dial.jrxml          -TargetUri /reports/pos_perf/exec_yoy_dial          -Label "YoY Growth"                    -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_last_updated.jrxml      -TargetUri /reports/pos_perf/exec_last_updated      -Label "Last Refreshed"                -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_region_bar.jrxml        -TargetUri /reports/pos_perf/exec_region_bar        -Label "Net Sales by Region"           -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_promo_mix.jrxml         -TargetUri /reports/pos_perf/exec_promo_mix         -Label "Promotion Mix"                 -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_trend.jrxml             -TargetUri /reports/pos_perf/exec_trend             -Label "Net Sales Trend"               -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_top_stores.jrxml        -TargetUri /reports/pos_perf/exec_top_stores        -Label "Top Stores"                    -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\exec_kpi_strip.jrxml         -TargetUri /reports/pos_perf/exec_kpi_strip         -Label "Key Metrics"                   -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\story_hero.jrxml             -TargetUri /reports/pos_perf/story_hero             -Label "Promo and Margin Story"        -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\story_trend.jrxml            -TargetUri /reports/pos_perf/story_trend            -Label "Margin Trend"                  -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\story_cards.jrxml            -TargetUri /reports/pos_perf/story_cards            -Label "Decision Cards"                -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\pnl_kpi_strip.jrxml          -TargetUri /reports/pos_perf/pnl_kpi_strip          -Label "pnl_kpi_strip"                 -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\pnl_waterfall.jrxml          -TargetUri /reports/pos_perf/pnl_waterfall          -Label "pnl_waterfall"                 -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\pnl_variance_region.jrxml    -TargetUri /reports/pos_perf/pnl_variance_region    -Label "pnl_variance_region"           -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\pnl_contribution_trend.jrxml -TargetUri /reports/pos_perf/pnl_contribution_trend -Label "pnl_contribution_trend"        -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\pnl_worst_stores.jrxml       -TargetUri /reports/pos_perf/pnl_worst_stores       -Label "pnl_worst_stores"              -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\trs_kpi.jrxml                -TargetUri /reports/pos_perf/trs_kpi                -Label "trs_kpi"                       -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\trs_ar_aging.jrxml           -TargetUri /reports/pos_perf/trs_ar_aging           -Label "trs_ar_aging"                  -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\trs_dpo.jrxml                -TargetUri /reports/pos_perf/trs_dpo                -Label "trs_dpo"                       -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\trs_tender_mix.jrxml         -TargetUri /reports/pos_perf/trs_tender_mix         -Label "trs_tender_mix"                -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\trs_tax_province.jrxml       -TargetUri /reports/pos_perf/trs_tax_province       -Label "trs_tax_province"              -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\trs_liability.jrxml          -TargetUri /reports/pos_perf/trs_liability          -Label "trs_liability"                 -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\trs_lease_expiry.jrxml       -TargetUri /reports/pos_perf/trs_lease_expiry       -Label "trs_lease_expiry"              -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\rpt_store_pnl_statement.jrxml -TargetUri /reports/pos_perf/rpt_store_pnl_statement -Label "Store P and L Statement"        -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\rpt_ar_aging.jrxml            -TargetUri /reports/pos_perf/rpt_ar_aging            -Label "Franchise Receivables Aging"    -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\rpt_ap_aging.jrxml            -TargetUri /reports/pos_perf/rpt_ap_aging            -Label "Payables Aging and Payment Run" -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\rpt_tax_remittance.jrxml      -TargetUri /reports/pos_perf/rpt_tax_remittance      -Label "Sales Tax Remittance"           -DataSourceUri $ds -Overwrite -Backup
+
+Step 4, re-attach the controls the redeploy just dropped. The 5 pnl_* tiles and
+the 12 navy tiles take none:
+    . .\scripts\pos_perf\jrs_controls.ps1 -Env prod
+    $ctl = @("/reports/pos_perf/controls/p_asof","/reports/pos_perf/controls/p_regions","/reports/pos_perf/controls/p_franchisee")
+    foreach ($r in @("trs_kpi","trs_ar_aging","trs_dpo","trs_tender_mix","trs_tax_province","trs_liability","trs_lease_expiry")) { Attach-Controls -ReportUri "/reports/pos_perf/$r" -ControlUris $ctl }
+    Attach-Controls -ReportUri /reports/pos_perf/rpt_store_pnl_statement -ControlUris @("/reports/pos_perf/controls/p_store","/reports/pos_perf/controls/p_yyyymm","/reports/pos_perf/controls/p_version")
+    Attach-Controls -ReportUri /reports/pos_perf/rpt_ar_aging            -ControlUris $ctl
+    Attach-Controls -ReportUri /reports/pos_perf/rpt_ap_aging            -ControlUris @("/reports/pos_perf/controls/p_asof","/reports/pos_perf/controls/p_regions")
+    Attach-Controls -ReportUri /reports/pos_perf/rpt_tax_remittance      -ControlUris @("/reports/pos_perf/controls/p_province","/reports/pos_perf/controls/p_yyyymm")
+
+Step 5, GET-verify the counts (3 for each trs_*, 3 / 3 / 2 / 2 for the four
+reports; any zero means step 4 did not stick):
+    . ".\.claude\skills\jasper-deploy\scripts\_jrs_common.ps1"; $jrs = Resolve-JrsConfig
+    foreach ($r in @("trs_kpi","trs_ar_aging","trs_dpo","trs_tender_mix","trs_tax_province","trs_liability","trs_lease_expiry","rpt_store_pnl_statement","rpt_ar_aging","rpt_ap_aging","rpt_tax_remittance")) { "{0,-26} {1}" -f $r, @(((Invoke-JrsGet -Jrs $jrs -Uri "/reports/pos_perf/$r").Body | ConvertFrom-Json).inputControls).Count }
+
+Step 6, compose the four dashboards:
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\exec_dashboard.json  -AutoGrid
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\story_dashboard.json -AutoGrid
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\pnl_dashboard.json   -AutoGrid
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\trs_dashboard.json   -AutoGrid
+
+Step 7, smoke it, then put the shell back on STAGE (this last line is part of
+the procedure, not an afterthought):
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/pnl_kpi_strip -Format pdf -OutFile out\pos_perf\prod_pnl_kpi_strip.pdf
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/trs_kpi       -Format pdf -OutFile out\pos_perf\prod_trs_kpi.pdf
+    $env:JRS_ENV = "stage"
+Expected in prod_pnl_kpi_strip.pdf: Net Sales 2020 $416,459,364, Plan
+Attainment 100.3%, Gross Margin 33.7%, Four-Wall EBITDA 2020 $63,257,428,
+Labour 9.8%, Loss-Making Stores 18. Expected in prod_trs_kpi.pdf: AR
+Outstanding $5,399,130, AP Outstanding $30,337,409, Cashless Share 89.8%, Tax
+Collected YTD $15,524,541, Gift + Loyalty Liability $9,062,284. Different
+numbers mean PROD is pointed at a different warehouse.
+
 Gotchas: dashboards do not run to PDF (verify the tiles); compose labels are
 not XML-escaped (use "and", never "&"); Ops Console filters are per-dashlet
-popups (dashletFilterShowPopup true); PROD lacks the chart customizer jar, so
-tiles use plain seriesColor; STAGE-to-PROD export/import fails with
-import.decode.failed (per-server key), so promote by deploying jrxml to PROD
-with -Env prod and recomposing there.
+popups (dashletFilterShowPopup true) while Franchise Treasury uses a
+dashboard-level filter strip (the manifest's `filters` key); deploy_report.ps1
+-Overwrite drops attached inputControls, so re-run Attach-Controls after every
+redeploy; a tile of a composed dashboard 403s with resource.in.use, so tear the
+dashboard down first; PROD lacks the chart customizer jar, so tiles use plain
+seriesColor (every Phase 1 unit was authored without one); STAGE-to-PROD
+export/import fails with import.decode.failed (per-server key), so promote by
+deploying jrxml to PROD with -Env prod and recomposing there.
