@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Franchise Treasury console: average days taken to settle supplier invoices,
+     grouped by the payment terms on the invoice. Horizontal bars
+     (plot orientation="Horizontal", PlotOrientationEnum HORIZONTAL("Horizontal")
+     on JRChartPlot) so the terms labels sit on the vertical axis and read
+     without rotation in a narrow tile. Single series, legend suppressed.
+     Supplier invoices carry a region but no franchisee, so only the region
+     clause is emitted here. Chart is in the title band -> evaluationTime="Report". -->
+<jasperReport name="trs_dpo" language="java" pageWidth="600" pageHeight="420" columnWidth="580" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
+	<parameter name="p_asof" class="java.lang.String">
+		<defaultValueExpression><![CDATA["202012"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="p_regions" class="java.util.Collection"/>
+	<parameter name="p_franchisee" class="java.util.Collection"/>
+
+	<query language="SQL"><![CDATA[
+SELECT payment_terms, DECIMAL(AVG(FLOAT8(days_to_pay)), 6, 1) AS dpo_days
+FROM ap_invoices WHERE status = 'Paid' AND invoice_yyyymm <= INT4($P{p_asof}) AND $X{IN, region, p_regions}
+GROUP BY payment_terms ORDER BY payment_terms
+	]]></query>
+
+	<field name="payment_terms" class="java.lang.String"/>
+	<field name="dpo_days" class="java.math.BigDecimal"/>
+
+	<title height="400">
+		<element kind="image" x="0" y="0" width="44" height="44" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
+		<element kind="staticText" x="0" y="2" width="580" height="22" fontSize="16.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Days to Pay by Terms]]></text></element>
+		<element kind="textField" x="0" y="26" width="580" height="14" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center" vTextAlign="Middle"><expression><![CDATA["Average days from invoice to settlement. Ledger as of 2020-12-31, invoices through " + $P{p_asof}.substring(0, 4) + "-" + $P{p_asof}.substring(4)]]></expression></element>
+
+		<element kind="chart" chartType="bar" x="0" y="48" width="580" height="352" showLegend="false" evaluationTime="Report">
+			<dataset kind="category">
+				<series>
+					<seriesExpression><![CDATA["Days to pay"]]></seriesExpression>
+					<categoryExpression><![CDATA[$F{payment_terms}]]></categoryExpression>
+					<valueExpression><![CDATA[$F{dpo_days}]]></valueExpression>
+				</series>
+			</dataset>
+			<plot orientation="Horizontal" showTickMarks="true" showTickLabels="true" showLabels="true">
+				<seriesColor order="0" color="#0550DC"/>
+			</plot>
+		</element>
+	</title>
+
+</jasperReport>
