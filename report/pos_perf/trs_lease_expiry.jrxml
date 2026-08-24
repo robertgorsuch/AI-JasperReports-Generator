@@ -4,10 +4,10 @@
      integer, so the category expression stringifies it - otherwise JFreeChart
      would format the axis key as "2,024".
      The store asset register carries no month column, so this tile takes only
-     the region and franchisee clauses (p_asof does not narrow it; the subtitle
-     still names the ledger date so the tile reads consistently with the rest of
-     the console). JR7-native bar plot; chart in the title band ->
-     evaluationTime="Report". -->
+     the region and franchisee clauses (p_asof does not narrow it). The
+     subtitle is a static sentence with no p_asof reference, so it cannot
+     imply a cutoff the query does not apply. JR7-native bar plot; chart in
+     the title band -> evaluationTime="Report". -->
 <jasperReport name="trs_lease_expiry" language="java" pageWidth="600" pageHeight="420" columnWidth="580" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
 	<parameter name="p_asof" class="java.lang.String">
 		<defaultValueExpression><![CDATA["202012"]]></defaultValueExpression>
@@ -27,7 +27,7 @@ GROUP BY YEAR(lease_expiry) ORDER BY 1
 	<title height="400">
 		<element kind="image" x="0" y="0" width="44" height="44" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
 		<element kind="staticText" x="0" y="2" width="580" height="22" fontSize="16.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Lease Expiries]]></text></element>
-		<element kind="textField" x="0" y="26" width="580" height="14" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center" vTextAlign="Middle"><expression><![CDATA["Stores whose lease falls due, by year. Ledger as of 2020-12-31, invoices through " + $P{p_asof}.substring(0, 4) + "-" + $P{p_asof}.substring(4)]]></expression></element>
+		<element kind="staticText" x="0" y="26" width="580" height="14" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center" vTextAlign="Middle"><text><![CDATA[Stores whose lease falls due, by year. Lease register as of 2020-12-31; not narrowed by the invoice cutoff.]]></text></element>
 
 		<element kind="chart" chartType="bar" x="0" y="48" width="580" height="352" showLegend="false" evaluationTime="Report">
 			<dataset kind="category">

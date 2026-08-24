@@ -5,12 +5,12 @@
      region selection is (same pattern as ops_promo_panel.jrxml; a stackedBar
      ignores the gradient customizer, gotcha G7, so colours are explicit).
 
-     SERIES ORDER NOTE: the query orders rows "yyyymm, tender_group", so the
-     dataset's series appear alphabetically - Card, Cash, Stored Value - and the
-     seriesColor order indexes follow that, giving Card the first palette colour.
-     The plan's fixed palette order (#0550DC, #1DB6C0, #0A4CAD, #239CA8) is
-     therefore applied in that order rather than re-pointed at a particular
-     tender name; the legend identifies the series.
+     SERIES ORDER NOTE: the query ranks tender_group in the ORDER BY (Cash=1,
+     Card=2, Stored Value=3, else 4) so the dataset's series appear in that
+     fixed order regardless of alphabetical sort, and the seriesColor order
+     indexes follow: Cash gets #0550DC, Card gets #1DB6C0, Stored Value gets
+     #0A4CAD - matching the brief's named pairing (same ranking technique as
+     trs_ar_aging's aging_bucket CASE).
 
      Month labels rotate -45 via categoryAxisTickLabelRotation (the attribute
      exec_trend / pnl_contribution_trend use) so 24 months fit a 580px tile.
@@ -26,7 +26,7 @@
 SELECT yyyymm, CAST(yyyymm AS VARCHAR(6)) AS ym, tender_group,
        DECIMAL(100.0 * FLOAT8(SUM(amount)) / FLOAT8(NULLIF((SELECT SUM(amount) FROM dash_tender_monthly i WHERE i.yyyymm = o.yyyymm AND $X{IN, region, p_regions}), 0)), 6, 2) AS share_pct
 FROM dash_tender_monthly o WHERE yyyymm <= INT4($P{p_asof}) AND $X{IN, region, p_regions}
-GROUP BY yyyymm, tender_group ORDER BY yyyymm, tender_group
+GROUP BY yyyymm, tender_group ORDER BY yyyymm, CASE tender_group WHEN 'Cash' THEN 1 WHEN 'Card' THEN 2 ELSE 3 END
 	]]></query>
 
 	<field name="yyyymm" class="java.lang.Integer"/>
