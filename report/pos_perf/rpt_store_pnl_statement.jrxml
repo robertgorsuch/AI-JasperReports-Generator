@@ -80,7 +80,7 @@
      charts sit in the summary band, which fills after the last record, so no
      evaluationTime override is needed there - the subtitle does need
      evaluationTime="Report" because it reads a field from the title band. -->
-<jasperReport name="rpt_store_pnl_statement" language="java" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="782" leftMargin="30" rightMargin="30" topMargin="30" bottomMargin="30">
+<jasperReport name="rpt_store_pnl_statement" language="java" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="782" leftMargin="30" rightMargin="30" topMargin="30" bottomMargin="30" whenNoDataType="AllSectionsNoDetail">
 
 	<style name="stmt_label" fontSize="10.0" forecolor="#1F4E79">
 		<conditionalStyle bold="true">

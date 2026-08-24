@@ -63,7 +63,7 @@
      JR7-native throughout: <query language="SQL">, <element kind="...">,
      <element kind="crosstab"> with <rowGroup>/<columnGroup>/<measure>/<cell>,
      sub-datasets as top-level <dataset name="..."> driven by <datasetRun>. -->
-<jasperReport name="rpt_ap_aging" language="java" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="782" leftMargin="30" rightMargin="30" topMargin="30" bottomMargin="30">
+<jasperReport name="rpt_ap_aging" language="java" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="782" leftMargin="30" rightMargin="30" topMargin="30" bottomMargin="30" whenNoDataType="AllSectionsNoDetail">
 
 	<style name="ap_cell" fontSize="8.0" forecolor="#1F4E79"/>
 	<style name="ap_cell_aged" fontSize="8.0" forecolor="#1F4E79">

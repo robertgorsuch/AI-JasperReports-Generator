@@ -29,9 +29,10 @@
 	</background>
 
 	<title height="252">
-		<element kind="staticText" x="8" y="8" width="384" height="20" fontSize="12.0" bold="true" forecolor="#FFFFFF" hTextAlign="Center"><text><![CDATA[Gross Margin]]></text></element>
+		<element kind="staticText" x="8" y="8" width="384" height="16" fontSize="12.0" bold="true" forecolor="#FFFFFF" hTextAlign="Center"><text><![CDATA[Gross Margin]]></text></element>
+		<element kind="staticText" x="8" y="24" width="384" height="12" fontSize="8.0" forecolor="#8AC6F8" hTextAlign="Center"><text><![CDATA[Jan 2019 - Dec 2020]]></text></element>
 
-		<element kind="chart" chartType="meter" x="90" y="32" width="220" height="220" mode="Opaque" backcolor="#000032" evaluationTime="Report">
+		<element kind="chart" chartType="meter" x="90" y="36" width="220" height="216" mode="Opaque" backcolor="#000032" evaluationTime="Report">
 			<dataset kind="value">
 				<valueExpression><![CDATA[$F{margin_pct}]]></valueExpression>
 			</dataset>
@@ -62,7 +63,7 @@
 			</plot>
 		</element>
 
-		<element kind="textField" x="90" y="158" width="220" height="24" fontSize="16.0" bold="true" forecolor="#FFFFFF" hTextAlign="Center" vTextAlign="Middle" evaluationTime="Report"><expression><![CDATA[new java.text.DecimalFormat("#,##0.0").format($F{margin_pct}) + "%"]]></expression></element>
+		<element kind="textField" x="90" y="162" width="220" height="24" fontSize="16.0" bold="true" forecolor="#FFFFFF" hTextAlign="Center" vTextAlign="Middle" evaluationTime="Report"><expression><![CDATA[new java.text.DecimalFormat("#,##0.0").format($F{margin_pct}) + "%"]]></expression></element>
 	</title>
 
 </jasperReport>

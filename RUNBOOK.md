@@ -588,9 +588,22 @@ http://localhost:8081/jasperserver-pro; dashboards open at
 Not run by any agent -- auto-mode denies PROD writes. PROD is
 http://3.214.51.180:8080/jasperserver-pro. Run these one line at a time.
 
+Note: PROD still has an outstanding Phase 0 fix -- the `exec_region_bar` +
+`ops_region_bar` redeploy and the two Phase 0 dashboard recomposes
+(`pos_executive_overview`, `pos_operations_console`) -- that was deferred to
+the user in an earlier task and never applied. Run it before or alongside
+this Phase 1 promotion; the exact commands are in
+`plans\2026-08-23-pos-suite-phase1.md`, Task 1 Step 3.
+
 Step 1, shared controls:
     . .\scripts\pos_perf\jrs_controls.ps1 -Env prod
     New-FinanceControls
+Note: `New-FinanceControls` creates only the six finance-specific controls
+(p_asof, p_franchisee, p_store, p_yyyymm, p_version, p_province); it does not
+create `p_regions`. `p_regions` already exists on PROD from the earlier Ops
+Console promotion. Before Step 4 attaches it to nine report units, verify
+`/reports/pos_perf/controls/p_regions` exists on PROD (a GET, or check the
+Step 5 counts after attaching).
 
 Step 2, tear the four dashboards down (tiles of a live dashboard 403 with
 resource.in.use on redeploy; a 404 on the two new boards is expected):
@@ -633,7 +646,9 @@ or the manifests will not resolve:
     & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\rpt_tax_remittance.jrxml      -TargetUri /reports/pos_perf/rpt_tax_remittance      -Label "Sales Tax Remittance"           -DataSourceUri $ds -Overwrite -Backup
 
 Step 4, re-attach the controls the redeploy just dropped. The 5 pnl_* tiles and
-the 12 navy tiles take none:
+the 12 navy tiles take none. This attaches `p_regions` to nine units -- confirm
+it exists on PROD first (see the note under Step 1; `New-FinanceControls`
+does not create it):
     . .\scripts\pos_perf\jrs_controls.ps1 -Env prod
     $ctl = @("/reports/pos_perf/controls/p_asof","/reports/pos_perf/controls/p_regions","/reports/pos_perf/controls/p_franchisee")
     foreach ($r in @("trs_kpi","trs_ar_aging","trs_dpo","trs_tender_mix","trs_tax_province","trs_liability","trs_lease_expiry")) { Attach-Controls -ReportUri "/reports/pos_perf/$r" -ControlUris $ctl }
