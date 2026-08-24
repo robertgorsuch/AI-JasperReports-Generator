@@ -2,15 +2,31 @@
 <!-- Retention and Churn console: the share of each acquisition cohort still
      active, by month since first purchase. Two series, one per cohort year.
 
-     THIS TILE TAKES NO CONTROLS, BY DESIGN. A retention curve is a lifetime
-     measurement of a fixed cohort: filtering it by risk band or loyalty tier
-     would reshape the very population whose survival is being tracked, and the
-     score date is a scoring cutoff rather than a cohort boundary, so none of the
-     four console controls has a defined meaning here. The tile therefore
-     declares no parameters and is deployed without Attach-ChurnControls, the
-     same reading Phase 1 applied to trs_liability and trs_lease_expiry. Because
-     it declares no parameters, the dashboard filter strip's Apply simply does
-     not reach it.
+     THIS TILE IS LIFETIME SCOPED, BY DESIGN, AND THAT IS ENFORCED BY ITS QUERY,
+     NOT BY ITS PARAMETER LIST. A retention curve is a lifetime measurement of a
+     fixed cohort: filtering it by risk band or loyalty tier would reshape the
+     very population whose survival is being tracked, and the score date is a
+     scoring cutoff rather than a cohort boundary, so none of the four console
+     controls has a defined meaning here.
+
+     So the four console parameters ARE declared below, exactly as on the other
+     five tiles, and are then referenced NOWHERE: not in the query, not in an
+     expression, not in a printWhenExpression. The tile's output is therefore
+     identical whatever the strip has selected. This is the same shape Phase 1
+     used for trs_liability and trs_lease_expiry, both of which declare the full
+     console parameter set and then ignore the parts their SQL has no column for.
+
+     The declarations are NOT optional decoration. gen_dashboard.py hands every
+     report dashlet the whole "filters" array as its input parameters and wires
+     every control to every report dashlet's @applyParams, with no check that the
+     tile declares the name. A tile with no parameter block would still be handed
+     all four values; declaring them gives that blind wiring somewhere to land.
+
+     No input controls are attached to this tile (no Attach-ChurnControls call),
+     which is correct and sufficient: a declared parameter that nothing reads
+     needs no control to populate it, and an unattached parameter is never
+     prompted. Verified after the change by GET on the report unit
+     (hasInputControls = False) and by recomposing and re-rendering the tile.
 
      NO ZERO GUARD ON THE SERIES VALUE, AND THAT IS DELIBERATE. The console rule
      is that a null on the first row fails to register a series and shifts the
@@ -33,6 +49,10 @@
      jr7-valid-elements.md 3d). Chart is in the title band, so
      evaluationTime="Report". -->
 <jasperReport name="chn_cohorts" language="java" pageWidth="1000" pageHeight="380" columnWidth="980" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
+	<parameter name="chn_score_date" class="java.util.Collection"/>
+	<parameter name="p_regions" class="java.util.Collection"/>
+	<parameter name="chn_tier" class="java.util.Collection"/>
+	<parameter name="chn_band" class="java.util.Collection"/>
 
 	<query language="SQL"><![CDATA[
 SELECT cohort_year, months_since_first, active_pct
