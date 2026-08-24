@@ -12,7 +12,7 @@
 #                                             # update in place.
 #   New-ChurnControls -Force                 # also replaces content a plain
 #                                             # rerun could not touch.
-#   Attach-ChurnControls -ReportUri /reports/pos_perf/chn_action_list
+#   Attach-ChurnControls -ReportUri /reports/pos_perf/chn_kpi
 #
 # This file deliberately does NOT reimplement any of jrs_controls.ps1's
 # idempotency/update machinery: it dot-sources jrs_controls.ps1 (same

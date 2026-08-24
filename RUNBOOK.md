@@ -846,6 +846,18 @@ controls and the pos_retention_churn dashboard. It is independent of the Phase
 1 block above and can be run before it, after it, or on its own; the only thing
 the two share is `p_regions`, which neither of them creates.
 
+Step -1, the STAGE-vs-git byte-diff precondition. Phase 2 had an unexplained
+STAGE drift incident (a report unit's XML got re-serialized on the server,
+differing from git -- since fixed and documented, but root cause unknown), so
+re-run the same server-vs-git byte-diff check documented under "Verify the
+Phase 2 build on STAGE without a browser" above against all seven Phase 2
+units (chn_kpi, chn_bands, chn_ltv_band, chn_drivers, chn_cohorts, chn_actions,
+rpt_churn_action_list) before promoting any of them to PROD. Export each unit,
+compare its payload against the committed jrxml in report\pos_perf, and
+confirm bytes match -- reuse the exact export/compare recipe already given
+there, do not invent new syntax. If any unit shows a diff, stop and
+investigate rather than promoting a drifted copy.
+
 Step 0, the aggregates. Both Phase 2 dashboards read `dash_churn` and
 `dash_cohort` on the pos_data warehouse through
 `/datasources/pos_data_avalanche`. If PROD's datasource of that name points at
@@ -940,4 +952,7 @@ payload is Churn_Action_List_main_jrxml.data; and `lint_jrxml.ps1` does NOT
 catch a `--` inside an XML comment (it is invalid XML and fails at compile with
 an opaque error) -- this bit three separate times during Phase 2, so when a
 lint-clean jrxml fails to deploy, grep the comments for a double hyphen before
-looking anywhere else.
+looking anywhere else; and `COUNT(DISTINCT col)` inside a derived table that
+also uses `FIRST n` throws `ERROR [5000B]: Rewriter error` on X100 -- compute
+the distinct count and the FIRST-n cap in separate subqueries/steps instead of
+combining them in one derived table.
