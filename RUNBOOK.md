@@ -656,6 +656,73 @@ about $35.2M, 8.4% of net sales. rpt_weekly_flash at its default week ending
 2020-11-08: week sales $7,191,916.49 (-4.4% vs prior week, -15.1% vs the
 pro-rated plan), 2 pages.
 
+Verify the Phase 4 build on STAGE without a browser -- render all 12 units
+(10 tiles + rpt_franchisee_fee_statement + the modified trs_kpi) and diff the
+server against git:
+    New-Item -ItemType Directory -Force "out\pos_perf\phase4" | Out-Null
+    foreach ($u in @("net_map","net_sqft_format","net_income_scatter","net_lease","net_exposed","mkt_kpi","mkt_funnel","mkt_ecom_share","mkt_campaign_roi","mkt_partners","rpt_franchisee_fee_statement","trs_kpi")) {
+        & "$jd\run_report_async.ps1" -ReportUri "/reports/pos_perf/$u" -Format pdf -OutFile "out\pos_perf\phase4\$u.pdf" -TimeoutSec 300
+        & "$jd\export_resource.ps1" -Uri "/reports/pos_perf/$u" -Out "out\pos_perf\phase4\exp_$u.zip"
+    }
+Extract each zip's `*_main_jrxml.data` payload and compare its bytes against
+`report\pos_perf\<u>.jrxml` -- same recipe as Phase 1/2/3.
+
+Run 2026-08-25: all 12 units render, and all 12 came back byte-identical to
+git (exact byte-length match, no whitespace normalisation needed). Dashboard
+composes confirmed via a direct REST GET (`resources[].type -eq "reportUnit"`
+on the dashboard's own resource descriptor, since dashboards do not expose a
+top-level `inputControls` field the way report units do): `pos_store_network`
+composed with exactly 5 dashlets (net_map, net_sqft_format,
+net_income_scatter, net_lease, net_exposed) and no filter strip;
+`pos_marketing_digital` composed with exactly 5 dashlets (mkt_kpi, mkt_funnel,
+mkt_ecom_share, mkt_campaign_roi, mkt_partners) and no filter strip;
+`pos_treasury` still has all 7 dashlets (trs_kpi, trs_ar_aging, trs_dpo,
+trs_tender_mix, trs_tax_province, trs_liability, trs_lease_expiry) after Task
+5's teardown/recompose, and all seven still carry their 3 controls
+(p_asof, p_regions, p_franchisee) GET-verified attached -- Task 5's teardown
+only rebuilt the dashboard wiring, it did not redeploy trs_ar_aging, trs_dpo,
+trs_tender_mix or trs_tax_province, and none of them drifted.
+`rpt_franchisee_fee_statement` carries its 2 controls (p_franchisee_id,
+p_yyyymm) GET-verified attached.
+
+mkt_kpi at defaults: E-Commerce Share 1.4%, Late Fulfilment 6.8%, Email Open
+Rate 37.6%, Email Click Rate 12.1%, Promotion ROI 84.91x. trs_kpi AR
+Outstanding unchanged at $5,399,130. rpt_franchisee_fee_statement at defaults
+(franchisee 0, Stella Martin, through December 2020): 4 pages, Total Invoiced
+$404,069.79 / Total Paid $347,395.84 / Total Balance $56,673.95, matching Task
+5's own reconciliation against `franchise_fee_ledger` exactly.
+
+`scripts/pos_perf/wobby_metric_crosscheck.py` was extended this phase with 9
+more CHECKS entries -- `ecommerce_revenue_share_pct`,
+`ecommerce_late_fulfillment_rate`, `avg_ecommerce_satisfaction_score`,
+`email_open_rate`, `email_click_rate`, `email_conversion_rate`,
+`promotion_roi`, `subsidy_cost_per_conversion`, `total_campaign_conversions`
+-- following the file's existing pattern (a `tile_sql` / `wobby_sql` pair per
+metric, run through `sql.ps1` and compared). Its `resolve()` helper also
+needed a real fix, not just new data: the Phase 1-3 metrics all have a
+literal `"<model>.<measure>"` `expression` field that has to be walked to the
+measure's own SQL, but every Phase 4 growth metric's `expression` is already
+a full compound SQL string (e.g. `email_engagement.emails_opened * 100.0 /
+NULLIF(email_engagement.emails_sent, 0)`) with the anchor table named
+separately in `anchor_model` -- treating the second shape like the first
+produced a false `"measure ... missing on model X"` diagnostic on every new
+check even though the VALUES agreed. `resolve()` now branches on whether
+`expression` matches the simple `model.measure` shape before deciding how to
+find the table and what to diff against `expect_expr`.
+
+Run 2026-08-25 against the same one `/api/public/v1/environment` fetch (52
+models, 112 metrics; saved to `out\pos_perf\wobby_env_phase4.json`, gitignored
+like all `out/`): 19 of 20 checks clean (11 original + 8 of 9 new). The one
+flagged check, `ecommerce_revenue_share_pct`, disagrees by 0.72 pct (tile 1.40
+vs Wobby 1.39) with a documented cause, not a data error -- the tile's
+denominator is `store_pnl_monthly.net_sales` (the store-month P&L rollup),
+while Wobby's own metric definition sums `ecommerce_orders.total_order_value +
+pos_sales_detail.total_sales` at the raw line-item level, a different revenue
+base by construction. `promotion_roi` (the SAME source table and expression
+as `mkt_kpi.promo_roi`, unfiltered) matched exactly at 84.91, confirming
+`mkt_campaign_roi`'s $1,000 subsidy floor is a display-ranking choice on that
+one chart, not a redefinition of the network-wide metric.
+
 ### Checks that need a human with a browser
 
 An agent cannot do these: dashboards do not render to PDF, and the filter strip
@@ -786,6 +853,42 @@ http://localhost:8081/jasperserver-pro; dashboards open at
     genuinely impractical to open in the viewer, the fix is a per-store
     default or a documented cap, not a silent one; raise it rather than
     unilaterally capping the report.
+12. **Store Network map read.** Open pos_store_network. Confirm the
+    `net_map` tile reads as a real map to a human -- roughly 330 points
+    tracing recognisable Canadian regional clusters (Vancouver,
+    Calgary/Edmonton, Winnipeg, Ontario/Quebec, Maritimes, Newfoundland,
+    Yukon), amber-ringed markers standing out for the 2+-competitor stores,
+    bubble size varying legibly with sales per square foot -- not just that
+    it compiles. This tile is a JFreeChart `chartType="bubble"` substitute
+    for the community `jr:map` component (confirmed absent from this STAGE
+    server's classpath, see net_map.jrxml's header comment); if it does NOT
+    read as a map to a human eye, the fallback is not silent -- raise it as a
+    concern rather than shipping a scatter plot that happens to be geographic
+    by coincidence of axis choice.
+13. **Top Campaign ROI drill click-test.** From pos_marketing_digital click
+    any bar in the Top Campaign ROI tile. Expect the Weekly Flash report to
+    open at its default week ending 2020-11-08 -- this is expected and NOT a
+    bug regardless of which campaign bar was clicked. rpt_weekly_flash
+    declares exactly one parameter, `p_week_ending`, with no per-campaign
+    parameter; the drill cannot scope to the clicked campaign without
+    changing that report's contract, which is out of scope (documented at
+    length in mkt_campaign_roi.jrxml's header comment).
+14. **AR Outstanding drill click-test.** From pos_treasury click the AR
+    Outstanding chip in the Key Metrics tile. Expect the Franchisee Fee
+    Statement report to open for franchisee id 0 (Stella Martin), through
+    December 2020 -- this is expected and NOT a bug: the drill always opens
+    unscoped to franchisee 0, not to any particular franchisee tied to the
+    chip's own network-wide total (documented in trs_kpi.jrxml's header
+    comment as a fixed-scope deviation, the same convention Phase 1/2/3 use
+    for their own unscoped drills).
+15. **Top Campaign ROI page-count sanity check.** Visual read only, no
+    clicking. Open pos_marketing_digital and look at the Top Campaign ROI
+    tile's 15 bars against its subtitle ("Top 15 of 75 promotions with
+    subsidy $1,000 or more..."). Confirm 15 feels like the right cut for a
+    dashlet this size -- bars legible, labels not crowded -- rather than a
+    number that happened to be convenient. If a future revision wants more
+    of the 75 eligible promotions visible, the fix is a drill to a paginated
+    ranked list, not raising the cap on an already-dense bar chart.
 
 ### PROD promotion of the Phase 1 finance suite (deferred, user-run)
 
@@ -1131,3 +1234,145 @@ rpt_weekly_flash's 842px portrait page with 30px margins and a 20px
 columnHeader, that is a hard 762px ceiling on the title band, discovered via
 `compile_jrxml.ps1` (not `lint_jrxml.ps1`, which does not catch it) failing
 with `JRValidationException: ... do not fit the page height`.
+
+### PROD promotion of the Phase 4 growth suite (deferred, user-run)
+
+Not run by any agent -- auto-mode denies PROD writes. PROD is
+http://3.214.51.180:8080/jasperserver-pro. Run these one line at a time. This
+block promotes the 5 net_* tiles, the 5 mkt_* tiles, the new
+`rpt_franchisee_fee_statement` report, the redeployed `trs_kpi` (its three
+controls are re-attached, not new), the one new control (`p_franchisee_id`),
+and all three touched dashboards. This is the LAST phase in the roadmap: once
+this block is run and its Step 7/8 checks pass, all 10 dashboards and all 9
+reports scoped in `specs/2026-08-23-pos-suite-design.md` are live on PROD (the
+unnumbered, optional Retention Story deck was never in scope and the user
+chose not to build it).
+
+Step -1, the STAGE-vs-git byte-diff precondition (see "Verify the Phase 4
+build on STAGE without a browser" above). Run 2026-08-25: all 12 units came
+back byte-identical to git. Re-run it before promoting anything -- do not
+promote a drifted copy.
+
+Step 0, the aggregates. `pos_store_network` reads `stores`,
+`competitor_locations`, `fsa_demographics` and `store_assets` directly -- no
+new aggregate, same precedent as the Phase 1 AR/AP tiles and the Phase 3
+sup_* tiles. `pos_marketing_digital` reads two new aggregates, `dash_email`
+(campaign x send-month grain, 114 rows) and `dash_ecom_monthly` (month x
+delivery-partner grain, 96 rows). If PROD's `/datasources/pos_data_avalanche`
+points at the SAME warehouse STAGE uses (av-flm7ykoxlcvq), both tables are
+already there and this step is a no-op -- check with the two verify scripts
+and compare against the Phase 4 acceptance figures below. If PROD points
+somewhere else, build them there first:
+    $adm = ".\.claude\skills\admiral\scripts"
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\build_dash_email.sql          -ResourceId <prod-warehouse-id>
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\verify_dash_email.sql          -ResourceId <prod-warehouse-id>
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\build_dash_ecom_monthly.sql     -ResourceId <prod-warehouse-id>
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\verify_dash_ecom_monthly.sql    -ResourceId <prod-warehouse-id>
+Both builds depend on `email_engagement`, `marketing_campaigns` and
+`ecommerce_orders` already existing on that warehouse; if those are absent
+this is a bigger job than a promotion and should stop here.
+
+Step 1, the one new control:
+    . .\scripts\pos_perf\franchisee_control.ps1 -Env prod
+    New-FranchiseeControl
+`New-FranchiseeControl` creates only `/reports/pos_perf/controls/p_franchisee_id`
+(type 4, singleSelectQuery, value/label split fv=franchisee_id/fl=owner_name).
+It does not touch `p_asof`, `p_regions`, `p_franchisee` or `p_yyyymm` --
+verify those four already exist on PROD from the Phase 1 finance promotion
+(New-FinanceControls) before Step 4 re-attaches three of them to trs_kpi and
+one of them to rpt_franchisee_fee_statement.
+
+Step 2, tear the three touched dashboards down (a tile of a live dashboard
+403s with resource.in.use on redeploy; a 404 on the two new boards is
+expected and means nothing is there yet):
+    $env:JRS_ENV = "prod"; $jd = ".\.claude\skills\jasper-deploy\scripts"
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_store_network
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_marketing_digital
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_treasury
+
+Step 3, deploy all 12 report units. Labels must match what is live on STAGE
+or the manifests will not resolve -- the 10 tile labels are their own unit
+names, the new report carries a prose label, trs_kpi keeps its existing label:
+    $ds = "/datasources/pos_data_avalanche"
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\net_map.jrxml               -TargetUri /reports/pos_perf/net_map               -Label "net_map"               -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\net_sqft_format.jrxml       -TargetUri /reports/pos_perf/net_sqft_format       -Label "net_sqft_format"       -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\net_income_scatter.jrxml    -TargetUri /reports/pos_perf/net_income_scatter    -Label "net_income_scatter"    -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\net_lease.jrxml             -TargetUri /reports/pos_perf/net_lease             -Label "net_lease"             -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\net_exposed.jrxml           -TargetUri /reports/pos_perf/net_exposed           -Label "net_exposed"           -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\mkt_kpi.jrxml               -TargetUri /reports/pos_perf/mkt_kpi               -Label "mkt_kpi"               -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\mkt_funnel.jrxml            -TargetUri /reports/pos_perf/mkt_funnel            -Label "mkt_funnel"            -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\mkt_ecom_share.jrxml        -TargetUri /reports/pos_perf/mkt_ecom_share        -Label "mkt_ecom_share"        -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\mkt_campaign_roi.jrxml      -TargetUri /reports/pos_perf/mkt_campaign_roi      -Label "mkt_campaign_roi"      -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\mkt_partners.jrxml          -TargetUri /reports/pos_perf/mkt_partners          -Label "mkt_partners"          -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\rpt_franchisee_fee_statement.jrxml -TargetUri /reports/pos_perf/rpt_franchisee_fee_statement -Label "Franchisee Fee Statement" -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\trs_kpi.jrxml               -TargetUri /reports/pos_perf/trs_kpi               -Label "trs_kpi"               -DataSourceUri $ds -Overwrite -Backup
+
+Step 4, re-attach the controls the redeploy just dropped. The 5 net_* and 5
+mkt_* tiles take none (Cockpit archetype, no parameters). trs_kpi takes its
+original three (this redeploy did not change its controls, only added a
+hyperlink); rpt_franchisee_fee_statement takes the two new franchisee/as-of
+controls:
+    . .\scripts\pos_perf\jrs_controls.ps1 -Env prod
+    $ctl = @("/reports/pos_perf/controls/p_asof","/reports/pos_perf/controls/p_regions","/reports/pos_perf/controls/p_franchisee")
+    Attach-Controls -ReportUri /reports/pos_perf/trs_kpi -ControlUris $ctl
+    Attach-Controls -ReportUri /reports/pos_perf/rpt_franchisee_fee_statement -ControlUris @("/reports/pos_perf/controls/p_franchisee_id","/reports/pos_perf/controls/p_yyyymm")
+
+Step 5, GET-verify the counts (3 for trs_kpi, 2 for
+rpt_franchisee_fee_statement, 0 for all 10 net_*/mkt_* tiles; any mismatch
+means step 4 did not stick):
+    . ".\.claude\skills\jasper-deploy\scripts\_jrs_common.ps1"; $jrs = Resolve-JrsConfig
+    foreach ($r in @("trs_kpi","rpt_franchisee_fee_statement","net_map","net_sqft_format","net_income_scatter","net_lease","net_exposed","mkt_kpi","mkt_funnel","mkt_ecom_share","mkt_campaign_roi","mkt_partners")) { $b = (Invoke-JrsGet -Jrs $jrs -Uri "/reports/pos_perf/$r").Body | ConvertFrom-Json; "{0,-28} {1}" -f $r, @($b.inputControls | Where-Object { $_ }).Count }
+
+Step 6, compose the three dashboards (pos_treasury needs all seven trs_* tile
+URIs, the same manifest Phase 1/5 already use; teardown in Step 2 removed the
+composition, not the six untouched tiles themselves):
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\net_dashboard.json -AutoGrid
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\mkt_dashboard.json -AutoGrid
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\trs_dashboard.json -AutoGrid
+
+Step 7, smoke it, then put the shell back on STAGE (this last line is part of
+the procedure, not an afterthought):
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/mkt_kpi                      -Format pdf -OutFile out\pos_perf\prod_mkt_kpi.pdf
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/net_exposed                  -Format pdf -OutFile out\pos_perf\prod_net_exposed.pdf
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/rpt_franchisee_fee_statement -Format pdf -OutFile out\pos_perf\prod_rpt_franchisee_fee_statement.pdf
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/trs_kpi                      -Format pdf -OutFile out\pos_perf\prod_trs_kpi.pdf
+    $env:JRS_ENV = "stage"
+Expected in prod_mkt_kpi.pdf: E-Commerce Share 1.4%, Late Fulfilment 6.8%,
+Email Open Rate 37.6%, Email Click Rate 12.1%, Promotion ROI 84.91x. Expected
+in prod_net_exposed.pdf: 4 rows (131 Hanover, 274 Cambridge-Dundas, 312
+Winnipeg-Kenaston, 82 Mississauga Dixie and Dundas). Expected in
+prod_rpt_franchisee_fee_statement.pdf at its defaults (franchisee 0, Stella
+Martin, through December 2020): 4 pages, Total Invoiced $404,069.79 / Total
+Paid $347,395.84 / Total Balance $56,673.95. Expected in prod_trs_kpi.pdf: AR
+Outstanding $5,399,130 (unchanged from Phase 1). Different numbers mean PROD
+is pointed at a different warehouse.
+
+Step 8, then run browser checks 12, 13, 14 and 15 above against the PROD URL
+before calling the promotion done -- the map eyeball and both drill
+click-tests are not provable from a PDF.
+
+Phase 4 gotchas, on top of the Phase 1/2/3 lists above: the community
+Map/List/Table component (`jasperreports-components`, which would provide a
+native `jr:map`) is confirmed absent from both this repo's local `JR_LIB_DIR`
+and this STAGE server's classpath (two independent `400 "JRXML.content is
+invalid"` responses on two different jrxml shapes) -- `net_map` ships as a
+JFreeChart `chartType="bubble"` instead; `chartType="xyScatter"` is not a
+valid `ChartTypeEnum` value in this JR 7.0.6 build, the real value is
+`"scatter"` (net_income_scatter uses it, plus `showLines="false"
+showShapes="true"` on the plot, since a bare scatter plot connects points
+with a line by default); `JRDesignXyzSeries`/`JRDesignXySeries` use
+lower-case-v property names (`xvalueExpression`, not `XValueExpression`); a
+JFreeChart bubble renderer treats its z value as bubble AREA in the same
+data-space units as the x/y axes, not auto-scaled pixels -- net_map divides
+`sales_per_sqft` by 1000 in `zvalueExpression` to keep bubbles legible rather
+than one solid rectangle; `<hyperlinkReference><expression>` is not a valid
+JRXML element in this JR 7.0.6 build (the brief's literal text for the
+trs_kpi drill was wrong) -- the correct, already-established convention is
+`linkType="ReportExecution"` plus a `<hyperlinkParameter name="_report">`
+child; and a `DECIMAL(n, 2)` cast on a ratio of two small numbers can
+overflow when the denominator gets close to zero (mkt_campaign_roi's `roi`
+cast needed widening from `DECIMAL(8,2)` to `DECIMAL(16,2)` because a few
+promotions carry a $0.01 marketing_subsidy against a six/seven-figure
+promo_margin) -- a subsidy floor fixes which rows RANK first, it does not
+substitute for a cast wide enough to survive whatever ratio the unfiltered
+data can produce.

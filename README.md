@@ -199,9 +199,13 @@ Full details in `RUNBOOK.md` §3 and `plugins/jasper-deploy/skills/jasper-deploy
 
 ## POS performance dashboards (report/pos_perf)
 
-Eight dashboards and eight paginated reports on JasperReports Server, fed by
+Ten dashboards and nine paginated reports on JasperReports Server, fed by
 `robert.gorsuch` on the pos_data Avalanche warehouse through
-`/datasources/pos_data_avalanche`:
+`/datasources/pos_data_avalanche`. This is the full suite scoped in
+`specs/2026-08-23-pos-suite-design.md` -- all 7 planned dashboards (4-10) plus
+the 3 pre-existing ones, and all 9 planned paginated reports. The
+unnumbered, explicitly optional Retention Story deck was never one of the 7
+and the user chose not to build it; no further phase is planned.
 
 | Dashboard | URI | Manifest |
 |---|---|---|
@@ -213,6 +217,8 @@ Eight dashboards and eight paginated reports on JasperReports Server, fed by
 | POS Retention and Churn | /reports/pos_perf/pos_retention_churn | report/pos_perf/chn_dashboard.json |
 | POS Supply and Inventory | /reports/pos_perf/pos_supply_inventory | report/pos_perf/sup_dashboard.json |
 | POS Workforce and Labour | /reports/pos_perf/pos_workforce_labour | report/pos_perf/lab_dashboard.json |
+| POS Store Network | /reports/pos_perf/pos_store_network | report/pos_perf/net_dashboard.json |
+| POS Marketing and Digital | /reports/pos_perf/pos_marketing_digital | report/pos_perf/mkt_dashboard.json |
 
 | Report | URI | Reached from |
 |---|---|---|
@@ -224,6 +230,26 @@ Eight dashboards and eight paginated reports on JasperReports Server, fed by
 | Inventory Reorder List | /reports/pos_perf/rpt_inventory_reorder | standalone |
 | Supplier Scorecard | /reports/pos_perf/rpt_supplier_scorecard | sup_scorecard tile |
 | Weekly Flash | /reports/pos_perf/rpt_weekly_flash | standalone |
+| Franchisee Fee Statement | /reports/pos_perf/rpt_franchisee_fee_statement | trs_kpi AR Outstanding chip |
+
+POS Store Network is a cockpit (no filter strip) of 5 tiles -- `net_map` (a
+JFreeChart bubble chart over `stores`/`competitor_locations`, longitude x
+latitude y, sales-per-sqft as bubble size, the map-technique substitute for
+the unavailable community `jr:map` component), `net_sqft_format`,
+`net_income_scatter`, `net_lease`, `net_exposed` -- reading `stores`,
+`competitor_locations`, `fsa_demographics` and `store_assets` directly, no new
+aggregate. POS Marketing and Digital is a cockpit of 5 tiles -- `mkt_kpi`,
+`mkt_funnel`, `mkt_ecom_share`, `mkt_campaign_roi`, `mkt_partners` -- over two
+new aggregates, `dash_email` (campaign x send-month grain, from
+`build_dash_email.sql`) and `dash_ecom_monthly` (month x delivery-partner
+grain, from `build_dash_ecom_monthly.sql`); `mkt_campaign_roi` ranks the top
+15 of 75 promotions with marketing subsidy >= $1,000 (a deliberate floor that
+excludes near-zero-division noise rows) and drills, at a fixed literal
+`p_week_ending="2020-11-08"`, to the Weekly Flash report regardless of which
+campaign bar was clicked. Franchisee Fee Statement is a new Statement-pattern
+report reached from a new hyperlink on `trs_kpi`'s AR Outstanding chip
+(always opens franchisee id 0 / Stella Martin, unscoped by design), filtered
+by a new `p_franchisee_id` control alongside the existing `p_yyyymm`.
 
 Supply and Inventory is a console (dashboard-level filter strip: Regions /
 Store / Category / Supplier, via `scripts/pos_perf/supply_controls.ps1`) over
@@ -269,9 +295,17 @@ the `dash_*` aggregates: extended sales minus line cost, 31.6 pct across
 Store Profit board reports 33.7 pct on the same basis because it is scoped to
 2020 alone; 2019 is 29.2 pct and the two years together are 31.6 pct.
 
-`scripts/pos_perf/wobby_metric_crosscheck.py` reconciles the finance KPIs
-against the semantic layer's own metric expressions; as of 2026-08-24 all
-eleven checked metrics agree exactly. Design:
+`scripts/pos_perf/wobby_metric_crosscheck.py` reconciles the dashboard KPIs
+against the semantic layer's own metric expressions; as of 2026-08-25, 20
+metrics are checked (the original 11 finance metrics plus 9 Phase 4 growth
+metrics -- ecommerce revenue share, late fulfillment, satisfaction,
+email open/click/conversion rate, promotion ROI, subsidy cost per conversion,
+total campaign conversions). 19 of 20 agree exactly or within 0.5 pct;
+`ecommerce_revenue_share_pct` disagrees by 0.72 pct with a documented cause
+(the tile's denominator is `store_pnl_monthly.net_sales`, a store-month
+rollup, while Wobby's own denominator sums `ecommerce_orders.total_order_value
++ pos_sales_detail.total_sales` at the raw line level -- a different revenue
+base by construction, not a data error). Design:
 specs/2026-08-20-pos-sales-dashboards-design.md; suite roadmap:
 specs/2026-08-23-pos-suite-design.md.
 

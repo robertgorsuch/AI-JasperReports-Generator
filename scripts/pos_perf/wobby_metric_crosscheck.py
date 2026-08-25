@@ -159,29 +159,158 @@ CHECKS = [
         wobby_sql="SELECT DECIMAL(SUM(net_book_value),16,2) AS v FROM store_assets",
         note="asset register total; trs_lease_expiry counts leases, it does not sum NBV",
     ),
+
+    # -- Phase 4 (growth: Store Network + Marketing and Digital) -----------------
+    dict(
+        metric="ecommerce_revenue_share_pct",
+        tile="mkt_kpi.ecom_share_pct (lifetime)",
+        expect_expr="ecommerce_orders.total_order_value / NULLIF(ecommerce_orders.total_order_value + pos.total_sales, 0) * 100",
+        tile_sql="SELECT DECIMAL(100.0*FLOAT8((SELECT SUM(order_value) FROM dash_ecom_monthly))"
+                 "/FLOAT8(NULLIF((SELECT SUM(net_sales) FROM store_pnl_monthly),0)),8,2) AS v FROM (SELECT 1 AS x) dual",
+        wobby_sql="SELECT DECIMAL(100.0*FLOAT8((SELECT SUM(order_value) FROM ecommerce_orders))"
+                  "/FLOAT8(NULLIF((SELECT SUM(order_value) FROM ecommerce_orders)"
+                  "+(SELECT SUM(sellingprice*quantity) FROM pos_sales_detail),0)),8,2) AS v FROM (SELECT 1 AS x) dual",
+        note="different revenue base by construction: tile denominator is store_pnl_monthly.net_sales "
+             "(store-month rollup); wobby denominator is ecommerce_orders.total_order_value + "
+             "pos_sales_detail.total_sales (raw line-level gross extension) - agreement not expected exact",
+    ),
+    dict(
+        metric="ecommerce_late_fulfillment_rate",
+        tile="mkt_kpi.late_pct (lifetime)",
+        expect_expr="COUNT(DISTINCT CASE WHEN ecommerce_orders.fulfilled_late = 'Y' THEN ecommerce_orders.order_id END)"
+                    " * 100.0 / NULLIF(COUNT(DISTINCT ecommerce_orders.order_id), 0)",
+        tile_sql="SELECT DECIMAL(100.0*FLOAT8(SUM(late_orders))/FLOAT8(NULLIF(SUM(orders),0)),8,2) AS v "
+                 "FROM dash_ecom_monthly",
+        wobby_sql="SELECT DECIMAL(100.0*FLOAT8(COUNT(DISTINCT CASE WHEN fulfilled_late='Y' THEN order_id END))"
+                  "/FLOAT8(NULLIF(COUNT(DISTINCT order_id),0)),8,2) AS v FROM ecommerce_orders",
+        note="",
+    ),
+    dict(
+        metric="avg_ecommerce_satisfaction_score",
+        tile="mkt_partners.avg_satisfaction (network-wide reference, all delivery_partner incl Pickup)",
+        expect_expr="AVG(satisfaction_score)",
+        tile_sql="SELECT DECIMAL(SUM(avg_satisfaction*orders)/NULLIF(SUM(orders),0),8,2) AS v FROM dash_ecom_monthly",
+        wobby_sql="SELECT DECIMAL(AVG(FLOAT8(satisfaction_score)),8,2) AS v FROM ecommerce_orders",
+        note="tile side is an order-weighted average of dash_ecom_monthly's monthly-partner means "
+             "(two-level aggregation); wobby side is a plain AVG over every raw order row",
+    ),
+    dict(
+        metric="email_open_rate",
+        tile="mkt_kpi.open_pct (lifetime)",
+        expect_expr="email_engagement.emails_opened * 100.0 / NULLIF(email_engagement.emails_sent, 0)",
+        tile_sql="SELECT DECIMAL(100.0*FLOAT8(SUM(opened))/FLOAT8(NULLIF(SUM(sent),0)),8,2) AS v FROM dash_email",
+        wobby_sql="SELECT DECIMAL(100.0*FLOAT8(SUM(CASE WHEN opened_flag='Y' THEN 1 ELSE 0 END))"
+                  "/FLOAT8(NULLIF(COUNT(*),0)),8,2) AS v FROM email_engagement",
+        note="",
+    ),
+    dict(
+        metric="email_click_rate",
+        tile="mkt_kpi.click_pct (lifetime)",
+        expect_expr="email_engagement.emails_clicked * 100.0 / NULLIF(email_engagement.emails_sent, 0)",
+        tile_sql="SELECT DECIMAL(100.0*FLOAT8(SUM(clicked))/FLOAT8(NULLIF(SUM(sent),0)),8,2) AS v FROM dash_email",
+        wobby_sql="SELECT DECIMAL(100.0*FLOAT8(SUM(CASE WHEN clicked_flag='Y' THEN 1 ELSE 0 END))"
+                  "/FLOAT8(NULLIF(COUNT(*),0)),8,2) AS v FROM email_engagement",
+        note="",
+    ),
+    dict(
+        metric="email_conversion_rate",
+        tile="mkt_funnel.pct_of_sent (Converted stage)",
+        expect_expr="email_engagement.conversions * 100.0 / NULLIF(email_engagement.emails_sent, 0)",
+        tile_sql="SELECT DECIMAL(100.0*FLOAT8(SUM(converted))/FLOAT8(NULLIF(SUM(sent),0)),8,2) AS v FROM dash_email",
+        wobby_sql="SELECT DECIMAL(100.0*FLOAT8(SUM(CASE WHEN converted_flag='Y' THEN 1 ELSE 0 END))"
+                  "/FLOAT8(NULLIF(COUNT(*),0)),8,2) AS v FROM email_engagement",
+        note="",
+    ),
+    dict(
+        metric="promotion_roi",
+        tile="mkt_kpi.promo_roi (lifetime, whole promotions table, no subsidy floor)",
+        expect_expr="promotions.total_promo_margin / NULLIF(promotions.total_marketing_subsidy, 0)",
+        tile_sql="SELECT DECIMAL(FLOAT8(SUM(promo_margin))/FLOAT8(NULLIF(SUM(marketing_subsidy),0)),16,2) AS v "
+                 "FROM promotions",
+        wobby_sql="SELECT DECIMAL(FLOAT8(SUM(promo_margin))/FLOAT8(NULLIF(SUM(marketing_subsidy),0)),16,2) AS v "
+                  "FROM promotions",
+        note="mkt_kpi's promo_roi is the unfiltered lifetime ratio over the whole promotions table - the "
+             "SAME source/expression Wobby's metric uses, so this is expected to MATCH exactly, unlike "
+             "mkt_campaign_roi's chart which applies a $1,000 subsidy floor as a display-ranking choice",
+    ),
+    dict(
+        metric="subsidy_cost_per_conversion",
+        tile="(reference only, no Phase 4 tile computes this network aggregate)",
+        expect_expr="marketing_campaigns.total_budget / NULLIF(marketing_campaigns.total_conversions, 0)",
+        tile_sql="SELECT DECIMAL(FLOAT8(SUM(budget_subsidy))/FLOAT8(NULLIF(SUM(recipients_converted),0)),12,2) AS v "
+                 "FROM marketing_campaigns",
+        wobby_sql="SELECT DECIMAL(FLOAT8(SUM(budget_subsidy))/FLOAT8(NULLIF(SUM(recipients_converted),0)),12,2) AS v "
+                  "FROM marketing_campaigns",
+        note="mkt_campaign_roi's own per-row subsidy_per_conversion field uses promotions.total_transactions "
+             "as its denominator (POS transaction count during the promo), a different concept from this "
+             "metric's marketing_campaigns.recipients_converted (email-attributed conversions) - not comparable "
+             "to the tile, this check validates the Wobby definition against its own source table only",
+    ),
+    dict(
+        metric="total_campaign_conversions",
+        tile="dash_email SUM(converted) (network total; Task 1 verified agg_sent = src_sent exactly)",
+        expect_expr="SUM(recipients_converted)",
+        tile_sql="SELECT DECIMAL(SUM(converted),12,0) AS v FROM dash_email",
+        wobby_sql="SELECT DECIMAL(SUM(recipients_converted),12,0) AS v FROM marketing_campaigns",
+        note="dash_email.converted sums email_engagement.converted_flag='Y' events per campaign x month; "
+             "marketing_campaigns.recipients_converted is a separate precomputed column on the campaigns "
+             "table - agreement confirms the two independently-computed conversion counts tie out",
+    ),
 ]
 
 
+_SIMPLE_MODEL_MEASURE = re.compile(r"^[A-Za-z_]\w*\.[A-Za-z_]\w*$")
+
+
+def _table_for_model(env, model_name):
+    model = next((m for m in env.get("models", []) if m.get("name") == model_name), None)
+    if model is None:
+        return None
+    # source.path is ["schema", "table"]; Ingres pads CHAR columns, so strip.
+    path = [str(p).strip() for p in (model.get("source", {}).get("path") or [])]
+    return ".".join(path)
+
+
 def resolve(env, metric_name):
-    """metric -> (source table, measure expression, diagnostic)."""
+    """metric -> (source table, measure expression, diagnostic).
+
+    Two shapes of metric.expression show up in this environment export:
+    (a) the simple Phase 1 finance shape, a literal "<model>.<measure>"
+        reference that has to be walked to the measure's own expression to
+        see the real SQL; (b) a Phase 4+ shape, a full compound SQL
+        expression that already IS the thing to diff against expect_expr,
+        with the model to source from named separately in anchor_model.
+    Treating (b) as (a) - splitting on the first "." and looking for a
+    "measure" by the resulting garbage substring - produced a false
+    "measure ... missing" diagnostic for every Phase 4 metric even though
+    the values matched; this branches on shape instead of assuming (a).
+    """
     metric = next((m for m in env.get("metrics", []) if m.get("name") == metric_name), None)
     if metric is None:
         return None, None, "METRIC MISSING FROM ENVIRONMENT"
     expr = metric.get("expression") or metric.get("formula") or ""
-    if "." not in expr:
-        return None, expr, "metric expression is not <model>.<measure>"
-    model_name, measure_name = expr.split(".", 1)
-    model = next((m for m in env.get("models", []) if m.get("name") == model_name), None)
-    if model is None:
-        return None, expr, "anchor model %s missing" % model_name
-    # source.path is ["schema", "table"]; Ingres pads CHAR columns, so strip.
-    path = [str(p).strip() for p in (model.get("source", {}).get("path") or [])]
-    table = ".".join(path)
-    members = list(model.get("measures") or []) + list(model.get("metrics") or [])
-    measure = next((x for x in members if x.get("name") == measure_name), None)
-    if measure is None:
-        return table, expr, "measure %s missing on model %s" % (measure_name, model_name)
-    return table, (measure.get("expression") or ""), ""
+    if not expr:
+        return None, expr, "metric has no expression"
+
+    if _SIMPLE_MODEL_MEASURE.match(expr):
+        model_name, measure_name = expr.split(".", 1)
+        table = _table_for_model(env, model_name)
+        if table is None:
+            return None, expr, "anchor model %s missing" % model_name
+        model = next((m for m in env.get("models", []) if m.get("name") == model_name), None)
+        members = list(model.get("measures") or []) + list(model.get("metrics") or [])
+        measure = next((x for x in members if x.get("name") == measure_name), None)
+        if measure is None:
+            return table, expr, "measure %s missing on model %s" % (measure_name, model_name)
+        return table, (measure.get("expression") or ""), ""
+
+    # compound expression: anchor_model names the table directly, and expr
+    # IS the thing to compare against expect_expr - no further drilling.
+    anchor = metric.get("anchor_model") or ""
+    table = _table_for_model(env, anchor) if anchor else None
+    if table is None:
+        return None, expr, "anchor model %s missing" % (anchor or "?")
+    return table, expr, ""
 
 
 def run_sql(sql):
