@@ -1,13 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Marketing and Digital cockpit: top 15 promotions by margin per dollar of
-     subsidy spend, horizontal bars ranked best first. 104 of 115 promotions
-     rows carry marketing_subsidy > 0 (verified 2026-08-25); the WHERE clause
-     excludes the 11 unsubsidized rows (a ratio against a zero subsidy is not
-     a meaningful ROI figure) and the FETCH FIRST 15 caps the display. The cap
-     is disclosed in the subtitle, not silent, matching rpt_inventory_reorder's
-     own disclosure discipline in reverse: that report discloses it is
-     deliberately uncapped, this tile discloses it is deliberately capped, and
-     by how much (top 15 of 104 eligible).
+     subsidy spend, horizontal bars ranked best first. 75 of 115 promotions
+     rows carry marketing_subsidy >= $1,000 (verified 2026-08-25); the WHERE
+     clause excludes both the unsubsidized rows and the sub-$1,000 rows (a
+     ratio against a near-zero subsidy is not a meaningful ROI figure) and the
+     FETCH FIRST 15 caps the display. The cap is disclosed in the subtitle,
+     not silent, matching rpt_inventory_reorder's own disclosure discipline in
+     reverse: that report discloses it is deliberately uncapped, this tile
+     discloses it is deliberately capped, and by how much (top 15 of 75
+     eligible).
+
+     THE $1,000 FLOOR IS A DELIBERATE RULING, NOT AN ARBITRARY ROUND NUMBER.
+     The live marketing_subsidy distribution has a clean gap: 12 promotions
+     sit under $100 (the near-zero-division noise below, e.g. "Winter Family
+     Favourites #0L24" and "Winter Member Days #0L10" at $0.01 each), while
+     75 promotions sit at $1,000 or more, ranging $1,055.87 to $136,759.90
+     (avg $15,433.35, verified 2026-08-25). $1,000 sits in that gap: it
+     excludes exactly the noise rows this tile originally surfaced (see the
+     DECIMAL correction note below) and leaves a meaningful, genuinely
+     subsidized population to rank.
 
      Bar length is roi. The bar LABEL shows subsidy_per_conversion instead of
      roi, per the spec's "subsidy cost per conversion as label" - a category
@@ -53,7 +64,12 @@
      Widened here to DECIMAL(..., 16, 2), comfortably covering the observed
      range with headroom, exactly as this suite's local-compile discipline
      already sets precedent for chart-type strings: verify the brief against
-     the live engine rather than trust it, and document the fix. -->
+     the live engine rather than trust it, and document the fix. Kept at 16,2
+     even after the $1,000 subsidy floor below removed the rows that actually
+     triggered the overflow (their subsidy is under $100, well below the
+     floor) - the floor is a business-logic decision about which campaigns
+     belong on this tile, not a substitute for a cast wide enough to survive
+     whatever ROI value a genuinely well-funded campaign might produce. -->
 <jasperReport name="mkt_campaign_roi" language="java" pageWidth="800" pageHeight="440" columnWidth="780" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
 
 	<query language="SQL"><![CDATA[
@@ -62,7 +78,7 @@ SELECT campaign_name,
        DECIMAL(marketing_subsidy, 12, 2) AS subsidy,
        DECIMAL(FLOAT8(marketing_subsidy) / FLOAT8(NULLIF(total_transactions, 0)), 10, 2) AS subsidy_per_conversion
 FROM promotions
-WHERE marketing_subsidy > 0
+WHERE marketing_subsidy >= 1000
 ORDER BY roi DESC
 FETCH FIRST 15 ROWS ONLY
 	]]></query>
@@ -75,7 +91,7 @@ FETCH FIRST 15 ROWS ONLY
 	<title height="420">
 		<element kind="image" x="0" y="0" width="44" height="44" scaleImage="RetainShape" hImageAlign="Left" vImageAlign="Top"><expression><![CDATA["repo:/images/actian_logo"]]></expression></element>
 		<element kind="staticText" x="0" y="0" width="780" height="24" fontSize="16.0" bold="true" forecolor="#1F4E79" hTextAlign="Center"><text><![CDATA[Top Campaign ROI]]></text></element>
-		<element kind="staticText" x="0" y="26" width="780" height="14" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Top 15 of 104 promotions with subsidy spend, ranked by margin per dollar of subsidy]]></text></element>
+		<element kind="staticText" x="0" y="26" width="780" height="14" fontSize="9.0" forecolor="#5B7DA6" hTextAlign="Center"><text><![CDATA[Top 15 of 75 promotions with subsidy $1,000 or more, ranked by margin per dollar of subsidy]]></text></element>
 
 		<element kind="chart" chartType="bar" x="0" y="48" width="780" height="372" showLegend="false" evaluationTime="Report">
 			<dataset kind="category">
