@@ -77,7 +77,7 @@ SELECT f.invoice_number, f.yyyymm, f.month_start, f.invoice_date, f.due_date, f.
 FROM franchise_fee_ledger f
 WHERE f.franchisee_id = INT4($P{p_franchisee_id})
   AND f.yyyymm <= INT4($P{p_yyyymm})
-ORDER BY f.yyyymm
+ORDER BY f.yyyymm, f.invoice_number
 	]]></query>
 
 	<field name="invoice_number" class="java.lang.String"/>
@@ -128,17 +128,17 @@ ORDER BY f.yyyymm
 
 	<columnHeader height="20">
 		<element kind="rectangle" x="0" y="0" width="782" height="20" mode="Opaque" backcolor="#1F4E79" forecolor="#1F4E79"/>
-		<element kind="staticText" x="4" y="0" width="54" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Month]]></text></element>
-		<element kind="staticText" x="60" y="0" width="70" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Invoice Date]]></text></element>
-		<element kind="staticText" x="132" y="0" width="70" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Due Date]]></text></element>
-		<element kind="staticText" x="204" y="0" width="70" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Paid Date]]></text></element>
-		<element kind="staticText" x="276" y="0" width="76" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Royalty Fee]]></text></element>
-		<element kind="staticText" x="354" y="0" width="80" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Marketing Fee]]></text></element>
-		<element kind="staticText" x="436" y="0" width="80" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Total Invoiced]]></text></element>
-		<element kind="staticText" x="518" y="0" width="76" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Amount Paid]]></text></element>
-		<element kind="staticText" x="596" y="0" width="76" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Balance]]></text></element>
-		<element kind="staticText" x="674" y="0" width="46" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Status]]></text></element>
-		<element kind="staticText" x="722" y="0" width="60" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Days Overdue]]></text></element>
+		<element kind="staticText" x="4" y="0" width="42" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Month]]></text></element>
+		<element kind="staticText" x="48" y="0" width="120" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Store]]></text></element>
+		<element kind="staticText" x="170" y="0" width="64" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Invoice Date]]></text></element>
+		<element kind="staticText" x="236" y="0" width="64" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Due Date]]></text></element>
+		<element kind="staticText" x="302" y="0" width="72" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Royalty Fee]]></text></element>
+		<element kind="staticText" x="376" y="0" width="76" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Marketing Fee]]></text></element>
+		<element kind="staticText" x="454" y="0" width="76" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Total Invoiced]]></text></element>
+		<element kind="staticText" x="532" y="0" width="72" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Amount Paid]]></text></element>
+		<element kind="staticText" x="606" y="0" width="72" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Balance]]></text></element>
+		<element kind="staticText" x="680" y="0" width="42" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" vTextAlign="Middle"><text><![CDATA[Status]]></text></element>
+		<element kind="staticText" x="724" y="0" width="58" height="20" fontSize="8.0" bold="true" forecolor="#FFFFFF" hTextAlign="Right" vTextAlign="Middle"><text><![CDATA[Days Overdue]]></text></element>
 	</columnHeader>
 
 	<detail>
@@ -146,44 +146,44 @@ ORDER BY f.yyyymm
 			<element kind="rectangle" x="0" y="0" width="782" height="16" mode="Opaque" backcolor="#D6E0EF" forecolor="#D6E0EF">
 				<printWhenExpression><![CDATA[$V{REPORT_COUNT}.intValue() % 2 == 0]]></printWhenExpression>
 			</element>
-			<element kind="textField" style="fee_cell" x="4" y="0" width="54" height="16" vTextAlign="Middle">
+			<element kind="textField" style="fee_cell" x="4" y="0" width="42" height="16" vTextAlign="Middle">
 				<expression><![CDATA[$F{yyyymm} == null ? "" : ($F{yyyymm}.toString().substring(0, 4) + "-" + $F{yyyymm}.toString().substring(4))]]></expression>
 			</element>
-			<element kind="textField" style="fee_cell" x="60" y="0" width="70" height="16" vTextAlign="Middle" pattern="yyyy-MM-dd">
+			<element kind="textField" style="fee_cell" x="48" y="0" width="120" height="16" vTextAlign="Middle">
+				<expression><![CDATA[$F{storename}]]></expression>
+			</element>
+			<element kind="textField" style="fee_cell" x="170" y="0" width="64" height="16" vTextAlign="Middle" pattern="yyyy-MM-dd">
 				<expression><![CDATA[$F{invoice_date}]]></expression>
 			</element>
-			<element kind="textField" style="fee_cell" x="132" y="0" width="70" height="16" vTextAlign="Middle" pattern="yyyy-MM-dd">
+			<element kind="textField" style="fee_cell" x="236" y="0" width="64" height="16" vTextAlign="Middle" pattern="yyyy-MM-dd">
 				<expression><![CDATA[$F{due_date}]]></expression>
 			</element>
-			<element kind="textField" style="fee_cell" x="204" y="0" width="70" height="16" vTextAlign="Middle" pattern="yyyy-MM-dd" blankWhenNull="true">
-				<expression><![CDATA[$F{paid_date}]]></expression>
-			</element>
-			<element kind="textField" style="fee_cell" x="276" y="0" width="76" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
+			<element kind="textField" style="fee_cell" x="302" y="0" width="72" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
 				<expression><![CDATA[$F{royalty_fee}]]></expression>
 			</element>
-			<element kind="textField" style="fee_cell" x="354" y="0" width="80" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
+			<element kind="textField" style="fee_cell" x="376" y="0" width="76" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
 				<expression><![CDATA[$F{marketing_fee}]]></expression>
 			</element>
-			<element kind="textField" style="fee_cell" x="436" y="0" width="80" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
+			<element kind="textField" style="fee_cell" x="454" y="0" width="76" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
 				<expression><![CDATA[$F{total_invoiced}]]></expression>
 			</element>
-			<element kind="textField" style="fee_cell" x="518" y="0" width="76" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
+			<element kind="textField" style="fee_cell" x="532" y="0" width="72" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
 				<expression><![CDATA[$F{amount_paid}]]></expression>
 			</element>
-			<element kind="textField" style="fee_cell" x="596" y="0" width="76" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
+			<element kind="textField" style="fee_cell" x="606" y="0" width="72" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="$#,##0.00" blankWhenNull="true">
 				<expression><![CDATA[$F{balance}]]></expression>
 			</element>
 
-			<element kind="textField" x="674" y="0" width="46" height="16" fontSize="8.0" bold="true" forecolor="#D9534F" vTextAlign="Middle">
+			<element kind="textField" x="680" y="0" width="42" height="16" fontSize="8.0" bold="true" forecolor="#D9534F" vTextAlign="Middle">
 				<expression><![CDATA[$F{status}]]></expression>
 				<printWhenExpression><![CDATA["Overdue".equals($F{status})]]></printWhenExpression>
 			</element>
-			<element kind="textField" x="674" y="0" width="46" height="16" fontSize="8.0" forecolor="#1F4E79" vTextAlign="Middle">
+			<element kind="textField" x="680" y="0" width="42" height="16" fontSize="8.0" forecolor="#1F4E79" vTextAlign="Middle">
 				<expression><![CDATA[$F{status}]]></expression>
 				<printWhenExpression><![CDATA[!"Overdue".equals($F{status})]]></printWhenExpression>
 			</element>
 
-			<element kind="textField" style="fee_cell" x="722" y="0" width="60" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="#,##0" blankWhenNull="true">
+			<element kind="textField" style="fee_cell" x="724" y="0" width="58" height="16" hTextAlign="Right" vTextAlign="Middle" pattern="#,##0" blankWhenNull="true">
 				<expression><![CDATA[$F{days_overdue}]]></expression>
 			</element>
 		</band>

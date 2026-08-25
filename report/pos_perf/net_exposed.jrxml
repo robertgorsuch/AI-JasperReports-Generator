@@ -26,7 +26,7 @@
      pair: storenumber Integer, storename/region/store_format String,
      sales_per_sqft BigDecimal, competitors_2km Long (bare COUNT(*) scalar,
      this suite's established convention). Cockpit archetype: no parameters. -->
-<jasperReport name="net_exposed" language="java" pageWidth="800" pageHeight="440" columnWidth="780" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
+<jasperReport name="net_exposed" language="java" pageWidth="800" pageHeight="360" columnWidth="780" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10">
 
 	<query language="SQL"><![CDATA[
 SELECT s.storenumber, s.storename, s.region, s.store_format,
