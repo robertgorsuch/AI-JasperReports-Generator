@@ -199,7 +199,7 @@ Full details in `RUNBOOK.md` §3 and `plugins/jasper-deploy/skills/jasper-deploy
 
 ## POS performance dashboards (report/pos_perf)
 
-Six dashboards and five paginated reports on JasperReports Server, fed by
+Eight dashboards and eight paginated reports on JasperReports Server, fed by
 `robert.gorsuch` on the pos_data Avalanche warehouse through
 `/datasources/pos_data_avalanche`:
 
@@ -211,6 +211,8 @@ Six dashboards and five paginated reports on JasperReports Server, fed by
 | POS Store Profit and Budget | /reports/pos_perf/pos_store_pnl | report/pos_perf/pnl_dashboard.json |
 | POS Franchise Treasury | /reports/pos_perf/pos_treasury | report/pos_perf/trs_dashboard.json |
 | POS Retention and Churn | /reports/pos_perf/pos_retention_churn | report/pos_perf/chn_dashboard.json |
+| POS Supply and Inventory | /reports/pos_perf/pos_supply_inventory | report/pos_perf/sup_dashboard.json |
+| POS Workforce and Labour | /reports/pos_perf/pos_workforce_labour | report/pos_perf/lab_dashboard.json |
 
 | Report | URI | Reached from |
 |---|---|---|
@@ -219,6 +221,20 @@ Six dashboards and five paginated reports on JasperReports Server, fed by
 | Payables Aging and Payment Run | /reports/pos_perf/rpt_ap_aging | trs_dpo tile |
 | Sales Tax Remittance | /reports/pos_perf/rpt_tax_remittance | trs_tax_province tile |
 | Churn Action List | /reports/pos_perf/rpt_churn_action_list | chn_actions tile |
+| Inventory Reorder List | /reports/pos_perf/rpt_inventory_reorder | standalone |
+| Supplier Scorecard | /reports/pos_perf/rpt_supplier_scorecard | sup_scorecard tile |
+| Weekly Flash | /reports/pos_perf/rpt_weekly_flash | standalone |
+
+Supply and Inventory is a console (dashboard-level filter strip: Regions /
+Store / Category / Supplier, via `scripts/pos_perf/supply_controls.ps1`) over
+`inventory`, `purchase_orders`, `suppliers` and `shrinkage_log` read directly
+-- no new aggregate, same precedent as the Phase 1 AR/AP tiles. Workforce and
+Labour is a cockpit (no filter strip) over a new aggregate, `dash_labour`
+(store x calendar-date x shift grain, from `build_dash_labour.sql`), including
+a true JR7 crosstab heatmap (`lab_heatmap`) shading scheduled hours by
+sales-per-labour-hour. Weekly Flash is a standalone scorecard whose page 1
+(network KPIs vs prior week and a pro-rated monthly plan) and page 2
+(active-campaign detail) split by content height alone, no forced page break.
 
 Executive Overview and Promo Story render on a navy canvas (`#000032`); the
 other four are light. Franchise Treasury and Retention and Churn carry a

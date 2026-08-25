@@ -629,6 +629,33 @@ The config file is gitignored and the key never lands in a committed file. The
 API allows 2 requests per 5 seconds -- fetch the export once and re-run the
 script against the saved file.
 
+Verify the Phase 3 build on STAGE without a browser -- render all 13 units
+and diff the server against git:
+    New-Item -ItemType Directory -Force "out\pos_perf\phase3" | Out-Null
+    foreach ($u in @("sup_kpi","sup_stock_status","sup_gmroi","sup_scorecard","sup_shrink","lab_kpi","lab_heatmap","lab_format","lab_indexed","lab_conversion","rpt_inventory_reorder","rpt_supplier_scorecard","rpt_weekly_flash")) {
+        & "$jd\run_report_async.ps1" -ReportUri "/reports/pos_perf/$u" -Format pdf -OutFile "out\pos_perf\phase3\$u.pdf" -TimeoutSec 480
+    }
+    & "$jd\export_resource.ps1" -Uri /reports/pos_perf/pos_supply_inventory  -Out out\pos_perf\phase3\exp_pos_supply_inventory.zip
+    & "$jd\export_resource.ps1" -Uri /reports/pos_perf/pos_workforce_labour -Out out\pos_perf\phase3\exp_pos_workforce_labour.zip
+    & "$jd\export_resource.ps1" -Uri /reports/pos_perf/rpt_inventory_reorder  -Out out\pos_perf\phase3\exp_rpt_inventory_reorder.zip
+    & "$jd\export_resource.ps1" -Uri /reports/pos_perf/rpt_supplier_scorecard -Out out\pos_perf\phase3\exp_rpt_supplier_scorecard.zip
+    & "$jd\export_resource.ps1" -Uri /reports/pos_perf/rpt_weekly_flash       -Out out\pos_perf\phase3\exp_rpt_weekly_flash.zip
+`rpt_inventory_reorder` is an unfiltered 85,573-row pick list (2,000+ pages) --
+give it its own longer-timeout call if the loop above times out on it, same as
+this session did (2-minute default timeout was not enough).
+
+Run 2026-08-25: all 13 units render, and all 13 came back byte-identical to
+git (server bytes == git bytes exactly, not just after whitespace
+normalisation). `pos_supply_inventory` composed with 5 dashlets and the four
+supply controls (p_regions, sup_store, sup_category, sup_supplier) attached to
+all five tiles; `pos_workforce_labour` composed with 5 dashlets and no filter
+strip, matching the console/cockpit archetype split from the plan. sup_kpi at
+defaults: 12.1% out of stock, 5.0% overstock, 27.8 avg days of supply, 85.0%
+supplier on-time, 0.37% shrink of COGS. lab_kpi at defaults: 2020 labour cost
+about $35.2M, 8.4% of net sales. rpt_weekly_flash at its default week ending
+2020-11-08: week sales $7,191,916.49 (-4.4% vs prior week, -15.1% vs the
+pro-rated plan), 2 pages.
+
 ### Checks that need a human with a browser
 
 An agent cannot do these: dashboards do not render to PDF, and the filter strip
@@ -728,6 +755,37 @@ http://localhost:8081/jasperserver-pro; dashboards open at
    is wording or placement on chn_drivers.jrxml, not a change to what the tile
    counts -- ranking drivers across all four bands would just rank the
    population, which is the question chn_bands already answers.
+8. **Supply and Inventory filter strip.** Open pos_supply_inventory. Confirm a
+   strip renders with Regions / Store / Category / Supplier and an Apply
+   button. Set Category to a single value and press Apply; expect the Stock
+   Status, GMROI and Shrink by Reason tiles to narrow to that category while
+   Supplier Scorecard (which has no category column of its own -- see the
+   header comment on sup_scorecard.jrxml) does not move. Fallback if the strip
+   does not render or Apply is inert: drop the `filters` key from
+   report/pos_perf/sup_dashboard.json, add `"dashletFilterShowPopup": true`,
+   teardown and recompose -- the same downgrade Phase 1/2 document (one Apply
+   becomes five separate popups).
+9. **Supplier Scorecard drill click-test.** From pos_supply_inventory click a
+   supplier name in the Supplier Scorecard tile. Expect the paginated Supplier
+   Scorecard report to open with "Quarter: All" in its subtitle -- this drill
+   always opens unscoped by design, the same fixed-scope convention Phase 1
+   used for trs_tax_province -> rpt_tax_remittance.
+10. **Workforce and Labour heatmap read.** Open pos_workforce_labour. Confirm
+    the Scheduled Hours Heatmap tile reads as a heatmap to a human -- a 7x2
+    grid of cells shaded from light (`#D6E0EF`) to dark blue (`#0550DC`) by
+    sales-per-labour-hour, each cell printing its scheduled-hours number, not
+    just a compiled crosstab that happens to render. If it does not read as a
+    heatmap, the documented fallback in the file's header comment is a grouped
+    bar chart (day on the category axis, one series per shift) -- switch to it
+    only if the crosstab genuinely fails the eyeball test, not for polish.
+11. **Inventory Reorder List page-count sanity check.** Open
+    /reports/pos_perf/rpt_inventory_reorder at its default (`p_store="All"`)
+    and confirm it opens and paginates sensibly rather than hanging or timing
+    out in the viewer -- it is deliberately uncapped at 85,573 rows / 2,000+
+    pages (a real operational pick list, not a top-N sample). If it is
+    genuinely impractical to open in the viewer, the fix is a per-store
+    default or a documented cap, not a silent one; raise it rather than
+    unilaterally capping the report.
 
 ### PROD promotion of the Phase 1 finance suite (deferred, user-run)
 
@@ -956,3 +1014,120 @@ looking anywhere else; and `COUNT(DISTINCT col)` inside a derived table that
 also uses `FIRST n` throws `ERROR [5000B]: Rewriter error` on X100 -- compute
 the distinct count and the FIRST-n cap in separate subqueries/steps instead of
 combining them in one derived table.
+
+### PROD promotion of the Phase 3 operations suite (deferred, user-run)
+
+Not run by any agent -- auto-mode denies PROD writes. PROD is
+http://3.214.51.180:8080/jasperserver-pro. Run these one line at a time. This
+block promotes the 5 sup_* tiles, the 5 lab_* tiles, the 3 standalone reports
+(Inventory Reorder List, Supplier Scorecard, Weekly Flash), the three supply
+controls, `dash_labour`, and both dashboards. It is independent of the Phase
+1/2 blocks above and can be run before, after, or on its own; the only thing
+it shares with them is `p_regions`, which it does not create.
+
+Step -1, the STAGE-vs-git byte-diff precondition (see "Verify the Phase 3
+build on STAGE without a browser" above). Run 2026-08-25: all 13 units came
+back byte-identical to git. Re-run it before promoting anything -- do not
+promote a drifted copy.
+
+Step 0, the aggregate. Only `pos_workforce_labour` reads a new table
+(`dash_labour`, store x calendar-date x shift grain); the five sup_* tiles
+read `inventory`, `purchase_orders`, `suppliers` and `shrinkage_log` directly,
+matching the Phase 1 AR/AP precedent of no new aggregate for a small enough
+table. If PROD's `/datasources/pos_data_avalanche` points at the SAME
+warehouse STAGE uses (av-flm7ykoxlcvq), `dash_labour` is already there and
+this step is a no-op -- check with the verify script and compare against the
+Phase 3 acceptance figures above. If PROD points somewhere else, build it
+there first:
+    $adm = ".\.claude\skills\admiral\scripts"
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\build_dash_labour.sql  -ResourceId <prod-warehouse-id>
+    & "$adm\sql.ps1" -Action run-file -SqlFile scripts\pos_perf\verify_dash_labour.sql -ResourceId <prod-warehouse-id>
+This depends on `shift_schedules`, `date_dim` and `store_traffic` already
+existing on that warehouse; if they are absent this is a bigger job than a
+promotion and should stop here.
+
+Step 1, the supply controls:
+    . .\scripts\pos_perf\supply_controls.ps1 -Env prod
+    New-SupplyControls
+`New-SupplyControls` creates only the three supply-specific controls
+(sup_store, sup_category, sup_supplier) and their _query companions. It does
+NOT create `p_regions`, and must not -- `p_regions` already exists on PROD
+from the earlier Ops Console promotion and is shared with the Phase 1 Treasury
+and Phase 2 churn controls. Before Step 4 attaches it to five tiles, verify
+`/reports/pos_perf/controls/p_regions` exists on PROD (a GET, or just read the
+Step 5 counts).
+
+Step 2, tear the supply dashboard down (a tile of a live dashboard 403s with
+resource.in.use on redeploy; a 404 on a first promotion is expected and means
+nothing is there yet). `pos_workforce_labour` has no attached controls to
+worry about, but still tear it down before redeploying its tiles for the same
+resource.in.use reason:
+    $env:JRS_ENV = "prod"; $jd = ".\.claude\skills\jasper-deploy\scripts"
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_supply_inventory
+    & "$jd\teardown_dashboard.ps1" -Uri /reports/pos_perf/pos_workforce_labour
+
+Step 3, deploy all 13 report units. Labels must match what is live on STAGE or
+the manifests will not resolve -- the 10 tile labels are their own unit names,
+the 3 standalone reports carry prose labels:
+    $ds = "/datasources/pos_data_avalanche"
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\sup_kpi.jrxml               -TargetUri /reports/pos_perf/sup_kpi               -Label "sup_kpi"               -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\sup_stock_status.jrxml      -TargetUri /reports/pos_perf/sup_stock_status      -Label "sup_stock_status"      -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\sup_gmroi.jrxml             -TargetUri /reports/pos_perf/sup_gmroi             -Label "sup_gmroi"             -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\sup_scorecard.jrxml         -TargetUri /reports/pos_perf/sup_scorecard         -Label "sup_scorecard"         -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\sup_shrink.jrxml            -TargetUri /reports/pos_perf/sup_shrink            -Label "sup_shrink"            -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\lab_kpi.jrxml               -TargetUri /reports/pos_perf/lab_kpi               -Label "lab_kpi"               -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\lab_heatmap.jrxml           -TargetUri /reports/pos_perf/lab_heatmap           -Label "lab_heatmap"           -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\lab_format.jrxml            -TargetUri /reports/pos_perf/lab_format            -Label "lab_format"            -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\lab_indexed.jrxml           -TargetUri /reports/pos_perf/lab_indexed           -Label "lab_indexed"           -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\lab_conversion.jrxml        -TargetUri /reports/pos_perf/lab_conversion        -Label "lab_conversion"        -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\rpt_inventory_reorder.jrxml -TargetUri /reports/pos_perf/rpt_inventory_reorder -Label "Inventory Reorder List" -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\rpt_supplier_scorecard.jrxml -TargetUri /reports/pos_perf/rpt_supplier_scorecard -Label "Supplier Scorecard"   -DataSourceUri $ds -Overwrite -Backup
+    & "$jd\deploy_report.ps1" -Jrxml report\pos_perf\rpt_weekly_flash.jrxml       -TargetUri /reports/pos_perf/rpt_weekly_flash       -Label "Weekly Flash"          -DataSourceUri $ds -Overwrite -Backup
+
+Step 4, re-attach the controls the redeploy just dropped. Only the five sup_*
+tiles take any; the five lab_* tiles and the three standalone reports take
+none (Inventory Reorder List, Supplier Scorecard and Weekly Flash use plain
+String parameters with defaults, not attached JRS input controls):
+    . .\scripts\pos_perf\supply_controls.ps1 -Env prod
+    foreach ($u in @("sup_kpi","sup_stock_status","sup_gmroi","sup_scorecard","sup_shrink")) { Attach-SupplyControls -ReportUri "/reports/pos_perf/$u" }
+
+Step 5, GET-verify the counts (4 for each sup_* tile; any zero means step 4
+did not stick):
+    . ".\.claude\skills\jasper-deploy\scripts\_jrs_common.ps1"; $jrs = Resolve-JrsConfig
+    foreach ($r in @("sup_kpi","sup_stock_status","sup_gmroi","sup_scorecard","sup_shrink")) { $b = (Invoke-JrsGet -Jrs $jrs -Uri "/reports/pos_perf/$r").Body | ConvertFrom-Json; "{0,-18} {1}" -f $r, @($b.inputControls | Where-Object { $_ }).Count }
+
+Step 6, compose the two dashboards:
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\sup_dashboard.json -AutoGrid
+    & "$jd\compose_dashboard.ps1" -Manifest report\pos_perf\lab_dashboard.json -AutoGrid
+
+Step 7, smoke it, then put the shell back on STAGE (this last line is part of
+the procedure, not an afterthought):
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/sup_kpi -Format pdf -OutFile out\pos_perf\prod_sup_kpi.pdf
+    & "$jd\run_report_async.ps1" -ReportUri /reports/pos_perf/lab_kpi -Format pdf -OutFile out\pos_perf\prod_lab_kpi.pdf
+    $env:JRS_ENV = "stage"
+Expected in prod_sup_kpi.pdf: Out of Stock 12.1%, Overstock 5.0%, Avg Days of
+Supply 27.8, Supplier On-Time 85.0%, Shrink pct of COGS about 0.37%. Expected
+in prod_lab_kpi.pdf: 2020 Labour Cost about $35.2M, about 8.4% of Net Sales,
+Active Staff 2,340. Different numbers mean PROD is pointed at a different
+warehouse.
+
+Step 8, then run browser checks 8, 9, 10 and 11 above against the PROD URL
+before calling the promotion done -- the filter strip, the drill click and the
+heatmap eyeball are not provable from a PDF.
+
+Phase 3 gotchas, on top of the Phase 1/2 lists above: `sup_scorecard` and
+`sup_shrink` each declare all four supply parameters but only use the ones
+their source table actually has a column for (`suppliers` has no region,
+store or category column; `shrinkage_log` has no region or supplier column) --
+this is intentional per-tile scoping, not a bug to "fix" into a WHERE clause
+that would return zero rows; a WITH clause used as a derived table inside a
+FROM clause fails on this X100 install with `ERROR [42500]: Table 'with' does
+not exist or is not owned by you`, even though a top-level `WITH ... SELECT`
+statement works fine in this suite's standalone .sql build scripts -- rewrite
+as nested derived-table subqueries instead; and the JR7 design validator caps
+`title.height + pageHeader.height + columnHeader.height + columnFooter.height
++ pageFooter.height` at `pageHeight - topMargin - bottomMargin` -- on
+rpt_weekly_flash's 842px portrait page with 30px margins and a 20px
+columnHeader, that is a hard 762px ceiling on the title band, discovered via
+`compile_jrxml.ps1` (not `lint_jrxml.ps1`, which does not catch it) failing
+with `JRValidationException: ... do not fit the page height`.
