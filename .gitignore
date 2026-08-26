@@ -84,3 +84,7 @@ backups/
 
 # Wobby API credentials (public repo - never commit)
 wobby.config.json
+
+# Model binaries live in the warehouse MLflow registry, not in git.
+# They are large, and a pickle is an execution vector in a public repo.
+scripts/pos_perf/*.joblib
