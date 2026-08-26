@@ -94,6 +94,151 @@ EXPERIMENTS = {
             "forward_assumptions": "weather from day-of-year climatology, promos_active from month x weekday mean",
         },
     },
+    "pos-price-elasticity": {
+        "note": (
+            "Own-price elasticity per PLU from the monthly pricebook panel, 942 products over "
+            "24 months.\n\n"
+            "OBSERVATIONAL, NOT CAUSAL. Prices were not randomly assigned, and a retailer "
+            "promotes what it expects to sell, so price and expected demand move together. The "
+            "design removes the two largest confounders it can: within-PLU first differences, so "
+            "permanent product quality cannot masquerade as price sensitivity, and month "
+            "demeaning, so chain-wide shocks like the March 2020 pantry-loading spike are not "
+            "read as a price response. What survives is a ranked hypothesis, to be settled by a "
+            "price test.\n\n"
+            "700 of 803 eligible PLUs had the 6 consecutive-month differences needed to fit "
+            "individually. The rest inherit a category elasticity and are labelled as such. "
+            "Per-PLU estimates are shrunk toward their category by empirical Bayes, which "
+            "measurably helps: out-of-time correlation with actual demand change rises from "
+            "0.146 unshrunk to 0.250 shrunk.\n\n"
+            "READ THE CALIBRATION BEFORE USING THE NUMBERS. The out-of-time slope of actual on "
+            "predicted is 0.50, so these elasticities rank price sensitivity usefully but "
+            "overstate how far demand actually moves, by about 2x. elasticity_shrunk is the "
+            "ranking column; elasticity_calibrated is what optimal_price and the margin columns "
+            "are computed from. R2 against a no-response null is near zero: direction is "
+            "informative, magnitude is not."
+        ),
+        "tags": {"grain": "plu x month", "target": "log units",
+                 "estimator": "within-PLU first difference, month demeaned, OLS through origin",
+                 "shrinkage": "empirical Bayes toward category",
+                 "causal_status": "observational -- ranked hypothesis, not a causal effect",
+                 "calibration_slope": "0.50 -- magnitudes overstate response by about 2x",
+                 "output_table": "plu_price_elasticity",
+                 "source_tables": "pricebook_history, products",
+                 "source_script": "scripts/pos_perf/price_elasticity_model.py"},
+    },
+    "pos-basket-reco": {
+        "note": (
+            "Item-item market-basket recommender over 62.1M basket-item rows and 915 "
+            "products.\n\n"
+            "Co-occurrence is built only from the 17.4M baskets before 2020-11-01 and evaluated "
+            "on 300,000 held-out baskets after it, leave-one-out: hide one item, rank candidates "
+            "from the rest, record where the hidden item landed. Items already visible in the "
+            "basket are excluded from the ranking.\n\n"
+            "The baseline that matters is POPULARITY. Most grocery baskets contain staples, so "
+            "recommending the chain bestsellers to everyone is already decent, and plenty of "
+            "recommenders never beat it. This one does: cosine reaches MRR 0.1538 and hit@10 "
+            "0.3048 against popularity at 0.0628 and 0.1578, a 2.45x improvement on MRR.\n\n"
+            "Cosine beats lift (MRR 0.0951). Lift is sharper on genuinely associated pairs but "
+            "noisier on thin support, and the cosine normalisation handles staples better.\n\n"
+            "66.4 percent of stored recommendations sit in the same category as their anchor: "
+            "high enough to be sensible for grocery, low enough that the model is doing more "
+            "than restating the category tree."
+        ),
+        "tags": {"grain": "item-item", "scorers": "popularity, cosine, lift",
+                 "best_scorer": "cosine", "headline_metric": "MRR 0.1538, hit@10 0.3048",
+                 "beats_baseline": "2.45x popularity on MRR",
+                 "output_table": "plu_recommendations",
+                 "serving": "the pair table IS the model -- a SQL lookup, no fitted estimator",
+                 "source_script": "scripts/pos_perf/basket_reco_model.py"},
+    },
+    "pos-customer-clv": {
+        "note": (
+            "Forward 6-month gross margin per customer, over the 39.6M-row customer_month "
+            "panel.\n\n"
+            "THE OBJECTIVE CHOICE IS THE POINT. This uses squared error, the conditional MEAN, "
+            "deliberately opposite to the demand models which use absolute error. Roughly 40 "
+            "percent of customers spend nothing in the next six months, so a median objective "
+            "would price almost everyone at zero and the portfolio total would collapse. The one "
+            "property a CLV number must have is that summing it across customers reproduces "
+            "expected margin.\n\n"
+            "AGGREGATE ACCOUNTS ARE EXCLUDED. 74 customer_ids shop at more than 20 of the 330 "
+            "stores. customer_id 0 alone covers all 330, with 1,003,697 transactions and 24.1M "
+            "of sales: that is the unidentified walk-in bucket, not a shopper. The 74 hold 29.4M, "
+            "3.9 percent of all chain sales. Left in they destroy the model, and the first run "
+            "proved it -- R2 0.02 with RMSE 1790 while a persistence baseline that merely tracked "
+            "those same accounts scored R2 0.9987. Note those 74 also appear in "
+            "customer_churn_scores, so the pre-existing churn model scored them as people.\n\n"
+            "Validation is out of time across two genuinely different cohorts: trained as-of "
+            "2019-12 for 2020 H1, validated as-of 2020-06 for 2020 H2. Forward activity falls "
+            "from 71.4 to 60.2 percent between them.\n\n"
+            "Judge it on portfolio calibration and decile separation, not point accuracy."
+        ),
+        "tags": {"grain": "customer", "horizon": "6 months", "target": "forward gross margin",
+                 "objective": "squared_error -- conditional mean, not median",
+                 "baseline": "margin_l6 persistence",
+                 "population_filter": "excludes 74 aggregate accounts with more than 20 distinct stores",
+                 "output_table": "customer_clv_scores",
+                 "source_tables": "customer_month, customers, customer_demographics, customer_diet_profile, customer_ipt_stats",
+                 "source_script": "scripts/pos_perf/clv_model.py"},
+    },
+    "pos-shrink-anomaly": {
+        "note": (
+            "Peer-relative shrink outlier detection over store x category x month cells.\n\n"
+            "UNSUPERVISED. There is no shrink-fraud label in this data, so this is not a fraud "
+            "detector and must not be described as one. It measures how far each cell sits from "
+            "comparable stores in the same category and month and ranks the outliers for human "
+            "review. The output is a triage queue, not an accusation.\n\n"
+            "Everything is a rate against sales in the same cell, because a large store shrinks "
+            "more in absolute dollars simply by selling more, and comparisons are made within "
+            "category and month so an inherently wasteful category does not generate alarms. "
+            "Cells under 250 of sales are dropped: a rate on a tiny denominator is noise and is "
+            "the fastest way to fill a review queue with nothing.\n\n"
+            "Two detectors run side by side rather than blended: a robust z-score on the shrink "
+            "rate using median and MAD within category-month, and an IsolationForest over rate, "
+            "trend, reason concentration and event size. Where they disagree is informative.\n\n"
+            "With no labels there is no precision to report. Stability is the evidence available: "
+            "38.0 percent of flagged store-categories reflag in the second half against 27.6 "
+            "percent by chance, a 1.38x lift. That is real but modest, and it is stated that way. "
+            "Flagged cells are 5.46 percent of the population and hold 17.1 percent of shrink "
+            "dollars."
+        ),
+        "tags": {"grain": "store x category x month",
+                 "supervision": "UNSUPERVISED -- no shrink-fraud label exists",
+                 "intended_use": "ranked triage queue for human review, not an accusation",
+                 "detectors": "robust z-score and IsolationForest, reported separately",
+                 "stability_lift": "1.38x over chance -- real but modest",
+                 "concentration": "5.46 percent of cells hold 17.1 percent of shrink dollars",
+                 "output_table": "shrink_anomaly_scores",
+                 "source_script": "scripts/pos_perf/shrink_anomaly_model.py"},
+    },
+    "pos-supplier-reliability": {
+        "note": (
+            "Purchase-order lead time and on-time delivery across 92,472 orders and 12 "
+            "suppliers.\n\n"
+            "NEGATIVE RESULT -- DO NOT DEPLOY. Both heads fail against their baselines.\n"
+            "Lead time: model MAE 1.215 days against 1.205 days for expected_lead_days, the "
+            "number already printed on the PO. The model is slightly WORSE than the supplier "
+            "stated expectation, which costs nothing.\n"
+            "On time: AUC 0.5002, a coin flip. Whether a delivery arrives on time is not "
+            "predictable from anything known when the order is raised.\n\n"
+            "This is recorded rather than buried because the baselines were built specifically "
+            "to catch it. The supplier rollups that would have made this look good -- "
+            "on_time_pct, avg_fill_rate_pct -- were excluded because they are computed over every "
+            "order including the ones being predicted. Feeding a supplier its own future on-time "
+            "rate produces a spectacular and meaningless AUC.\n\n"
+            "Honest conclusion: in this dataset, lead-time variation around the expectation is "
+            "close to noise. Use expected_lead_days and size safety stock from the observed "
+            "residual spread. Revisit only with data this schema does not contain, such as "
+            "carrier, depot backlog at order time, or weather."
+        ),
+        "tags": {"grain": "purchase order", "target": "actual_lead_days and on_time",
+                 "result": "NEGATIVE -- does not beat the PO expectation",
+                 "lead_time_mae": "1.215 model vs 1.205 PO expectation",
+                 "on_time_auc": "0.5002 -- coin flip",
+                 "recommendation": "do not deploy; use expected_lead_days plus a residual-based buffer",
+                 "output_table": "supplier_reliability_forecast",
+                 "source_script": "scripts/pos_perf/supplier_reliability_model.py"},
+    },
     "pos-plu-weekly-demand": {
         "note": (
             "Weekly unit demand per store-PLU pair, 2 weeks ahead, to replace the static "
@@ -180,6 +325,78 @@ MODELS = {
             "per calendar day."
         ),
     },
+    "customer-clv": {
+        "experiment": "pos-customer-clv",
+        "note": (
+            "Forward 6-month gross margin per customer. Input is a clv_training_set row at an "
+            "as-of month; output is expected margin in CAD over the following six months.\n\n"
+            "Fitted on squared error, so the output is a conditional MEAN and sums across "
+            "customers are meaningful. Do not swap this for a median objective without "
+            "understanding that roughly 40 percent of customers have a true forward value of "
+            "zero.\n\n"
+            "Scored population EXCLUDES 74 aggregate accounts that shop at more than 20 stores "
+            "-- walk-in and sentinel IDs, not people. Apply the same filter before scoring or "
+            "the output will be dominated by them.\n\n"
+            "Clip at zero. Consume via the champion alias. Scoring is batch into "
+            "customer_clv_scores; there is no online serving path."
+        ),
+        "tags": {"task": "regression / customer value",
+                 "framework": "scikit-learn HistGradientBoostingRegressor",
+                 "loss": "squared_error (conditional mean)",
+                 "output_units": "CAD gross margin over 6 months",
+                 "postprocessing_required": "clip at zero; exclude aggregate accounts before scoring",
+                 "validation": "out-of-time across two cohorts with a real activity shift",
+                 "serialization": "cloudpickle"},
+        "version_note": (
+            "See the run metrics for portfolio calibration and decile separation, which matter "
+            "more than MAE for a value model. Population excludes 74 aggregate accounts."
+        ),
+    },
+    "shrink-anomaly": {
+        "experiment": "pos-shrink-anomaly",
+        "note": (
+            "IsolationForest over store-category-month shrink features. Output is an anomaly "
+            "score where HIGHER means more anomalous -- the negated sklearn score_samples.\n\n"
+            "This is one of two detectors, not the whole system. The robust z-score is computed "
+            "in the scoring script and both are written to shrink_anomaly_scores, so loading this "
+            "artifact alone gives you half the model.\n\n"
+            "Unsupervised: there is no fraud label. The output ranks cells for human review. Sort "
+            "the queue by excess_shrink_value rather than by score, to work it by money rather "
+            "than by strangeness."
+        ),
+        "tags": {"task": "unsupervised anomaly detection",
+                 "framework": "scikit-learn IsolationForest",
+                 "output_semantics": "higher score = more anomalous",
+                 "partial_system": "the robust z-score detector lives in the scoring script",
+                 "intended_use": "triage queue for human review",
+                 "serialization": "cloudpickle"},
+        "version_note": (
+            "Contamination 0.02. Stability lift over chance 1.38x, flagged cells hold 17.1 "
+            "percent of shrink dollars."
+        ),
+    },
+    "supplier-lead-time": {
+        "experiment": "pos-supplier-reliability",
+        "note": (
+            "DO NOT DEPLOY. Predicts actual purchase-order lead time and is slightly WORSE than "
+            "expected_lead_days, the number already on the PO: MAE 1.215 days against 1.205.\n\n"
+            "The companion on_time_classifier artifact on the same run scores AUC 0.5002, which "
+            "is a coin flip.\n\n"
+            "Registered for provenance, so the negative result is reproducible and nobody spends "
+            "a second week rediscovering it. Use expected_lead_days and size safety stock from "
+            "the observed residual spread instead."
+        ),
+        "tags": {"task": "regression / lead time",
+                 "framework": "scikit-learn HistGradientBoostingRegressor",
+                 "result": "NEGATIVE -- does not beat a baseline already available for free",
+                 "deploy": "NO",
+                 "kept_for": "provenance and reproducibility of the negative result",
+                 "serialization": "cloudpickle"},
+        "version_note": (
+            "Negative result. MAE 1.215 days against 1.205 for the PO expectation; companion "
+            "classifier AUC 0.5002. Retained so the finding is reproducible, not for use."
+        ),
+    },
     "plu-weekly-demand": {
         "experiment": "pos-plu-weekly-demand",
         "note": (
@@ -231,6 +448,12 @@ SUPERSEDED = {
         "SUPERSEDED -- do not use. Registered before predictions were clipped at "
         "zero, so this model's scoring path emitted 6 negative daily-sales values. "
         "Superseded by v2 and then v3. Use the champion alias."
+    ),
+    ("customer-clv", "1"): (
+        "SUPERSEDED -- do not use. Registered from a run that still included the 74 aggregate "
+        "accounts (customer_id 0 and other walk-in and sentinel IDs). Those 143 rows dominated "
+        "the squared-error objective completely: that run scored R2 0.02 with RMSE 1790, against "
+        "R2 0.4967 and RMSE 45.29 once they were excluded. Use the champion alias."
     ),
     ("store-day-demand", "2"): (
         "SUPERSEDED by v3. Functionally equivalent model, but registered on a run "
@@ -318,6 +541,10 @@ def main():
                      "verified_in_sql": "yes", "lifecycle": "champion",
                      "promoted_by": "scripts/pos_perf/mlflow_metadata.py"}.items():
             c.set_model_version_tag(name, latest.version, k, v)
+        if spec["tags"].get("deploy") == "NO":
+            c.set_model_version_tag(name, latest.version, "lifecycle", "not-for-deployment")
+            print(f"  model {name}: NO champion alias -- negative result", flush=True)
+            continue
         try:
             c.set_registered_model_alias(name, "champion", latest.version)
             alias = f", alias champion -> v{latest.version}"
