@@ -348,8 +348,14 @@ MODELS = {
                  "validation": "out-of-time across two cohorts with a real activity shift",
                  "serialization": "cloudpickle"},
         "version_note": (
-            "See the run metrics for portfolio calibration and decile separation, which matter "
-            "more than MAE for a value model. Population excludes 74 aggregate accounts."
+            "Trained on the as-of 2019-12 cohort, validated out of time on as-of 2020-06.\n"
+            "valid MAE 16.164, RMSE 45.29, R2 0.4967.\n"
+            "Baseline margin_l6 persistence: MAE 24.393, RMSE 50.04, R2 0.3856.\n"
+            "Portfolio calibration 0.967 against the baseline 1.170 -- the model prices the "
+            "whole book within 3.3 percent while persistence over-prices it by 17 percent.\n"
+            "Top-decile capture 0.470 against 0.391.\n"
+            "Population excludes 74 aggregate accounts holding 3.9 percent of chain sales. "
+            "Apply the same filter before scoring or the output is dominated by them."
         ),
     },
     "shrink-anomaly": {
@@ -371,8 +377,17 @@ MODELS = {
                  "intended_use": "triage queue for human review",
                  "serialization": "cloudpickle"},
         "version_note": (
-            "Contamination 0.02. Stability lift over chance 1.38x, flagged cells hold 17.1 "
-            "percent of shrink dollars."
+            "IsolationForest, 300 trees, contamination 0.02, fitted on 45,136 store x category "
+            "x month cells with at least 250 of sales.\n"
+            "Features: shrink rate, robust z, event count, units lost, dominant-reason share, "
+            "rate trend, excess shrink value.\n"
+            "No labels exist, so there is no precision to quote. Stability is the evidence: "
+            "38.0 percent of flagged store-categories reflag in the second half against 27.6 "
+            "percent by chance, a 1.38x lift -- real but modest.\n"
+            "Flagged cells are 5.46 percent of the population and hold 17.1 percent of shrink "
+            "dollars. Flagged mean rate 0.0149 against 0.0038 unflagged.\n"
+            "This artifact is only the IsolationForest half; the robust z-score detector lives "
+            "in the scoring script."
         ),
     },
     "supplier-lead-time": {
@@ -393,8 +408,15 @@ MODELS = {
                  "kept_for": "provenance and reproducibility of the negative result",
                  "serialization": "cloudpickle"},
         "version_note": (
-            "Negative result. MAE 1.215 days against 1.205 for the PO expectation; companion "
-            "classifier AUC 0.5002. Retained so the finding is reproducible, not for use."
+            "NEGATIVE RESULT. Retained for provenance, not for use.\n"
+            "Trained on 69,648 orders to 2020-06-30, evaluated on the 22,824 that follow.\n"
+            "Lead time MAE 1.215 days against 1.205 for expected_lead_days already on the PO, "
+            "and 1.797 for a training-mean baseline. The model sits between the two and loses "
+            "to the free one.\n"
+            "Companion on_time_classifier AUC 0.5002, PR 0.8465 against a base rate of 0.846 "
+            "-- the PR figure looks respectable only because 85 percent of orders arrive on "
+            "time. AUC is the honest read and it is a coin flip.\n"
+            "Supplier rollups were excluded on purpose: they span the orders being predicted."
         ),
     },
     "plu-weekly-demand": {
@@ -486,6 +508,109 @@ def token(attempts=3, timeout=90):
     raise last
 
 
+# Metrics worth putting in a run description, in the order a reader wants them.
+HEADLINE = ["wape", "mae", "rmse", "r2", "auc_roc", "auc_pr", "brier", "mrr",
+            "hit@10", "hit@5", "hit@1", "corr_pred_actual", "calibration_slope",
+            "portfolio_calibration", "top_decile_capture", "beats_popularity",
+            "stability_repeat_rate", "flagged_share"]
+
+
+def _pick(metrics, limit=8):
+    """Headline metrics first, in a fixed order, then anything else notable."""
+    out = []
+    for want in HEADLINE:
+        for k, v in metrics.items():
+            if k == want or k.endswith("_" + want):
+                out.append((k, v))
+                if len(out) >= limit:
+                    return out
+    return out
+
+
+def describe_runs(c):
+    """Give every run a description built from its own tags and metrics, and
+    mark which runs are superseded by a later run of the same name. Runs are
+    what a person actually browses in the UI, and an untitled wall of them is
+    the reason nobody trusts a tracking server."""
+    from mlflow.entities import ViewType
+    for name in list(EXPERIMENTS) + ["Default"]:
+        exp = c.get_experiment_by_name(name)
+        if exp is None:
+            continue
+        runs = c.search_runs([exp.experiment_id], run_view_type=ViewType.ALL, max_results=200)
+        if not runs:
+            continue
+        # Older runs predate per-run source_script tagging. Fall back to the
+        # experiment tag so every run names the script that produced it.
+        exp_script = (EXPERIMENTS.get(name, {}).get("tags", {}) or {}).get("source_script")
+        # newest run of each run-name is current, the rest are earlier attempts
+        seen = {}
+        for r in sorted(runs, key=lambda r: r.info.start_time or 0, reverse=True):
+            rn = r.data.tags.get("mlflow.runName", r.info.run_id[:8])
+            seen.setdefault(rn, []).append(r)
+        n_desc = 0
+        for rn, group in seen.items():
+            for i, r in enumerate(group):
+                current = (i == 0)
+                t, m = r.data.tags, r.data.metrics
+                lines = [f"{rn} -- {name}."]
+                if t.get("split"):
+                    lines.append(f"Split: {t['split']}.")
+                if t.get("diagnostic_only") == "True":
+                    lines.append("DIAGNOSTIC ONLY -- never shipped. It measures what a modelling "
+                                 "choice would have cost, not a candidate model.")
+                if t.get("is_winner") == "True":
+                    lines.append("This is the winning configuration for its experiment.")
+                if t.get("result", "").startswith("NEGATIVE"):
+                    lines.append("NEGATIVE RESULT -- the model does not beat its baseline. "
+                                 "Recorded so the finding is reproducible.")
+                picked = _pick(m)
+                if picked:
+                    lines.append("Key metrics: " + ", ".join(
+                        f"{k} {v:.4f}" for k, v in picked) + ".")
+                if not current:
+                    lines.append(f"SUPERSEDED by a later run named {rn}. Kept for history; "
+                                 "read the most recent one instead.")
+                script = t.get("source_script") or exp_script
+                lines.append(f"Produced by {script}." if script
+                             else "Produced by the POS model family.")
+                if script and "source_script" not in t:
+                    try:
+                        c.set_tag(r.info.run_id, "source_script", script)
+                    except Exception:
+                        pass
+                try:
+                    c.set_tag(r.info.run_id, "mlflow.note.content", "\n".join(lines))
+                    c.set_tag(r.info.run_id, "run_status", "current" if current else "superseded")
+                    if "owner" not in t:
+                        c.set_tag(r.info.run_id, "owner", OWNER)
+                        c.set_tag(r.info.run_id, "team", TEAM)
+                    n_desc += 1
+                except Exception:
+                    pass
+        print(f"  runs in {name}: {n_desc} described", flush=True)
+
+
+def label_default(c):
+    """The stock Default experiment. Left unlabelled it looks like a live home
+    for stray runs, which is exactly how tracking servers turn into landfill."""
+    exp = c.get_experiment_by_name("Default")
+    if exp is None:
+        return
+    try:
+        c.set_experiment_tag(exp.experiment_id, "mlflow.note.content",
+                             "Unused. This is the stock MLflow default experiment, kept only "
+                             "because it cannot be removed. Every POS model logs to a named "
+                             "pos-* experiment. Do not log here -- a run landing in Default is "
+                             "a misconfigured tracking URI or a missing set_experiment call.")
+        for k, v in {"owner": OWNER, "team": TEAM, "lifecycle": "unused",
+                     "do_not_use": "yes"}.items():
+            c.set_experiment_tag(exp.experiment_id, k, v)
+        print("  Default experiment: labelled unused", flush=True)
+    except Exception as e:
+        print(f"  SKIP Default: {type(e).__name__}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -555,11 +680,17 @@ def main():
     for (mname, ver), note in SUPERSEDED.items():
         try:
             c.update_model_version(mname, ver, description=note)
-            c.set_model_version_tag(mname, ver, "lifecycle", "superseded")
-            c.set_model_version_tag(mname, ver, "owner", OWNER)
+            for k, v in {"lifecycle": "superseded", "owner": OWNER, "team": TEAM,
+                         "validation_status": "superseded",
+                         "do_not_use": "yes",
+                         "promoted_by": "scripts/pos_perf/mlflow_metadata.py"}.items():
+                c.set_model_version_tag(mname, ver, k, v)
             print(f"  {mname} v{ver}: marked superseded", flush=True)
         except Exception as e:
             print(f"  SKIP {mname} v{ver}: {type(e).__name__}", flush=True)
+
+    describe_runs(c)
+    label_default(c)
 
     print("done", flush=True)
     return 0
