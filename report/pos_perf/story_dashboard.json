@@ -2,6 +2,9 @@
   "folder": "/reports/pos_perf",
   "name": "pos_promo_story",
   "label": "POS Promo and Margin Story",
+  "autoRefresh": true,
+  "showExportButton": true,
+  "showPrintButton": true,
   "canvasColor": "#000032",
   "dashlets": [
     {

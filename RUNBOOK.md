@@ -890,7 +890,55 @@ http://localhost:8081/jasperserver-pro; dashboards open at
     of the 75 eligible promotions visible, the fix is a drill to a paginated
     ranked list, not raising the cap on an already-dense bar chart.
 
-### PROD promotion of the Phase 1 finance suite (deferred, user-run)
+### PROD promotion EXECUTED 2026-08-27 (all four phases + Phase 0 fix)
+
+Run by the agent on 2026-08-27 on the user's explicit instruction, as one
+sequential pass over the four blocks below (the blocks are kept verbatim as
+the re-promotion recipe). What was done and verified:
+
+1. Preflight: STAGE exports of all 10 dashboards + 9 reports byte-diffed
+   against git. One drift: `rpt_franchisee_fee_statement` on STAGE was a JRS
+   re-serialization (uuid attrs, viewer.zoom, comments gone). Redeployed from
+   git on STAGE, controls re-attached, pos_treasury recomposed, re-export
+   byte-identical. PROD datasource `/datasources/pos_data_avalanche` confirmed
+   to point at the same warehouse as STAGE (av-flm7ykoxlcvq), so Step 0
+   aggregates were a no-op everywhere.
+2. Controls: New-FinanceControls, New-ChurnControls, New-SupplyControls,
+   New-FranchiseeControl on PROD; all 14 controls GET 200 (p_regions
+   pre-existed, untouched).
+3. Teardown x10, deploy all 60 units from git (Phase 1's 28 incl. the 12 navy
+   tiles + ops_region_bar + Phase 2's 7 + Phase 3's 13 + Phase 4's 11),
+   Attach-Controls per the four Step 4 lists, GET-verify: 0 count mismatches.
+4. Compose all 10 dashboards, smoke 10 PDFs: every expected figure in the
+   four Step 7 lists matched (pnl_kpi_strip, trs_kpi, chn_kpi, 14-page churn
+   list "Top 500 of 1,357,153", sup_kpi, lab_kpi $35,169,013, mkt_kpi,
+   net_exposed 4 rows, franchisee statement 4 pages $404,069.79).
+5. Final export of PROD: all 65 report units byte-identical to git (the five
+   untouched ops_* tiles included).
+6. Found and fixed: the accepted STAGE boards carried designer-level settings
+   the manifests could not express (scaleToFit "container" on P&L / Store
+   Network / Treasury tiles, export+print buttons on P&L / Promo Story /
+   Marketing, autoRefresh on P&L / Promo Story, right-aligned filter buttons
+   on Treasury). gen_dashboard.py now honours manifest keys `autoRefresh`,
+   `showExportButton`, `showPrintButton`, `filterButtonsPosition`,
+   `filterFloating` and per-dashlet `scaleToFit`; the five manifests were
+   synced from the pre-recompose STAGE exports and those boards recomposed on
+   PROD (and Treasury on STAGE, which step 1 had reverted). Component-level
+   compare against the accepted STAGE state: identical except a transient
+   `hovered:false` flag the designer had saved on three filter controls.
+   pos_retention_churn / pos_supply_inventory on PROD have a docked filter
+   strip (`floating:false`, today's gen_dashboard default); STAGE still has
+   the older floating strip on those two -- recompose STAGE to align.
+
+Still open after this run: the browser checks 1-15 above now apply to PROD
+(http://3.214.51.180:8080/jasperserver-pro) as well as STAGE;
+`/reports/pos_perf/spike_filter_test` is still standing on STAGE pending
+check 1. The `Invoke-JrsGet` helper returns `.Code` rather than throwing on a
+404, so existence checks must test `.Code -eq "200"`; and `deploy_report.ps1`
+reports success via Write-Host, which `2>&1` does not capture under PS 5.1
+-- capture with `*>&1` or verify by GET.
+
+### PROD promotion of the Phase 1 finance suite (recipe; executed 2026-08-27, see above)
 
 Not run by any agent -- auto-mode denies PROD writes. PROD is
 http://3.214.51.180:8080/jasperserver-pro. Run these one line at a time.
@@ -998,7 +1046,7 @@ seriesColor (every Phase 1 unit was authored without one); STAGE-to-PROD
 export/import fails with import.decode.failed (per-server key), so promote by
 deploying jrxml to PROD with -Env prod and recomposing there.
 
-### PROD promotion of the Phase 2 retention suite (deferred, user-run)
+### PROD promotion of the Phase 2 retention suite (recipe; executed 2026-08-27, see above)
 
 Not run by any agent -- auto-mode denies PROD writes. PROD is
 http://3.214.51.180:8080/jasperserver-pro. Run these one line at a time. This
@@ -1118,7 +1166,7 @@ also uses `FIRST n` throws `ERROR [5000B]: Rewriter error` on X100 -- compute
 the distinct count and the FIRST-n cap in separate subqueries/steps instead of
 combining them in one derived table.
 
-### PROD promotion of the Phase 3 operations suite (deferred, user-run)
+### PROD promotion of the Phase 3 operations suite (recipe; executed 2026-08-27, see above)
 
 Not run by any agent -- auto-mode denies PROD writes. PROD is
 http://3.214.51.180:8080/jasperserver-pro. Run these one line at a time. This
@@ -1235,7 +1283,7 @@ columnHeader, that is a hard 762px ceiling on the title band, discovered via
 `compile_jrxml.ps1` (not `lint_jrxml.ps1`, which does not catch it) failing
 with `JRValidationException: ... do not fit the page height`.
 
-### PROD promotion of the Phase 4 growth suite (deferred, user-run)
+### PROD promotion of the Phase 4 growth suite (recipe; executed 2026-08-27, see above)
 
 Not run by any agent -- auto-mode denies PROD writes. PROD is
 http://3.214.51.180:8080/jasperserver-pro. Run these one line at a time. This

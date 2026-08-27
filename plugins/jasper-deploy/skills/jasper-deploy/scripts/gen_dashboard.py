@@ -25,6 +25,11 @@ Manifest (JSON):
      "x": 0, "y": 0, "width": 22, "height": 10},
     ...
   ],
+  "autoRefresh": false, "showExportButton": false, "showPrintButton": false,
+                                           # optional dashboard toolbar props
+  "filterButtonsPosition": "bottom", "filterFloating": false,   # optional filterGroup props
+                                           # (dashlets may also carry "scaleToFit":
+                                           # "width" | "container" | "height", default width)
   "filters": ["p_from", "p_to", "p_regions"]   # optional: dashboard-level filter
                                                # strip (a filterGroup dashlet +
                                                # one inputControl per name, wired
@@ -60,7 +65,8 @@ def iso_now() -> str:
 FILTER_GROUP_ID = "FilterGroup"
 
 
-def build_filter_components(filters, ctl_folder, owner):
+def build_filter_components(filters, ctl_folder, owner, opts=None):
+    opts = opts or {}
     """One inputControl component per control name + the filterGroup that holds
     them. Field names/shape copied verbatim from a JRS 10 designer export
     (/public/Samples/Dashboards/1._Supermart_Dashboard and 4._New_Dashboard):
@@ -81,8 +87,10 @@ def build_filter_components(filters, ctl_folder, owner):
         })
     comps.append({
         "type": "filterGroup", "name": "Filters", "id": FILTER_GROUP_ID,
-        "filtersPerRow": max(1, len(filters)), "buttonsPosition": "bottom",
-        "applyButton": True, "resetButton": True, "floating": False,
+        "filtersPerRow": max(1, len(filters)),
+        "buttonsPosition": opts.get("filterButtonsPosition", "bottom"),
+        "applyButton": True, "resetButton": True,
+        "floating": bool(opts.get("filterFloating", False)),
         "toolbar": None,
     })
     return comps
@@ -91,13 +99,16 @@ def build_filter_components(filters, ctl_folder, owner):
 # --- the three companion files ----------------------------------------------
 def build_components(dashlets, dashlet_filter_popup=False,
                      filters=None, ctl_folder=None, owner=None,
-                     canvas_color="#ffffff") -> str:
+                     canvas_color="#ffffff", opts=None) -> str:
+    opts = opts or {}
     props = {
         "id": "DashboardProperties", "type": "dashboardProperties",
-        "name": "DashboardProperties", "autoRefresh": False,
+        "name": "DashboardProperties", "autoRefresh": bool(opts.get("autoRefresh", False)),
         "refreshInterval": 5, "refreshIntervalUnit": "minute",
-        "showDashletBorders": True, "showExportButton": False,
-        "showPrintButton": False, "dashletMargin": 5, "dashletPadding": 5,
+        "showDashletBorders": True,
+        "showExportButton": bool(opts.get("showExportButton", False)),
+        "showPrintButton": bool(opts.get("showPrintButton", False)),
+        "dashletMargin": 5, "dashletPadding": 5,
         "dashletFilterShowPopup": bool(dashlet_filter_popup), "useFixedSize": False,
         "fixedWidth": 1280, "fixedHeight": 800, "canvasColor": canvas_color,
         "titleBarColor": "rgba(0, 0, 0, 0)", "titleTextColor": "#454545",
@@ -140,7 +151,8 @@ def build_components(dashlets, dashlet_filter_popup=False,
             arr.append({
                 "type": "reportUnit", "label": d["label"], "resource": d["resource"],
                 "exposeOutputsToFilterManager": False, "dashletHyperlinkTarget": "",
-                "id": cid, "name": d["label"], "scaleToFit": "width",
+                "id": cid, "name": d["label"],
+                "scaleToFit": d.get("scaleToFit", "width"),
                 "autoRefresh": False, "refreshInterval": 5,
                 "refreshIntervalUnit": "minute",
                 "showTitleBar": bool(d.get("showTitleBar", True)),
@@ -151,7 +163,7 @@ def build_components(dashlets, dashlet_filter_popup=False,
                 "parameters": list(rpt_params), "showVizSelector": False,
             })
     if filters:
-        arr.extend(build_filter_components(filters, ctl_folder, owner))
+        arr.extend(build_filter_components(filters, ctl_folder, owner, opts))
     return json.dumps(arr, separators=(",", ":"))
 
 
@@ -388,7 +400,9 @@ def main():
         f"{files_base}/components.data": build_components(
             dashlets, m.get("dashletFilterShowPopup", False),
             filters, ctl_folder, owner,
-            m.get("canvasColor", "#ffffff")),
+            m.get("canvasColor", "#ffffff"),
+            {k: m[k] for k in ("autoRefresh", "showExportButton", "showPrintButton",
+                               "filterButtonsPosition", "filterFloating") if k in m}),
         f"{files_base}/layout": build_layout(dashlets, filters),
         f"{files_base}/wiring.data": build_wiring(dashlets, m.get("wiring"), filters),
     }

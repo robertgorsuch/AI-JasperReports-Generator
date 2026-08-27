@@ -41,6 +41,32 @@
       "type": "string",
       "description": "Human-readable dashboard label. The component id is derived from this via re.sub('[^0-9A-Za-z]','_', label), so keep labels unique across tiles."
     },
+    "autoRefresh": {
+      "type": "boolean",
+      "default": false,
+      "description": "Dashboard-level auto-refresh toggle (dashboardProperties.autoRefresh). Default false."
+    },
+    "showExportButton": {
+      "type": "boolean",
+      "default": false,
+      "description": "Show the dashboard Export button (dashboardProperties.showExportButton). Default false."
+    },
+    "showPrintButton": {
+      "type": "boolean",
+      "default": false,
+      "description": "Show the dashboard Print button (dashboardProperties.showPrintButton). Default false."
+    },
+    "filterButtonsPosition": {
+      "type": "string",
+      "enum": ["bottom", "right"],
+      "default": "bottom",
+      "description": "Where the filter strip's Apply/Reset buttons sit (filterGroup.buttonsPosition). Only used when 'filters' is set."
+    },
+    "filterFloating": {
+      "type": "boolean",
+      "default": false,
+      "description": "Float the filter strip instead of docking it (filterGroup.floating). Only used when 'filters' is set."
+    },
     "canvasColor": {
       "type": "string",
       "description": "Background colour of the dashboard canvas (the gutters between tiles), written to DashboardProperties.canvasColor. Default #ffffff. Set it to the tiles' own page background (e.g. #000032 for the navy POS boards) so the gutters do not read as white seams.",
@@ -95,6 +121,12 @@
           "name": {
             "type": "string",
             "description": "Tile name. For a report tile this is the leaf resource name (scaffolded + deployed under 'folder'). For text/image it is the component name only."
+          },
+          "scaleToFit": {
+            "type": "string",
+            "enum": ["width", "height", "container"],
+            "default": "width",
+            "description": "Report tile scaling (reportUnit.scaleToFit). Default width; 'container' matches a designer-set 'Scale to fit: container'."
           },
           "x": {
             "type": "integer",
