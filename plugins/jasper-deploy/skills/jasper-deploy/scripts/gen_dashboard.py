@@ -82,7 +82,7 @@ def build_filter_components(filters, ctl_folder, owner):
     comps.append({
         "type": "filterGroup", "name": "Filters", "id": FILTER_GROUP_ID,
         "filtersPerRow": max(1, len(filters)), "buttonsPosition": "bottom",
-        "applyButton": True, "resetButton": True, "floating": True,
+        "applyButton": True, "resetButton": True, "floating": False,
         "toolbar": None,
     })
     return comps
