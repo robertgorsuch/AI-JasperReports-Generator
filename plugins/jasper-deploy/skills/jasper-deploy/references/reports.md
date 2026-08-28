@@ -193,10 +193,10 @@ if ($r.Status -ne "OK") { throw $r.Message }
 $r.ControlsAttached      # 0 unless -Control/-QueryControl were given
 ```
 Failures throw (exit code 1 under `powershell -File`). A 403/400
-`resource.in.use` -- the report is a dashlet of a live dashboard and the PUT
-was not an in-place `-Overwrite` -- is explained with the dashboard(s) that
-reference it (`Get-JrsDashboardsReferencing`) and the two ways out: redeploy
-with `-Overwrite`, or `compose_dashboard.ps1 -Manifest ... -Backup` to export,
+`resource.in.use` -- the report is a dashlet of a live dashboard; the lock
+blocks `?overwrite=true` as well -- is explained with the dashboard(s) that
+reference it (`Get-JrsDashboardsReferencing`) and the way out:
+`compose_dashboard.ps1 -Manifest ... -Replace -Backup` to export,
 drop and recompose the owning dashboard.
 
 Existence checks: `Invoke-JrsGet` returns `{ Code = "404" }` instead of

@@ -96,7 +96,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "_jrs_common.ps1")
-. (Join-Path $PSScriptRoot "ensure_controls.ps1")     # ConvertTo-ControlSpec / Invoke-EnsureControls (main is guarded)
+. (Join-Path $PSScriptRoot "_controls_common.ps1")    # ConvertTo-ControlSpec / Invoke-EnsureControls. NEVER dot-source a script
+                                                       # that has a param() block: it re-binds $WhatIf etc. in THIS scope (see _controls_common.ps1)
 
 # =============================================================================
 # Manifest mode -- pure helpers (unit-tested, no server contact)
@@ -212,8 +213,10 @@ function Get-JrsReportJrxmlBytes($Jrs, [string]$Uri) {
 }
 
 function Get-ReportControlUris($Ru) {
-    if (-not $Ru -or -not ($Ru.PSObject.Properties.Name -contains "inputControls") -or -not $Ru.inputControls) { return @() }
-    return @(@($Ru.inputControls) | ForEach-Object { $_.inputControlReference.uri } | Where-Object { $_ })
+    # ",@()" -- a bare "return @()" emits NOTHING to the caller ($null), and @($null)
+    # then has Count 1, which made "keep"/"ATTACH" decisions compare 0 vs 1.
+    if (-not $Ru -or -not ($Ru.PSObject.Properties.Name -contains "inputControls") -or -not $Ru.inputControls) { return ,@() }
+    return ,@(@($Ru.inputControls) | ForEach-Object { $_.inputControlReference.uri } | Where-Object { $_ })
 }
 
 function Get-JrxmlCompare([byte[]]$Local, [byte[]]$Remote) {
@@ -259,7 +262,7 @@ function Get-PromotePlan($Steps, $From, $To) {
                 $exists = ($have.Count -gt 0)
                 $want = @($want); $have = @($have)
                 $same = ($want.Count -eq $have.Count) -and -not @($want | Where-Object { $have -notcontains $_ })
-                $action = if ($want.Count -eq 0) { "none to attach" } elseif ($same) { "keep ($($want.Count) attached)" } else { "ATTACH $($want.Count): $($want -join ', ')" }
+                $action = if ($want.Count -eq 0) { "none to attach" } elseif ($same) { "keep ($($want.Count) attached; re-verified live after the tile step)" } else { "ATTACH $($want.Count): $($want -join ', ')" }
                 $s.Tile | Add-Member -NotePropertyName ResolvedControls -NotePropertyValue @($want) -Force
             }
             "compose"  { $exists = [bool](Get-JrsResourceOrNull $To $s.Uri); $action = "COMPOSE (replace) from $(Split-Path -Leaf $s.Manifest)" }
@@ -377,8 +380,18 @@ function Invoke-PromotePlan($Plan, $Manifests, $From, $To, [switch]$EnsureContro
                 }
             }
             "attach"   {
+                # Decide from LIVE target state, not the plan: the tile step above may
+                # have re-created the report unit (PUT ?overwrite=true assigns version 0
+                # and drops inputControls), so a plan-time "keep (N attached)" is stale.
+                # 2026-08-28 incident: this staleness left 22 PROD tiles with no
+                # controls and made every dashboard import silently skip.
                 $want = @($s.Tile.ResolvedControls)
-                if ($want.Count -gt 0 -and $s.Action.StartsWith("ATTACH")) { Set-JrsReportControls $To $s.Uri $want; Write-Host "    attached $($want.Count) control(s)" }
+                if ($want.Count -gt 0) {
+                    $have = @(Get-ReportControlUris (Get-JrsResourceOrNull $To $s.Uri))
+                    $same = ($want.Count -eq $have.Count) -and -not @($want | Where-Object { $have -notcontains $_ })
+                    if ($same) { Write-Host "    controls already attached ($($have.Count), verified live)" }
+                    else { Set-JrsReportControls $To $s.Uri $want; Write-Host "    attached $($want.Count) control(s) (live had $($have.Count))" }
+                }
             }
             "compose"  {
                 $mf = @($Manifests | Where-Object { $_.Path -eq $s.Manifest })[0]

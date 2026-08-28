@@ -1,5 +1,30 @@
 # Changelog — jasper-deploy plugin
 
+## 1.2.1 (2026-08-28) -- incident fixes
+
+A `promote.ps1 -Manifest ... -WhatIf` run against PROD was NOT read-only and
+tore the pos_perf suite down (10 dashboards deleted, 22 tiles re-created
+without their input controls). Root causes and fixes:
+
+- `promote.ps1` dot-sourced `ensure_controls.ps1` to borrow functions; that
+  script's `param([switch]$WhatIf, ...)` re-bound `$WhatIf` to `$false` in the
+  caller. Shared functions moved to `_controls_common.ps1` (no param block);
+  new `tests/dotsource.Tests.ps1` fails any dot-source of a script that
+  declares parameters. (G60)
+- `deploy_report.ps1 -Overwrite`: `?overwrite=true` re-creates the unit and
+  drops `inputControls`; the live list is now carried into the PUT body unless
+  `-Control*` supplies new ones. Docs corrected: the overwrite is not in-place
+  and does not bypass a dashboard lock. (G21, G61)
+- `promote.ps1` attach phase decides from LIVE target state after the tile
+  step instead of the plan-time snapshot. (G63)
+- `import_resource.ps1` prints the import state's `warnings[]` /
+  `errorDescriptor` (a "finished" import can still have skipped resources).
+- `Get-ReportControlUris` / restore helper: `return ,@()` so empty lists do
+  not reach callers as `$null`; `ensure_controls.ps1` no longer assigns its
+  parsed spec into its own `[string]$Spec` parameter. (G62)
+- Repo: `scripts/pos_perf/restore_prod_pos.ps1` (plan by default, `-Apply`
+  writes) re-attaches controls from STAGE and recomposes the 10 dashboards.
+
 ## 1.2.0 (2026-08-28)
 
 Driven by the POS suite build/promotion sessions (Aug 20-27): every manual loop

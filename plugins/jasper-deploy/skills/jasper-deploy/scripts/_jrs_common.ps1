@@ -148,8 +148,8 @@ function Invoke-JrsPut {
         [Parameter(Mandatory)][string]$Uri,
         [Parameter(Mandatory)][string]$ContentType,
         [Parameter(Mandatory)][string]$JsonFile,
-        [switch]$Overwrite                       # update in place (no delete) and
-                                                 # bypass the optimistic-lock 409
+        [switch]$Overwrite                       # ?overwrite=true: bypasses the optimistic-lock 409 but
+                                                 # RE-CREATES the resource (version 0); still 403s under a dashboard lock
     )
     $url = "$($Jrs.ServerUrl)/rest_v2/resources$Uri" + "?createFolders=true"
     if ($Overwrite) { $url += "&overwrite=true" }

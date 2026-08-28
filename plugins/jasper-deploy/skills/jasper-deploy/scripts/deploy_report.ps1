@@ -37,7 +37,7 @@
   object instead:  $r = & .\deploy_report.ps1 ...; if ($r.Status -ne "OK") { ... }
   Failures throw (terminating error, exit code 1 from powershell -File). A
   403/400 `resource.in.use` (the report is a dashlet of a live dashboard and
-  the PUT was not an in-place -Overwrite) is explained with the list of
+  its lock also blocks an ?overwrite=true PUT) is explained with the list of
   dashboards that reference the report and the recompose hint.
 
 .EXAMPLE
@@ -161,10 +161,13 @@ if ($ResourceFiles) {
 
 # --- PUT to REST v2 -------------------------------------------------------
 # JRS uses optimistic locking, so a plain re-PUT over an existing report unit
-# fails with 409 "versions not match". -Overwrite passes ?overwrite=true, which
-# updates the resource IN PLACE -- no delete, so it also works for a report that
-# is a dependency of a dashboard (a delete-then-create would 403 on the delete,
-# since referenced resources are delete-protected).
+# fails with 409 "versions not match". -Overwrite passes ?overwrite=true.
+# Observed on JRS 10.0.0: overwrite=true RE-CREATES the unit (version resets to
+# 0, creationDate = now, inputControls dropped unless the body carries them --
+# see the preserve block below) and it is still refused with 403
+# resource.in.use while a live dashboard references the report. Tear the
+# dashboard down / recompose with -Replace first (promote.ps1 -Manifest orders
+# this for you).
 
 # --- optional rollback safety: export the current version before overwriting ---
 if ($Backup -and $Overwrite) {
@@ -187,8 +190,33 @@ if ($Backup -and $Overwrite) {
     }
 }
 
+# --- -Overwrite preserves the existing input-control attachments ---------------
+# PUT ?overwrite=true re-creates the unit (version 0) and DROPS inputControls.
+# Unless this call attaches its own (-Control / -QueryControl / -QueryMultiControl),
+# carry the live list over so a redeploy never silently strips a filter board.
+# (2026-08-28: a manifest promotion redeployed 22 PROD tiles this way and every
+# dashboard import then skipped because its filter wiring had no controls.)
+$keepIcJson = $null
+if ($Overwrite -and -not ($Control -or $QueryControl -or $QueryMultiControl)) {
+    $cur0 = Invoke-JrsGet -Jrs $jrs -Uri $TargetUri
+    if ("$($cur0.Code)" -eq "200") {
+        try {
+            $o0 = $cur0.Body | ConvertFrom-Json
+            $keep = @()
+            if ($o0.PSObject.Properties.Name -contains "inputControls") { $keep = @($o0.inputControls | ForEach-Object { $_.inputControlReference.uri } | Where-Object { $_ }) }
+            if ($keep.Count -gt 0) {
+                # literal JSON: PS 5.1 ConvertTo-Json unwraps a one-element array (gotcha G56)
+                $keepIcJson = "[" + (($keep | ForEach-Object { '{"inputControlReference":{"uri":"' + $_ + '"}}' }) -join ",") + "]"
+                Write-Host "  preserving $($keep.Count) attached input control(s) across the overwrite"
+            }
+        } catch { }
+    }
+}
+
 $jsonFile = [IO.Path]::GetTempFileName()
-($desc | ConvertTo-Json -Depth 8) | Set-Content -Path $jsonFile -Encoding utf8
+$descJson = ($desc | ConvertTo-Json -Depth 8)
+if ($keepIcJson) { $descJson = $descJson -replace '^\{', ('{"inputControls":' + $keepIcJson + ',') }
+$descJson | Set-Content -Path $jsonFile -Encoding utf8
 try {
     $r = Invoke-JrsPut -Jrs $jrs -Uri $TargetUri -Overwrite:$Overwrite `
         -ContentType "application/repository.reportUnit+json" -JsonFile $jsonFile
@@ -197,10 +225,10 @@ try {
 }
 
 # --- resource.in.use: the report is a dashlet of a live dashboard and this PUT
-#     was not an in-place update (no -Overwrite, or the server refused it). The
-#     dashboard holds a delete-lock on its tiles, so say WHICH dashboard(s) so
-#     the operator can recompose them (compose_dashboard.ps1 -Backup) or retry
-#     with -Overwrite, instead of guessing from a bare 403.
+#     (with or without -Overwrite -- the lock blocks both). The dashboard holds
+#     a delete-lock on its tiles, so say WHICH dashboard(s) so the operator can
+#     recompose them (compose_dashboard.ps1 -Replace -Backup) instead of
+#     guessing from a bare 403.
 if ("$($r.Code)" -notmatch '^2\d\d$' -and "$($r.Body)" -match 'resource\.in\.use') {
     $owners = @()
     try { $owners = @(Get-JrsDashboardsReferencing -Jrs $jrs -Uri $TargetUri) } catch { $owners = @() }
@@ -208,9 +236,10 @@ if ("$($r.Code)" -notmatch '^2\d\d$' -and "$($r.Body)" -match 'resource\.in\.use
            else { "referenced by a dashboard (search via GET rest_v2/resources?type=dashboard found no match; it may live in another folder or organization)" }
     Write-Host "resource.in.use: $TargetUri is $who"
     throw ("deploy of $TargetUri failed (HTTP $($r.Code)): resource.in.use -- $who. " +
-           "Either redeploy with -Overwrite (updates the unit in place, keeps the dashboard lock), " +
-           "or take the dashboard down and back up: compose_dashboard.ps1 -Manifest <manifest> -Backup " +
-           "(exports it first, deletes it, releases the lock, recomposes). See references/gotchas.md (Dashboards).")
+           "-Overwrite does not help (the lock blocks ?overwrite=true too). Take the dashboard down and back up: " +
+           "compose_dashboard.ps1 -Manifest <manifest> -Replace -Backup (exports it first, deletes it, releases the lock, " +
+           "redeploy the tile, recompose) -- or promote.ps1 -Manifest, which orders teardown -> tiles -> compose. " +
+           "See references/gotchas.md (G21).")
 }
 Assert-JrsOk -Response $r -Operation "deploy of $TargetUri failed" | Out-Null
 Write-Host "OK ($($r.Code)): deployed $TargetUri"

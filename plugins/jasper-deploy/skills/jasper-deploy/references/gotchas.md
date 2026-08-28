@@ -60,7 +60,9 @@ ASCII only. Terse on purpose.
 | G18 | PUT dashboard stores 201 but never renders | raw PUT skips the designer/import broker work | never PUT; compose + import | [#g18](#g18) |
 | G19 | `ExtractToDirectory: the given path's format is not supported` | absolute `-WorkDir` joined to CWD | pass an absolute `-WorkDir` (fixed) | [#g19](#g19) |
 | G20 | recompose silently keeps the OLD layout | import will not overwrite companion files | delete the dashboard first (default) | [#g20](#g20) |
-| G21 | 403 `resource.in.use` re-deploying a dashlet report | dashlet locked by its dashboard | `-Overwrite` in place, or delete the dashboard | [#g21](#g21) |
+| G21 | 403 `resource.in.use` re-deploying a dashlet report | dashlet locked by its dashboard; `?overwrite=true` is blocked too | recompose the dashboard with `-Replace` (teardown -> tile -> compose); `promote.ps1 -Manifest` orders it | [#g21](#g21) |
+| G61 | redeployed tile lost its input controls; dashboard import then "finishes" but creates nothing | `PUT ?overwrite=true` RE-CREATES the unit (version 0) and drops `inputControls`; the dashboard's filter wiring then has a broken dependency and the importer skips it silently | `deploy_report.ps1 -Overwrite` now carries the live list over; promote attach phase decides from LIVE state; `import_resource.ps1` prints import warnings | [#g61](#g61) |
+| G63 | promotion said "keep (N attached)" but the target ends with 0 controls | plan computed before the tile step re-created the unit (stale plan-time state) | attach phase re-reads the target after the tile step (1.2.1) | [#g63](#g63) |
 | G22 | imported dashboard is a silent no-op | back-slash zip entries | forward-slash entries + `index.xml` | [#g22](#g22) |
 | G23 | designer edits reverted on recompose | stale manifest | `sync_manifest_from_dashboard.ps1` first | [#g23](#g23) |
 | G24 | dashboard URL "No flow definition found" | no `dashboardRuntimeFlow` | `dashboard/viewer.html#%2F...` | [#g24](#g24) |
@@ -106,6 +108,8 @@ ASCII only. Terse on purpose.
 | G42 | uploaded image will not resolve via `repo:` | uploaded as `png`/`jpg` | `upload_file.ps1 -Type img` | [jrs-rest-api.md#g42](jrs-rest-api.md#g42) |
 | G56 | one-item list rejected (`ArrayList from String value`) | PS 5.1 `ConvertTo-Json` unwraps single-element arrays | `@()` / `-InputObject` / `,$arr`, or hand-built JSON | [jrs-rest-api.md#g56](jrs-rest-api.md#g56) |
 | G57 | inputControl PUT `Cannot deserialize ... from String "singleValue"` | write API wants numeric type codes | 2 single, 3 LOV, 4 query, 6 multi LOV, 7 multi query | [jrs-rest-api.md#g57](jrs-rest-api.md#g57) |
+| G60 | a `-WhatIf` / `-DryRun` script WROTE to the server | it dot-sourced a helper script that has its own `param()` block; dot-sourcing re-runs that block and re-binds `$WhatIf`, `$Env`, ... to defaults in the caller's scope | dot-source only param-less files (`_jrs_common.ps1`, `_controls_common.ps1`); `tests/dotsource.Tests.ps1` enforces it | [#g60](#g60) |
+| G62 | a function's empty result makes `@(...)`.Count 1, or `$x.Controls` is null after `$x = Read-...` | `return @()` emits nothing (caller gets `$null`; `@($null)` has Count 1); `$spec` and `[string]$Spec` are the SAME variable, so the object is coerced to a string | `return ,@()`; never reuse a parameter name (any case) for a local | [#g62](#g62) |
 
 ## Permissions / attributes / admin, reports, collateral
 
@@ -193,15 +197,16 @@ ASCII only. Terse on purpose.
 
 ### G21
 - Symptom: 403 `resource.in.use` (naming the owning dashboard) when re-deploying a
-  report that is already a dashlet.
-- Cause: a dashlet report is modification-locked by its owning dashboard (delete or
-  `?overwrite=true` PUT alike).
-- Fix: delete/recreate the owning dashboard (or compose under a new name) to push
-  report changes. An in-place `?overwrite=true` update dodges delete-protection on
-  referenced resources.
-- Handled-by: `deploy_report.ps1 -Overwrite` updates in place (no delete);
-  `build_dashlets.ps1` treats 403 as "in-use (kept)", not a failure;
-  `teardown_dashboard.ps1` deletes the dashboard first.
+  report that is already a dashlet -- with OR without `-Overwrite`.
+- Cause: a dashlet report is modification-locked by its owning dashboard. On 10.0.0
+  `PUT ?overwrite=true` is a delete+re-create (the unit comes back at version 0),
+  so the lock blocks it exactly like a DELETE. (Earlier text here claimed the
+  overwrite "dodges" the lock; the 2026-08-28 PROD run and a STAGE retest disproved it.)
+- Fix: recompose the owning dashboard: `compose_dashboard.ps1 -Manifest ... -Replace
+  -Backup` (export, delete, redeploy tiles, import), or `promote.ps1 -Manifest`,
+  which orders teardown -> folders -> controls -> tiles -> attach -> compose.
+- Handled-by: `deploy_report.ps1` names the owning dashboard(s) and the recompose
+  command; `build_dashlets.ps1` treats 403 as "in-use (kept)"; `teardown_dashboard.ps1`.
 
 ### G22
 - Symptom: imported dashboard archive is a silent no-op.
@@ -233,3 +238,49 @@ ASCII only. Terse on purpose.
   first. The script also releases the COM object in a `finally` block so a failed run
   leaves no orphaned `WINWORD.EXE`.
 - Handled-by: `make_docx.ps1`.
+
+### G60
+- Symptom: `promote.ps1 -Manifest ... -WhatIf` tore down every PROD dashboard
+  (2026-08-28). The script's own `if ($WhatIf) { return }` was correct.
+- Cause: `. (Join-Path $PSScriptRoot "ensure_controls.ps1")` to borrow two functions.
+  Dot-sourcing executes the target's `param([switch]$WhatIf, [string]$Env, ...)`
+  in the CALLER's scope with no arguments, so `$WhatIf` became `$false`.
+- Fix: shared functions live in files with no `param()` block
+  (`_controls_common.ps1`); scripts never dot-source each other.
+  `tests/dotsource.Tests.ps1` parses every script and fails on a dot-source of a
+  file that declares parameters.
+- Rule for any dry-run flag: prove it against STAGE with the write helpers stubbed
+  to throw before pointing it at PROD.
+
+### G61
+- Symptom: after a tile redeploy the report unit has `version 0`, a new
+  creationDate and NO `inputControls`; the next dashboard import returns
+  `phase=finished` but the dashboard does not exist.
+- Cause: `PUT rest_v2/resources/<uri>?overwrite=true` re-creates the unit from
+  the body; a body without `inputControls` clears the attachments. The dashboard
+  archive's filter wiring then references controls the tiles no longer carry and
+  the importer skips the dashboard (its warnings were not printed before 1.2.1).
+- Fix: `deploy_report.ps1 -Overwrite` GETs the live unit first and carries its
+  `inputControls` into the PUT body (literal JSON, see G56) unless `-Control*`
+  supplies new ones. `import_resource.ps1` prints `warnings[]` / `errorDescriptor`.
+  To repair: re-PUT each unit with the reference server's list, then recompose
+  (`scripts/pos_perf/restore_prod_pos.ps1` in the repo is the worked example).
+
+### G62
+- Symptom: `Get-Controls` "returned" an empty list but the caller saw `$null`
+  and reported every tile as MISSING; `ensure_controls.ps1 -Spec` said
+  "ensure 0 input control(s) under" although the file had 7.
+- Cause: (a) `return @()` writes nothing to the pipeline, so the caller receives
+  `$null`, and `@($null).Count` is 1. (b) `$spec = Read-ControlSpecFile -Path $Spec`
+  assigns into the `[string]$Spec` parameter (names are case-insensitive) and the
+  object is coerced to `"@{Folder=...}"`.
+- Fix: `return ,@()` / `return ,@($list)`; use a distinct local name (`$specObj`).
+
+### G63
+- Symptom: promotion plan printed `keep (4 attached)` for a tile, execution
+  redeployed the tile, and the target ended with 0 controls.
+- Cause: the plan was annotated from target state BEFORE execution; the tile step
+  re-created the unit (G61) and the attach step trusted the stale "keep".
+- Fix: the attach phase re-reads the live unit after the tile step and attaches
+  whenever live != wanted (`promote.ps1` 1.2.1). Plan lines now say
+  "re-verified live after the tile step".

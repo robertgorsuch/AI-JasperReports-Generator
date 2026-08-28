@@ -520,7 +520,7 @@ Handled-by (the script or flag that already deals with it). ASCII only.
 ### G33
 - Symptom: re-deploying an existing report fails `409 versions not match`.
 - Cause: optimistic locking.
-- Fix: `-Overwrite` (now updates in place via `?overwrite=true`, no delete).
+- Fix: `-Overwrite` (`?overwrite=true`). Observed 10.0.0: this RE-CREATES the unit (version 0, inputControls dropped unless the body carries them -- deploy_report carries them since 1.2.1) and still 403s under a dashboard lock (G21).
 - Handled-by: `deploy_report.ps1 -Overwrite`.
 
 ### G34

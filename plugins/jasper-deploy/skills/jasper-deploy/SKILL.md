@@ -151,8 +151,10 @@ $cfg = Get-Content plugins/jasper-deploy/skills/jasper-deploy/jrs.config.json | 
 curl.exe -s -u "$($cfg.user):$($cfg.pass)" -o out.pdf `
     "$($cfg.url)/rest_v2/reports/reports/geocoder/county_summary.pdf"
 ```
-Re-deploy with **`-Overwrite`** (updates in place via `?overwrite=true`, no
-delete). Full scaffold flags (templates, charts, `--param/--group-by/--highlight/
+Re-deploy with **`-Overwrite`** (`?overwrite=true`; NOTE this re-creates the
+unit -- version resets to 0 -- and it still 403s under a live dashboard's lock,
+so recompose the dashboard with `-Replace` first; existing input-control
+attachments are carried over automatically since 1.2.1). Full scaffold flags (templates, charts, `--param/--group-by/--highlight/
 --drill/--crosstab/--subreport`, style templates, CSV adapters, visualization
 components) are in `references/reports.md`; deploy input-control options
 (`-Control`, `-QueryControl`, cascading) are in `references/admin-and-scheduling.md`.
@@ -200,6 +202,12 @@ handling, and designer-authored dashboards are in `references/dashboards.md`.
   inline (`-d`), which gets quotes mangled → `400 serialization.error`. (These
   hold under pwsh 7 too, so the file-based curl bodies are also what make the
   scripts portable to macOS/Linux.)
+- **Never dot-source a script that has a `param()` block.** Dot-sourcing re-runs
+  that block in YOUR scope and resets `$WhatIf`, `$Env`, ... to defaults (this is
+  how a `promote.ps1 -WhatIf` wrote to PROD on 2026-08-28, gotcha G60). Shared
+  functions live only in param-less files: `_jrs_common.ps1`,
+  `_controls_common.ps1` (input-control spec/ensure helpers).
+  `tests/dotsource.Tests.ps1` enforces this.
 - **Existence checks:** `Invoke-JrsGet` returns `.Code` and never throws on 404;
   use `Test-JrsResource` / `Assert-JrsResource` (`_jrs_common.ps1`). Deploy scripts
   now emit a result object on the pipeline (Write-Host lines are NOT captured by

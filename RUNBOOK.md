@@ -938,6 +938,44 @@ check 1. The `Invoke-JrsGet` helper returns `.Code` rather than throwing on a
 reports success via Write-Host, which `2>&1` does not capture under PS 5.1
 -- capture with `*>&1` or verify by GET.
 
+### INCIDENT 2026-08-28: promote.ps1 -WhatIf wrote to PROD (restore procedure)
+
+What happened: an agent ran
+`promote.ps1 -Manifest report/pos_perf -FromEnv stage -ToEnv prod -WhatIf`
+expecting a read-only plan. `-WhatIf` was silently reset to `$false` (the
+script dot-sourced `ensure_controls.ps1`, whose `param()` block re-bound the
+variable -- gotcha G60). Effects on PROD, measured read-only afterwards with
+`verify_suite.ps1 -Env prod -ByteDiff` and a STAGE-vs-PROD attachment diff:
+- all 10 `/reports/pos_perf/pos_*` dashboards deleted (teardown phase);
+- all 56 tiles re-created from git (`PUT ?overwrite=true`), bodies sha256-identical
+  to `report/pos_perf/*.jrxml`;
+- the 22 tiles of the four filter boards (chn_*, ops_*, sup_*, trs_*) lost their
+  input-control attachments (G61); the 34 unfiltered tiles never had any;
+- the first recompose (pos_retention_churn) reported "finished" but created
+  nothing (broken filter dependency), which is where the run stopped;
+- input-control resources under `/reports/pos_perf/controls` are intact;
+- STAGE untouched (`verify_suite -Env stage`: 87/87).
+
+Fixes shipped in jasper-deploy 1.2.1 (see its CHANGELOG): param-less
+`_controls_common.ps1` + dot-source guard test, `deploy_report -Overwrite`
+carries attachments over, promote attach phase uses live state,
+`import_resource` prints import warnings.
+
+Restore (PROD write -- run by a human, one command, idempotent):
+
+    .\scripts\pos_perf\restore_prod_pos.ps1            # plan: 22 "would attach", 10 "would compose"
+    .\scripts\pos_perf\restore_prod_pos.ps1 -Apply     # phase 1 re-attach from STAGE, phase 2 recompose, phase 3 verify
+
+Expected end state: `verify_suite.ps1 -Manifest report/pos_perf -Env prod`
+reports 0 FAIL; then run browser checks 5-15 against PROD as before.
+The plan mode was validated against PROD on 2026-08-28 (read-only) and the
+attach + compose mechanics were proven on STAGE the same day.
+
+Policy reminder (already stated above, now also in agent memory): no agent
+points a write-capable script at PROD, dry-run flags included, unless the
+user explicitly asks for that exact run and the dry-run path has been proven
+on STAGE with the write helpers stubbed.
+
 ### PROD promotion of the Phase 1 finance suite (recipe; executed 2026-08-27, see above)
 
 Not run by any agent -- auto-mode denies PROD writes. PROD is
