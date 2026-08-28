@@ -112,10 +112,81 @@ embedded ad hoc views, `layout` and `wiring`). The export archive holds the
 dashboard `.xml` descriptor + `_files/{components.data,layout,wiring.data}` + each
 embedded ad hoc view.
 
+## Recompose = replace -- `compose_dashboard.ps1 -Replace`
+A recompose over an existing dashboard is ONE logged transaction:
+`[backup] -> DELETE dashboard -> import fresh archive -> verify`. That is the
+default; `-Replace` names it explicitly (idempotent: same manifest in, same
+dashboard out, any number of times) and `-KeepExisting` skips the delete
+(rarely wanted -- the import then cannot change the live layout). `-Backup`
+exports the old dashboard to `-BackupDir` first; the archive path comes back
+as `BackupPath`. `-Env <profile>` targets a named environment; `-EnsureControls`
+creates the manifest's `controls` first (see below). The script returns a
+result object on the pipeline:
+```powershell
+$r = & $skill\compose_dashboard.ps1 -Manifest report\pos_perf\trs_dashboard.json -Replace -Backup -Env prod
+$r   # Uri, Code, Replaced, BackupPath, Dashlets, ModelResources, ViewUrl
+```
+If the import is blocked by `403 resource.in.use` (a tile still owned by a live
+dashboard, e.g. after `-KeepExisting`) or by `import.decode.failed` (an archive
+exported by a different server), the error names the fix.
+
+## Declarative input controls -- `ensure_controls.ps1` and the manifest `controls` key
+The per-suite control scripts (`New-FinanceControls`, `New-ChurnControls`, ...)
+are generalised into one JSON-driven, idempotent script:
+```powershell
+& $skill\ensure_controls.ps1 -Spec fixtures\controls.example.json -Env prod -WhatIf   # plan only
+& $skill\ensure_controls.ps1 -Spec report\pos_perf\trs_dashboard.json -Env prod        # manifest "controls" key
+```
+It GETs each `<folder>/<name>` first and creates only what is absent (the
+`_lov` / `_query` / `_dt` sub-resource, then the `inputControl`). `-Update`
+PUTs existing controls in place; a `403 resource.in.use` (the control is
+attached to a report unit) is a warning that names the fix, never a silent
+no-op. Spec shape (standalone file, or the `controls` key of a manifest):
+```jsonc
+{ "folder": "/reports/x/controls", "dataSourceUri": "/datasources/x",
+  "controls": [
+    { "name": "p_yyyymm", "label": "Month", "type": 3, "values": ["202401=202401", "..."] },
+    { "name": "p_store",  "label": "Store", "kind": "query",
+      "query": "SELECT DISTINCT storenumber FROM stores ORDER BY 1", "valueColumn": "storenumber" },
+    { "name": "p_franchisee", "kind": "multiquery", "query": "SELECT id AS fv, name AS fl FROM f",
+      "valueColumn": "fv", "labelColumn": "fl" },
+    { "name": "p_asof", "type": 2, "dataType": "date" } ] }
+```
+Type codes: 1 bool, 2 single value, 3 single-select LOV, 4 single-select
+query, 5 multi value, 6 multi-select LOV, 7 multi-select query. In a manifest
+the folder defaults to `filterControlFolder` / `<folder>/controls` and the
+datasource to the manifest `dataSourceUri`; a manifest whose `filters` strip
+names controls should declare them here so a promotion can create them. A
+per-dashlet `"controls": ["p_asof", "/full/uri"]` lists what to re-attach to
+that report unit after a redeploy (`deploy_report.ps1 -Overwrite` drops
+attachments); omit it and `promote.ps1` copies the source server's list.
+
 ## Promote dev→prod — `promote.ps1`
 `promote.ps1 -Uri <uri> -ToServerUrl … -ToUser … -ToPassword …` exports from the
 source (this skill's config by default, or `-From*`) and imports into the target
-server in one step (a folder URI promotes a whole app).
+server in one step (a folder URI promotes a whole app). Named profiles:
+`-FromEnv stage -ToEnv prod`.
+
+**Manifest mode** replays the whole hand-run suite promotion (RUNBOOK "PROD
+promotion" recipes: controls, teardown, 28 deploys, attach, recompose) from the
+compose manifests, in dependency-safe order across every manifest given:
+```powershell
+& $skill\promote.ps1 -Manifest report\pos_perf\*_dashboard.json -FromEnv stage -ToEnv prod -EnsureControls -WhatIf
+& $skill\promote.ps1 -Manifest report\pos_perf\*_dashboard.json -FromEnv stage -ToEnv prod -EnsureControls -Backup
+```
+Phases: (1) tear down every target dashboard (`teardown_dashboard.ps1`; frees
+the `resource.in.use` locks) -> (2) ensure folders -> (3) ensure input
+controls (manifest `controls` spec, else copy the source's definition of each
+`filters` control) -> (4) deploy each DISTINCT tile once: a local jrxml
+(dashlet `jrxml`, manifest `outDir`, or beside the manifest) goes through
+`deploy_report.ps1 -Overwrite`; otherwise export+import from the source (which
+can fail with `import.decode.failed` across servers -- keep the jrxml local)
+-> (5) re-attach each tile's controls -> (6) `compose_dashboard.ps1 -Replace`
+per dashboard on the target. `-WhatIf` prints the full plan -- what exists on
+the target, the action per step, and a byte comparison of each local jrxml
+against the target's (`identical` tiles are skipped and only re-attached) --
+and issues GETs only. `-Manifest` accepts a file, a directory (every `*.json`
+with `dashlets`), or a glob.
 
 ## Teardown — `teardown_dashboard.ps1`
 `teardown_dashboard.ps1 -Uri <dash> [-IncludeReports] [-DryRun]` deletes the

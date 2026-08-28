@@ -85,7 +85,13 @@ that area** — the deep detail lives there, not here.
 | Report thumbnail image (cheap visual check, no export) | `get_thumbnail.ps1` | `references/reports.md` |
 | Diagnostic log collector (support bundle for a failing report) | `manage_diagnostic.ps1` | `references/admin-and-scheduling.md` |
 | Compose a dashboard from a manifest | `build_dashlets.ps1 -Compose` (descriptor synthesis: `gen_dashboard.py`) | `references/dashboards.md` |
-| Re-sync a manifest from a designer-edited live dashboard | `sync_manifest_from_dashboard.ps1` (+ `sync_manifest.py`) | `references/dashboard-model.md` |
+| Verify a deployed dashboard suite without a browser (exists / render / server-vs-git jrxml byte-diff / controls vs manifest `filters`; read-only, exit 1 on FAIL) | `verify_suite.ps1 -Manifest <path|dir|glob> -Env stage|prod [-Render] [-ByteDiff]` | `references/ci-smoke.md` |
+| Promote a whole dashboard suite from manifests (teardown -> controls -> tiles -> attach -> recompose; `-WhatIf` prints the plan, writes nothing) | `promote.ps1 -Manifest` | `references/dashboards.md` |
+| Ensure input controls declaratively from a JSON spec / manifest `controls` key (idempotent, `-WhatIf`) | `ensure_controls.ps1` (+ `fixtures/controls.example.json`) | `references/dashboards.md` |
+| Recompose = replace (one delete+import transaction, `-Backup`, result object) | `compose_dashboard.ps1 -Replace` | `references/dashboard-model.md` |
+| Lint a dashboard manifest (.json): `filterFloating` pinned, dashlets under `folder`, duplicate names | `lint_jrxml.ps1 -Manifest` | `references/manifest.schema.json` |
+| Scaffold SQL for an Actian X100 datasource (refuses ordered/correlated aggregates, `;` in comments) | `scaffold_jrxml.py --dialect x100 [--check-only]` | `references/x100-sql.md` |
+| Re-sync a manifest IN PLACE from a designer-edited live dashboard (presentation keys, filter docking, diff, `-WhatIf`) | `sync_manifest_from_dashboard.ps1 -Manifest` (+ `sync_manifest.py --merge`) | `references/dashboard-model.md` |
 | Export/import/promote/teardown a dashboard or resource | `export_resource.ps1`, `import_resource.ps1`, `promote.ps1`, `teardown_dashboard.ps1` | `references/dashboards.md` |
 | Promote between named environments (STAGE→PROD, `-FromEnv`/`-ToEnv`) | `promote.ps1` | `references/security-and-config.md` |
 | Domain (semantic layer) — single-table or multi-table with joins | `scaffold_domain_schema.py` + `create_domain.ps1` | `references/data-and-semantic-layer.md` |
@@ -106,9 +112,9 @@ that area** — the deep detail lives there, not here.
 | Extract metadata + column-level lineage (read-only; OpenLineage out) | `extract_lineage.py` | `references/catalog-connector-pdd.md` |
 | Detect live-vs-committed resource drift | `diff_resource.ps1` | `references/admin-and-scheduling.md` |
 | Apply a whole environment from one manifest (plan by default, `-Apply`) | `reconcile.ps1` | `references/environment.schema.json` |
-| Preflight: is this environment ready to deploy? | `doctor.ps1` | `references/security-and-config.md` |
-| Doc/link consistency check (CI guard) | `check_docs.ps1` | — |
-| Troubleshoot a deploy/fill error by symptom | — | `references/gotchas.md` |
+| Preflight: toolchain, server, chart-customizer jar SHA, real repo-DB port from context.xml, every env profile version | `doctor.ps1` (`jrsWebappDir` in jrs.config.json) | `references/server-administration.md` |
+| Doc/link consistency + junction/duplication guard (CI) | `check_docs.ps1` | — |
+| Troubleshoot a deploy/fill error by symptom (index; detail lives in jr7-schema / jrs-rest-api / data-and-semantic-layer / x100-sql) | — | `references/gotchas.md` |
 | What changed 9.0 → 10.0 → 10.1 (features, platforms, upgrade paths, promote compatibility) | — | `references/version-matrix.md` |
 | Plan an upgrade/migration from ANY version 4.7+ (START at sec 0 field-reported issues, then upgrade ladder, platform cliffs, EOL dates, mitigations, checklist) | — | `references/upgrade-migration-playbook.md` |
 | Per-era source depth: platform support 4.7→10.1, upgrade-guide procedures 5.6→10.1, relnotes/install/deprecation timeline | — | `references/version-archive/{platform-evolution,upgrade-procedures,relnotes-install-deltas}.md` |
@@ -194,6 +200,10 @@ handling, and designer-authored dashboards are in `references/dashboards.md`.
   inline (`-d`), which gets quotes mangled → `400 serialization.error`. (These
   hold under pwsh 7 too, so the file-based curl bodies are also what make the
   scripts portable to macOS/Linux.)
+- **Existence checks:** `Invoke-JrsGet` returns `.Code` and never throws on 404;
+  use `Test-JrsResource` / `Assert-JrsResource` (`_jrs_common.ps1`). Deploy scripts
+  now emit a result object on the pipeline (Write-Host lines are NOT captured by
+  `2>&1` under PS 5.1) - capture the object, or verify by GET.
 - **Cross-platform:** scripts call `Get-JrsCurl` / `Get-JrsPython` / `Get-JrsNull`
   (in `_jrs_common.ps1`) instead of hardcoding `curl.exe` / `python` / `NUL`, and
   use `/` path separators — so the same scripts run on Windows and under pwsh 7 on

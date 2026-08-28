@@ -26,6 +26,20 @@
 .PARAMETER DataSourceUri
   Repository URI of an EXISTING datasource, e.g. /datasources/postgis_34_sample.
 
+.PARAMETER Env
+  Named profile under "environments" in jrs.config.json (e.g. stage, prod).
+
+.OUTPUTS
+  One PSCustomObject on the pipeline (New-JrsDeployResult in _jrs_common.ps1):
+    Uri, Code (HTTP), Status (OK), ControlsAttached (int), Message.
+  The human-readable progress lines go to the host stream only, which a
+  `2>&1` redirect does NOT capture under Windows PowerShell 5.1 -- test the
+  object instead:  $r = & .\deploy_report.ps1 ...; if ($r.Status -ne "OK") { ... }
+  Failures throw (terminating error, exit code 1 from powershell -File). A
+  403/400 `resource.in.use` (the report is a dashlet of a live dashboard and
+  the PUT was not an in-place -Overwrite) is explained with the list of
+  dashboards that reference the report and the recompose hint.
+
 .EXAMPLE
   .\deploy_report.ps1 -Jrxml ..\..\report\county_summary.jrxml `
       -TargetUri /reports/geocoder/county_summary `
@@ -56,7 +70,8 @@ param(
     [string]$ControlsLayout = "popupScreen",
     [string]$ServerUrl,
     [string]$User,
-    [string]$Password
+    [string]$Password,
+    [string]$Env                # named profile in jrs.config.json "environments"
 )
 
 $ErrorActionPreference = "Stop"
@@ -102,7 +117,7 @@ if (-not $SkipLint) {
 }
 
 # --- resolve config (param -> env -> jrs.config.json, validated) ----------
-$jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password
+$jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password -Env $Env
 if (-not $DataSourceUri) { $DataSourceUri = $jrs.DataSourceUri }
 if (-not $TargetUri.StartsWith("/")) { $TargetUri = "/$TargetUri" }
 if (-not $Label) { $Label = [System.IO.Path]::GetFileNameWithoutExtension($jrxmlFull) }
@@ -164,6 +179,7 @@ if ($Backup -and $Overwrite) {
         if ($ServerUrl) { $cred.ServerUrl = $ServerUrl }
         if ($User)      { $cred.User = $User }
         if ($Password)  { $cred.Password = $Password }
+        if ($Env)       { $cred.Env = $Env }
         try {
             & $exporter -Uri $TargetUri -Out $bkPath @cred *>$null
             if (Test-Path $bkPath) { Write-Host "  backup: $TargetUri -> $bkPath" }
@@ -180,9 +196,27 @@ try {
     Remove-Item $jsonFile -ErrorAction SilentlyContinue
 }
 
+# --- resource.in.use: the report is a dashlet of a live dashboard and this PUT
+#     was not an in-place update (no -Overwrite, or the server refused it). The
+#     dashboard holds a delete-lock on its tiles, so say WHICH dashboard(s) so
+#     the operator can recompose them (compose_dashboard.ps1 -Backup) or retry
+#     with -Overwrite, instead of guessing from a bare 403.
+if ("$($r.Code)" -notmatch '^2\d\d$' -and "$($r.Body)" -match 'resource\.in\.use') {
+    $owners = @()
+    try { $owners = @(Get-JrsDashboardsReferencing -Jrs $jrs -Uri $TargetUri) } catch { $owners = @() }
+    $who = if ($owners.Count -gt 0) { "referenced by dashboard(s): " + ($owners -join ", ") }
+           else { "referenced by a dashboard (search via GET rest_v2/resources?type=dashboard found no match; it may live in another folder or organization)" }
+    Write-Host "resource.in.use: $TargetUri is $who"
+    throw ("deploy of $TargetUri failed (HTTP $($r.Code)): resource.in.use -- $who. " +
+           "Either redeploy with -Overwrite (updates the unit in place, keeps the dashboard lock), " +
+           "or take the dashboard down and back up: compose_dashboard.ps1 -Manifest <manifest> -Backup " +
+           "(exports it first, deletes it, releases the lock, recomposes). See references/gotchas.md (Dashboards).")
+}
 Assert-JrsOk -Response $r -Operation "deploy of $TargetUri failed" | Out-Null
 Write-Host "OK ($($r.Code)): deployed $TargetUri"
 if ($r.Body) { Write-Host $r.Body }
+$deployCode = "$($r.Code)"
+$controlsAttached = 0
 
 # --- input controls -------------------------------------------------------
 # Build each control as a standalone repository resource (the verified JRS
@@ -283,4 +317,11 @@ if ($Control -or $QueryControl -or $QueryMultiControl) {
     finally { Remove-Item $f2 -ErrorAction SilentlyContinue }
     Assert-JrsOk -Response $ur -Operation "attaching controls to $TargetUri failed" | Out-Null
     Write-Host "OK: attached $($icRefs.Count) input control(s) to $TargetUri"
+    $controlsAttached = $icRefs.Count
 }
+
+# --- pipeline result (the only thing this script writes to the output stream) --
+$msg = "deployed $TargetUri (HTTP $deployCode)"
+if ($controlsAttached -gt 0) { $msg += ", $controlsAttached input control(s) attached" }
+Write-Output (New-JrsDeployResult -Uri $TargetUri -Code $deployCode -Status OK `
+    -ControlsAttached $controlsAttached -Message $msg)

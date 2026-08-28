@@ -28,6 +28,7 @@ Manifest (JSON):
   "autoRefresh": false, "showExportButton": false, "showPrintButton": false,
                                            # optional dashboard toolbar props
   "filterButtonsPosition": "bottom", "filterFloating": false,   # optional filterGroup props
+  "filterStripHeight": 3,                  # grid rows of the filter strip (tiles shift down by it)
                                            # (dashlets may also carry "scaleToFit":
                                            # "width" | "container" | "height", default width)
   "filters": ["p_from", "p_to", "p_regions"]   # optional: dashboard-level filter
@@ -403,7 +404,8 @@ def main():
             m.get("canvasColor", "#ffffff"),
             {k: m[k] for k in ("autoRefresh", "showExportButton", "showPrintButton",
                                "filterButtonsPosition", "filterFloating") if k in m}),
-        f"{files_base}/layout": build_layout(dashlets, filters),
+        f"{files_base}/layout": build_layout(dashlets, filters,
+                                             int(m.get("filterStripHeight", 3))),
         f"{files_base}/wiring.data": build_wiring(dashlets, m.get("wiring"), filters),
     }
     # the folder chain that holds the dashboard must be described or the import

@@ -16,10 +16,27 @@
   Invoke-JrsPut      - PUT a descriptor file to /rest_v2/resources and return
                        the HTTP code + body.
   Invoke-JrsDelete   - DELETE a resource and return the HTTP code.
-  Invoke-JrsGet      - GET a resource (Accept json) -> { Code; Body }.
+  Invoke-JrsGet      - GET a resource (Accept json) -> { Code; Body }. It does
+                       NOT throw on 404: a missing resource comes back as
+                       { Code = "404"; Body = ... }, so a bare
+                       `if (Invoke-JrsGet ...)` is always truthy. Existence
+                       checks must use Test-JrsResource / Assert-JrsResource.
+  Test-JrsResource   - [bool] existence check: $true only when GET returns HTTP
+                       200. Takes -Jrs (a Resolve-JrsConfig object) or resolves
+                       one itself from -ServerUrl/-User/-Password/-Env/config.
+  Assert-JrsResource - throw a clear "not found on <server>" message unless the
+                       resource exists (same parameters as Test-JrsResource).
+  Get-JrsDashboardsReferencing
+                     - list the dashboard URIs whose descriptor references a
+                       resource (search GET rest_v2/resources?type=dashboard,
+                       then inspect each). Used by deploy_report.ps1 to explain
+                       a 403 resource.in.use.
+  New-JrsDeployResult - the result object deploy_report.ps1 emits on the
+                       pipeline: { Uri; Code; Status; ControlsAttached; Message }.
   Invoke-JrsDownload - GET any URL straight to a file (binary-safe), checking the
                        HTTP status. Use for PDF/XLSX/zip output where the string
                        body of Invoke-JrsGet/Rest would corrupt binary bytes.
+                       -TimeoutSec caps the transfer (curl --max-time).
   Assert-JrsOk       - throw a uniform error unless a { Code; Body } response
                        carries a 2xx (override -Ok to allow e.g. 404 on delete).
                        Replaces the inline `if (-notmatch '^2\d\d$') { throw }`.
@@ -169,6 +186,109 @@ function Invoke-JrsGet {
     return [pscustomobject]@{ Code = $code; Body = $body }
 }
 
+function Test-JrsResource {
+    # [bool] existence check for a repository URI: $true ONLY when the server
+    # answers HTTP 200 to GET /rest_v2/resources<uri>. Invoke-JrsGet deliberately
+    # returns { Code = "404" } instead of throwing, so `if (Invoke-JrsGet ...)`
+    # is always true -- use this (or Assert-JrsResource) for existence checks.
+    # Pass -Jrs (a Resolve-JrsConfig object) when calling in a loop; otherwise the
+    # server is resolved from -ServerUrl/-User/-Password/-Env -> env -> config.
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)][string]$Uri,
+        $Jrs,
+        [string]$ServerUrl, [string]$User, [string]$Password, [string]$Env
+    )
+    if (-not $Jrs) { $Jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password -Env $Env }
+    if (-not $Uri.StartsWith("/")) { $Uri = "/$Uri" }
+    $r = Invoke-JrsGet -Jrs $Jrs -Uri $Uri
+    return ("$($r.Code)".Trim() -eq "200")
+}
+
+function Assert-JrsResource {
+    # Throw unless the repository URI exists (HTTP 200). The message names the
+    # server and the HTTP code so a typo'd URI or a wrong -Env is obvious.
+    # Returns the URI so it can be used inline: $u = Assert-JrsResource -Uri ...
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Uri,
+        $Jrs,
+        [string]$ServerUrl, [string]$User, [string]$Password, [string]$Env,
+        [string]$What = "resource"                 # human label for the message
+    )
+    if (-not $Jrs) { $Jrs = Resolve-JrsConfig -ServerUrl $ServerUrl -User $User -Password $Password -Env $Env }
+    if (-not $Uri.StartsWith("/")) { $Uri = "/$Uri" }
+    $r = Invoke-JrsGet -Jrs $Jrs -Uri $Uri
+    $code = "$($r.Code)".Trim()
+    if ($code -ne "200") {
+        $where = if ($Jrs.Env) { "$($Jrs.ServerUrl) [env $($Jrs.Env)]" } else { "$($Jrs.ServerUrl)" }
+        throw "$What not found on ${where}: $Uri (HTTP $code)"
+    }
+    return $Uri
+}
+
+function Get-JrsDashboardsReferencing {
+    # Return the URIs of every dashboard whose descriptor references $Uri (a
+    # report unit that is a dashlet, a control, ...). Lists dashboards via
+    # GET /rest_v2/resources?type=dashboard, then GETs each descriptor and looks
+    # for the URI in its resources[] list (falls back to a body text match).
+    # Read-only. Returns an empty array when nothing references it.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Jrs,
+        [Parameter(Mandatory)][string]$Uri,
+        [string]$Folder = "/",                    # limit the search to a subtree
+        [int]$Limit = 1000
+    )
+    if (-not $Uri.StartsWith("/")) { $Uri = "/$Uri" }
+    $path = "/rest_v2/resources?type=dashboard&recursive=true&limit=$Limit&folderUri=$Folder"
+    $list = Invoke-JrsRest -Jrs $Jrs -Method GET -Path $path
+    if ("$($list.Code)" -ne "200" -or -not $list.Body) { return @() }
+    $items = @()
+    try {
+        $parsed = $list.Body | ConvertFrom-Json
+        if ($parsed -and ($parsed.PSObject.Properties.Name -contains "resourceLookup")) { $items = @($parsed.resourceLookup) }
+    } catch { return @() }
+    $hits = @()
+    foreach ($it in $items) {
+        if (-not $it.uri) { continue }
+        $d = Invoke-JrsGet -Jrs $Jrs -Uri $it.uri
+        if ("$($d.Code)" -ne "200") { continue }
+        $refs = @()
+        try {
+            $desc = $d.Body | ConvertFrom-Json
+            if ($desc.PSObject.Properties.Name -contains "resources") {
+                # each entry is { name; type; resource = { resourceReference = { uri } } }
+                $refs = @($desc.resources | ForEach-Object {
+                    if ($_.resource -and $_.resource.resourceReference) { "$($_.resource.resourceReference.uri)" }
+                    elseif ($_.resource -is [string]) { "$($_.resource)" }
+                    else { "$($_.name)" } })
+            }
+        } catch { }
+        if (($refs -contains $Uri) -or ($d.Body -match [regex]::Escape($Uri))) { $hits += "$($it.uri)" }
+    }
+    return @($hits)
+}
+
+function New-JrsDeployResult {
+    # The object deploy_report.ps1 writes to the pipeline (Write-Output), so a
+    # caller can `$r = & deploy_report.ps1 ...` and test $r.Status instead of
+    # scraping Write-Host lines (which `2>&1` does not capture under PS 5.1).
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Uri,
+        [string]$Code = "",
+        [ValidateSet("OK", "FAIL")][string]$Status = "OK",
+        [int]$ControlsAttached = 0,
+        [string]$Message = ""
+    )
+    return [pscustomobject]@{
+        Uri = $Uri; Code = "$Code"; Status = $Status
+        ControlsAttached = $ControlsAttached; Message = $Message
+    }
+}
+
 function Get-GotchaHint {
     # Map a JRS error (HTTP code + body) to a one-line pointer into the gotchas
     # catalog, so a failing call says WHERE to look. Returns "" if nothing matches.
@@ -220,12 +340,14 @@ function Invoke-JrsDownload {
         [Parameter(Mandatory)][string]$Url,
         [Parameter(Mandatory)][string]$OutFile,
         [string]$Accept,
-        [switch]$AllowError
+        [switch]$AllowError,
+        [int]$TimeoutSec = 0                       # 0 = no limit; else curl --max-time
     )
     $parent = Split-Path -Parent $OutFile
     if ($parent -and -not (Test-Path $parent)) { New-Item -ItemType Directory -Force $parent | Out-Null }
     $cArgs = @("-s", "-S", "-o", $OutFile, "-w", "%{http_code}", "-u", "$($Jrs.User):$($Jrs.Password)")
     if ($Accept) { $cArgs += @("-H", "Accept: $Accept") }
+    if ($TimeoutSec -gt 0) { $cArgs += @("--max-time", "$TimeoutSec") }
     $cArgs += $Url
     $code = "$(& (Get-JrsCurl) @cArgs)".Trim()
     if (-not $AllowError -and $code -notmatch '^2\d\d$') {
